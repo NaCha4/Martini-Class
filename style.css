@@ -134,21 +134,38 @@ input[type="text"]:focus {
     border-color: var(--point-color); /* 포커스 시 포인트 컬러 */
 }
 
+/* 신청 버튼 기본 스타일 수정 및 추가 */
 #submitBtn {
     flex: 1;
-    background-color: var(--point-color); /* 포인트 컬러 배경 */
+    background-color: var(--point-color);
     border: none;
     border-radius: 12px;
-    color: var(--bg-color-dark); /* 버튼 글씨는 어둡게 */
-    font-size: 1rem;
+    color: var(--bg-color-dark);
+    font-size: 1rem; /* 기본 크기 (신청) */
     font-weight: 700;
     cursor: pointer;
+    transition: all 0.2s ease;
+    
+    /* 텍스트가 길어질 때 줄바꿈 방지 및 중앙 정렬 */
+    white-space: nowrap;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 0 5px; 
 }
 
-#submitBtn:active {
-    opacity: 0.9;
+/* 텍스트가 "신청"이 아닐 때 (신청 대기 중, 신청 마감됨 등) 폰트 크기 축소 */
+#submitBtn:not(:empty) {
+    /* 자바스크립트로 텍스트가 바뀌었을 때 글자 수에 따라 대응 */
+    font-size: 0.85rem; 
 }
 
+/* 만약 자바스크립트에서 상태별로 클래스를 부여한다면 가장 확실합니다 (추천) */
+#submitBtn.waiting, 
+#submitBtn.closed {
+    font-size: 0.8rem;
+    letter-spacing: -0.5px; /* 자간을 좁혀서 한 줄에 잘 들어가게 함 */
+}
 /* 3. 신청자 목록 영역 */
 .list-header {
     display: flex;
