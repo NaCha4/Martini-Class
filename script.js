@@ -200,3 +200,36 @@ document.getElementById('exportBtn').addEventListener('click', async () => {
     link.download = `마티니_명단_${new Date().toISOString().slice(0, 10)}.csv`;
     link.click();
 });
+
+// 7. 데이터 초기화 기능 (이중 확인 및 비밀번호 로직)
+document.getElementById('resetBtn').addEventListener('click', async () => {
+
+    // 2차 확인: 관리자 비밀번호
+    const pwInput = prompt("비밀번호를 입력하세요:");
+    if (pwInput === null) return;
+
+    if (pwInput !== ADMIN_PASSWORD) {
+        alert("비밀번호가 틀렸습니다.");
+        return;
+    }
+    const lastCheck = confirm("정말로 초기화하겠습니까?");
+    if (!lastCheck) return;
+
+    try {
+        const days = ["화요일", "수요일", "목요일"];
+        
+        // 모든 요일 문서를 빈 배열로 초기화
+        const batch = db.batch(); // 여러 작업을 한 번에 처리하는 batch 사용
+        days.forEach(day => {
+            const docRef = db.collection("votes").doc(day);
+            batch.set(docRef, { members: [] });
+        });
+
+        await batch.commit();
+        alert("모든 요일의 명단이 초기화되었습니다.");
+        
+    } catch (error) {
+        console.error("초기화 중 오류 발생:", error);
+        alert("초기화 실패: 관리자 권한을 확인하세요.");
+    }
+});

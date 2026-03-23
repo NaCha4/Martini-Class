@@ -1,15 +1,16 @@
-/* CSS 변수 정의 - 최상단에 위치 */
+/* CSS 변수 정의 - 최상단 */
 :root {
-    /* 모든 포인트 요소에 사용될 색상 (기존 골드) */
-    --point-color: #41FF83; 
-    --export-color: #41FF83;
-    
-    /* 배경 및 기본 텍스트 색상 */
+    /* 기본 테마 색상 */
+    --point-color: #41FF83;      /* 메인 포인트 (신청 버튼, 강조 등) */
     --bg-color-dark: #141b2b;
     --bg-color-lighter: #303b4d;
     --text-color-main: #f1f5f9;
     --text-color-sub: #94a3b8;
     --border-color: #334155;
+
+    /* 관리자용 버튼 색상 (추가) */
+    --export-color: #41FF83;     /* 추출 버튼 색상 */
+    --reset-color: #ff4d4d;      /* 초기화 버튼 색상 (Red) */
 }
 
 /* 기본 스타일 초기화 */
@@ -214,21 +215,54 @@ input[type="text"]:focus {
     font-size: 1rem;
 }
 
-.export-btn {
+/* 관리자 버튼 공통 스타일 */
+.export-btn, .reset-btn {
     width: 100%;
-    margin-top: 20px;
     padding: 15px;
-    background-color: transparent;
-    border: 1px solid var(--point-color);
     border-radius: 12px;
-    color: var(--point-color);
     font-size: 0.95rem;
     font-weight: 700;
     cursor: pointer;
     transition: all 0.2s ease;
+    background-color: transparent;
+    margin-top: 10px;
 }
 
+/* 추출 버튼 전용 (Green) */
+.export-btn {
+    margin-top: 25px; /* 목록과 간격 조절 */
+    background-color: transparent;
+    border: 1px solid var(--export-color);
+    color: var(--export-color);
+    transition: all 0.3s ease; /* 부드러운 전환 효과 */
+}
+
+/* 호버 효과 추가 */
+.export-btn:hover {
+    background-color: rgba(65, 255, 131, 0.1); /* 배경에 살짝 색 채우기 */
+    box-shadow: 0 0 15px rgba(65, 255, 131, 0.2); /* 은은한 네온 효과 */
+}
+
+/* 클릭 효과 */
 .export-btn:active {
-    background-color: var(--point-color);
+    background-color: var(--export-color);
     color: var(--bg-color-dark);
+    transform: translateY(0); /* 눌리는 느낌 */
+}
+
+/* 초기화 버튼 전용 (Red) */
+.reset-btn {
+    border: 1px solid var(--reset-color);
+    color: var(--reset-color);
+    opacity: 0.7; /* 평소엔 조금 흐리게 */
+}
+
+.reset-btn:hover, .reset-btn:active {
+    opacity: 1;
+    background-color: rgba(255, 77, 77, 0.1);
+}
+
+.reset-btn:active {
+    background-color: var(--reset-color);
+    color: #fff;
 }
