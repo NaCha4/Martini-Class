@@ -23,12 +23,16 @@ const logoImg = document.querySelector('.logo-image');
 const exportBtn = document.getElementById('exportBtn');
 const resetBtn = document.getElementById('resetBtn');
 const adminControlGroup = document.getElementById('adminControlGroup');
+const startBtn = document.getElementById('startBtn');
+const endBtn = document.getElementById('endBtn');
 
 let currentSelectedDay = "화요일";
 let isRegistrationOpen = true; 
+let openTime = null; 
 let logoClickCount = 0;
+let isAdminMode = false;
 
-// [기능] 실시간 IP 주소 가져오기
+// --- [기능] 실시간 IP 주소 가져오기 ---
 async function getUserIp() {
     try {
         const response = await fetch('https://api.ipify.org?format=json');
@@ -40,7 +44,7 @@ async function getUserIp() {
     }
 }
 
-// [기능] 실시간 신청 현황 감시
+// --- [기능] 실시간 데이터 감시 ---
 function subscribeToDay(day) {
     db.collection("votes").doc(day).onSnapshot((doc) => {
         const data = doc.data() || { members: [] };
@@ -48,20 +52,35 @@ function subscribeToDay(day) {
     });
 }
 
-// [기능] 실시간 신청 시작/마감 상태 감시
 function subscribeToSettings() {
     db.collection("settings").doc("status").onSnapshot((doc) => {
         if (doc.exists) {
-            isRegistrationOpen = doc.data().isOpen;
+            const data = doc.data();
+            isRegistrationOpen = data.isOpen;
+            openTime = data.openTime ? data.openTime.toDate() : null;
             updateUIByStatus();
         }
     });
 }
 
-// [UI] 상태에 따른 버튼 디자인 변경
+// --- [UI] 상태 업데이트 및 렌더링 ---
 function updateUIByStatus() {
-    if (!isRegistrationOpen) {
-        submitBtn.textContent = "신청 마감됨";
+    const now = new Date();
+    let effectivelyOpen = isRegistrationOpen;
+
+    // 수동으로 닫혀있어도 예약 시간이 지났으면 오픈으로 간주
+    if (!effectivelyOpen && openTime && now >= openTime) {
+        effectivelyOpen = true;
+    }
+
+    if (!effectivelyOpen) {
+        let message = "신청 마감됨";
+        if (openTime && now < openTime) {
+            const diff = openTime - now;
+            const mins = Math.ceil(diff / 60000);
+            message = `${mins}분 후 오픈`;
+        }
+        submitBtn.textContent = message;
         submitBtn.style.opacity = "0.5";
         submitBtn.style.cursor = "not-allowed";
     } else {
@@ -71,7 +90,6 @@ function updateUIByStatus() {
     }
 }
 
-// [UI] 명단 렌더링 (가나다 정렬)
 function renderList(members) {
     attendeeListEl.innerHTML = '';
     const sortedMembers = [...members].sort((a, b) => a.localeCompare(b));
@@ -96,14 +114,18 @@ function renderList(members) {
     });
 }
 
+// 1초마다 자동 시간 체크
+setInterval(updateUIByStatus, 1000);
+
 // 초기 실행
 subscribeToDay(currentSelectedDay);
 subscribeToSettings();
 
-// [이벤트] 로고 5번 클릭 시 관리자 모드 활성화 (이스터 에그)
+// --- [이벤트] 관리자 모드 활성화 (로고 5번 클릭) ---
 logoImg.addEventListener('click', () => {
     logoClickCount++;
     if (logoClickCount === 5) {
+        isAdminMode = true;
         exportBtn.style.display = 'block';
         resetBtn.style.display = 'block';
         adminControlGroup.style.display = 'flex';
@@ -113,7 +135,7 @@ logoImg.addEventListener('click', () => {
     setTimeout(() => { logoClickCount = 0; }, 3000);
 });
 
-// [이벤트] 요일 버튼 클릭
+// --- [이벤트] 요일 버튼 클릭 ---
 dayButtons.forEach(btn => {
     btn.addEventListener('click', (e) => {
         dayButtons.forEach(b => b.classList.remove('active'));
@@ -124,9 +146,13 @@ dayButtons.forEach(btn => {
     });
 });
 
-// [핵심] 신청 버튼 클릭 로직
+// --- [이벤트] 신청 버튼 클릭 (핵심 로직) ---
 submitBtn.addEventListener('click', async () => {
-    if (!isRegistrationOpen) return alert("현재는 신청 기간이 아닙니다.");
+    const now = new Date();
+    let effectivelyOpen = isRegistrationOpen;
+    if (!effectivelyOpen && openTime && now >= openTime) effectivelyOpen = true;
+
+    if (!effectivelyOpen) return alert("현재는 신청 기간이 아닙니다.");
 
     const input = document.getElementById('userName');
     const name = input.value.trim();
@@ -139,14 +165,14 @@ submitBtn.addEventListener('click', async () => {
         const days = ["화요일", "수요일", "목요일"];
         const snapshots = await Promise.all(days.map(d => db.collection("votes").doc(d).get()));
         
-        // 전체 요일 중복 체크
+        // 중복 체크
         let registeredDay = "";
         snapshots.forEach((doc, i) => {
             if (doc.exists && (doc.data().members || []).includes(name)) registeredDay = days[i];
         });
 
         if (registeredDay) {
-            alert(`이미 ${registeredDay}에 신청 내역이 있습니다.\n주 1회만 신청 가능합니다.`);
+            alert(`이미 ${registeredDay}에 신청 내역이 있습니다.`);
             return;
         }
 
@@ -157,40 +183,28 @@ submitBtn.addEventListener('click', async () => {
             return;
         }
 
-        // IP 및 기기정보 수집
         const userIp = await getUserIp();
-
-        // Firestore 저장 (배치 처리)
         const batch = db.batch();
-        const voteRef = db.collection("votes").doc(currentSelectedDay);
-        const logRef = db.collection("logs").doc();
-
-        batch.set(voteRef, {
+        batch.set(db.collection("votes").doc(currentSelectedDay), {
             members: firebase.firestore.FieldValue.arrayUnion(name)
         }, { merge: true });
 
-        batch.set(logRef, {
-            name: name,
-            day: currentSelectedDay,
-            ip: userIp,
-            userAgent: navigator.userAgent,
-            timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+        batch.set(db.collection("logs").doc(), {
+            name: name, day: currentSelectedDay, ip: userIp,
+            userAgent: navigator.userAgent, timestamp: firebase.firestore.FieldValue.serverTimestamp(),
             type: "REGISTRATION"
         });
 
         await batch.commit();
         input.value = '';
-        alert(`${currentSelectedDay} 교육 신청 완료!`);
-
-    } catch (e) {
-        console.error(e);
-        alert("오류가 발생했습니다.");
-    } finally {
-        updateUIByStatus();
-    }
+        alert(`${currentSelectedDay} 신청 완료!`);
+    } catch (e) { alert("오류 발생"); }
+    finally { submitBtn.disabled = false; updateUIByStatus(); }
 });
 
-// [관리자] 개별 삭제
+// --- [관리자 전용 함수들] ---
+
+// 1. 개별 삭제
 async function deleteMember(name) {
     const pw = prompt(`'${name}' 님을 삭제하시겠습니까?\n비밀번호를 입력하세요:`);
     if (pw !== ADMIN_PASSWORD) return alert("비밀번호 불일치");
@@ -200,108 +214,84 @@ async function deleteMember(name) {
     });
 }
 
-// [관리자] 신청 시작 제어
-document.getElementById('startBtn').addEventListener('click', async () => {
-    // 1. 비밀번호 확인
-    const pw = prompt("신청을 시작하시겠습니까?\n비밀번호를 입력하세요:");
-    if (pw === null) return; // 취소 시 종료
-    
-    if (pw !== ADMIN_PASSWORD) {
-        alert("비밀번호가 일치하지 않습니다.");
-        return;
-    }
+// 2. 신청 시작 및 예약 (통합)
+startBtn.addEventListener('click', async () => {
+    const pw = prompt("[관리자] 신청을 시작하거나 예약하시겠습니까?\n비밀번호를 입력하세요:");
+    if (pw === null || pw !== ADMIN_PASSWORD) return alert("비밀번호가 일치하지 않습니다.");
+
+    const timeInput = prompt("시작 시간을 입력하세요 (예: 2026-03-05 18:00)\n빈 칸으로 두면 즉시 시작됩니다.");
+    if (timeInput === null) return;
 
     try {
-        await db.collection("settings").doc("status").set({ isOpen: true });
-        
-        // 시작 로그 기록 (선택 사항)
+        let targetDate = new Date();
+        let isNow = true;
+
+        if (timeInput.trim() !== "") {
+            targetDate = new Date(timeInput);
+            if (isNaN(targetDate)) return alert("날짜 형식이 올바르지 않습니다.");
+            isNow = (targetDate <= new Date());
+        }
+
+        await db.collection("settings").doc("status").set({
+            isOpen: isNow,
+            openTime: firebase.firestore.Timestamp.fromDate(targetDate)
+        }, { merge: true });
+
         const adminIp = await getUserIp();
         await db.collection("logs").add({
-            action: "REGISTRATION_START",
-            ip: adminIp,
-            timestamp: firebase.firestore.FieldValue.serverTimestamp(),
-            details: "관리자가 신청을 시작함"
+            action: isNow ? "REGISTRATION_START" : "REGISTRATION_SCHEDULED",
+            ip: adminIp, timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+            details: isNow ? "즉시 시작" : `${targetDate.toLocaleString()} 예약`
         });
-        
-        alert("신청이 시작되었습니다.");
-    } catch (e) {
-        alert("상태 변경 중 오류 발생");
-    }
+
+        alert(isNow ? "신청이 즉시 시작되었습니다." : `${targetDate.toLocaleString()} 예약 완료`);
+    } catch (e) { alert("상태 변경 오류"); }
 });
 
-// [관리자] 신청 마감 제어
-document.getElementById('endBtn').addEventListener('click', async () => {
-    // 1. 비밀번호 확인
+// 3. 신청 마감
+endBtn.addEventListener('click', async () => {
     const pw = prompt("신청을 마감하시겠습니까?\n비밀번호를 입력하세요:");
-    if (pw === null) return;
-    
-    if (pw !== ADMIN_PASSWORD) {
-        alert("비밀번호가 일치하지 않습니다.");
-        return;
-    }
+    if (pw !== ADMIN_PASSWORD) return alert("비밀번호 불일치");
 
     try {
-        await db.collection("settings").doc("status").set({ isOpen: false });
-        
-        // 마감 로그 기록 (선택 사항)
+        await db.collection("settings").doc("status").set({ isOpen: false }, { merge: true });
         const adminIp = await getUserIp();
         await db.collection("logs").add({
-            action: "REGISTRATION_END",
-            ip: adminIp,
-            timestamp: firebase.firestore.FieldValue.serverTimestamp(),
-            details: "관리자가 신청을 마감함"
-        });
-
-        alert("신청이 마감되었습니다.");
-    } catch (e) {
-        alert("상태 변경 중 오류 발생");
-    }
-});
-
-// [관리자] 명단 추출 (수직 정렬 CSV)
-exportBtn.addEventListener('click', async () => {
-    const pw = prompt("관리자 비밀번호:");
-    if (pw !== ADMIN_PASSWORD) return;
-
-    const days = ["화요일", "수요일", "목요일"];
-    const allDocs = await Promise.all(days.map(d => db.collection("votes").doc(d).get()));
-    const lists = allDocs.map(doc => (doc.exists ? doc.data().members : []).sort((a,b)=>a.localeCompare(b)));
-
-    const maxRows = Math.max(...lists.map(l => l.length));
-    let csv = days.join(",") + "\n";
-
-    for(let i=0; i<maxRows; i++) {
-        csv += lists.map(l => l[i] || "").join(",") + "\n";
-    }
-
-    const blob = new Blob(["\uFEFF" + csv], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = `마티니_명단_${new Date().toISOString().slice(0, 10)}.csv`;
-    link.click();
-});
-
-// [관리자] 전체 초기화 (로그 포함)
-resetBtn.addEventListener('click', async () => {
-    if (!confirm("모든 데이터를 초기화하시겠습니까?")) return;
-    const pw = prompt("관리자 비밀번호:");
-    if (pw !== ADMIN_PASSWORD) return;
-
-    try {
-        const batch = db.batch();
-        ["화요일", "수요일", "목요일"].forEach(day => {
-            batch.set(db.collection("votes").doc(day), { members: [] });
-        });
-
-        // 초기화 로그 추가
-        const adminIp = await getUserIp();
-        batch.set(db.collection("logs").doc(), {
-            action: "DATABASE_RESET",
-            ip: adminIp,
+            action: "REGISTRATION_END", ip: adminIp,
             timestamp: firebase.firestore.FieldValue.serverTimestamp()
         });
+        alert("신청이 마감되었습니다.");
+    } catch (e) { alert("오류 발생"); }
+});
 
+// 4. 명단 추출
+exportBtn.addEventListener('click', async () => {
+    const pw = prompt("비밀번호:");
+    if (pw !== ADMIN_PASSWORD) return;
+    const days = ["화요일", "수요일", "목요일"];
+    const docs = await Promise.all(days.map(d => db.collection("votes").doc(d).get()));
+    const lists = docs.map(d => (d.exists ? d.data().members : []).sort((a,b)=>a.localeCompare(b)));
+    const max = Math.max(...lists.map(l => l.length));
+    let csv = days.join(",") + "\n";
+    for(let i=0; i<max; i++) { csv += lists.map(l => l[i] || "").join(",") + "\n"; }
+    const blob = new Blob(["\uFEFF" + csv], { type: 'text/csv' });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `마티니_명단_${new Date().toISOString().slice(0,10)}.csv`;
+    a.click();
+});
+
+// 5. 초기화
+resetBtn.addEventListener('click', async () => {
+    if (!confirm("모든 데이터를 초기화하시겠습니까?")) return;
+    const pw = prompt("비밀번호:");
+    if (pw !== ADMIN_PASSWORD) return;
+    try {
+        const batch = db.batch();
+        ["화요일", "수요일", "목요일"].forEach(d => batch.set(db.collection("votes").doc(d), {members:[]}));
+        const adminIp = await getUserIp();
+        batch.set(db.collection("logs").doc(), { action: "DATABASE_RESET", ip: adminIp, timestamp: firebase.firestore.FieldValue.serverTimestamp() });
         await batch.commit();
         alert("초기화 완료");
-    } catch (e) { alert("초기화 중 오류 발생"); }
+    } catch (e) { alert("오류 발생"); }
 });
