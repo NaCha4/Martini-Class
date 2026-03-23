@@ -1,11 +1,17 @@
-// 1. Firebase 설정 (콘솔에서 복사한 값으로 교체하세요)
+
+
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+
+// Your web app's Firebase configuration
 const firebaseConfig = {
-    apiKey: "YOUR_API_KEY",
-    authDomain: "YOUR_PROJECT.firebaseapp.com",
-    projectId: "YOUR_PROJECT_ID",
-    storageBucket: "YOUR_PROJECT.appspot.com",
-    messagingSenderId: "YOUR_SENDER_ID",
-    appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyBS0s30cL-sCo35nN0VjJvDaFyH_yPe930",
+  authDomain: "martini-class-d4d69.firebaseapp.com",
+  projectId: "martini-class-d4d69",
+  storageBucket: "martini-class-d4d69.firebasestorage.app",
+  messagingSenderId: "994424737344",
+  appId: "1:994424737344:web:555117a1674e6ba0ae59a5"
 };
 
 // 2. Firebase 초기화 및 DB 객체 생성
