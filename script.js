@@ -56,34 +56,74 @@ function renderList(members) {
 // 초기 실행
 subscribeToDay(currentSelectedDay);
 
-// 4. 신청 버튼 클릭 이벤트
+// 4. 신청 버튼 클릭 이벤트 (전체 요일 중복 체크 버전)
 document.getElementById('submitBtn').addEventListener('click', async () => {
     const input = document.getElementById('userName');
     const name = input.value.trim();
 
     if (!name) return alert('이름을 입력해주세요!');
 
-    const docRef = db.collection("votes").doc(currentSelectedDay);
-    
+    // 1. 로딩 표시 (선택사항: 더블 클릭 방지)
+    const btn = document.getElementById('submitBtn');
+    btn.disabled = true;
+    btn.textContent = "확인 중...";
+
     try {
-        const doc = await docRef.get();
-        let members = [];
-        if (doc.exists) members = doc.data().members;
+        const days = ["화요일", "수요일", "목요일"];
+        
+        // 2. 모든 요일의 데이터를 동시에 가져옴
+        const snapshots = await Promise.all(
+            days.map(day => db.collection("votes").doc(day).get())
+        );
 
-        // 중복 체크 및 인원 제한
-        if (members.includes(name)) return alert('이미 신청하셨습니다.');
-        if (members.length >= 24) return alert('이미 마감되었습니다.');
+        // 3. 전체 요일 중 어디라도 이름이 있는지 검사
+        let isAlreadyRegistered = false;
+        let registeredDay = "";
 
-        // Firestore 배열에 이름 추가 (원자적 업데이트)
-        await docRef.set({
+        snapshots.forEach((doc, index) => {
+            if (doc.exists) {
+                const members = doc.data().members || [];
+                if (members.includes(name)) {
+                    isAlreadyRegistered = true;
+                    registeredDay = days[index];
+                }
+            }
+        });
+
+        // 4. 결과에 따른 처리
+        if (isAlreadyRegistered) {
+            alert(`이미 ${registeredDay}에 신청 내역이 있습니다.\n한 사람당 주 1회만 신청 가능합니다.`);
+            btn.disabled = false;
+            btn.textContent = "신청";
+            return;
+        }
+
+        // 5. 인원 제한 체크 (현재 선택된 요일 기준)
+        const currentDoc = snapshots[days.indexOf(currentSelectedDay)];
+        const currentMembers = currentDoc.exists ? currentDoc.data().members : [];
+        
+        if (currentMembers.length >= 24) {
+            alert('이미 해당 요일은 24명 정원이 모두 찼습니다.');
+            btn.disabled = false;
+            btn.textContent = "신청";
+            return;
+        }
+
+        // 6. 이상 없으면 Firestore 배열에 이름 추가
+        await db.collection("votes").doc(currentSelectedDay).set({
             members: firebase.firestore.FieldValue.arrayUnion(name)
         }, { merge: true });
 
         input.value = '';
-        alert(`${currentSelectedDay} 교육 신청 완료!`);
+        alert(`${currentSelectedDay} 교육 신청이 완료되었습니다!`);
+
     } catch (error) {
         console.error("Error: ", error);
-        alert("신청 중 오류가 발생했습니다.");
+        alert("신청 중 오류가 발생했습니다. 다시 시도해 주세요.");
+    } finally {
+        // 버튼 복구
+        btn.disabled = false;
+        btn.textContent = "신청";
     }
 });
 
