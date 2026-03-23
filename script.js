@@ -32,6 +32,7 @@ function subscribeToDay(day) {
     });
 }
 
+// 3-1. 명단 렌더링 함수 수정
 function renderList(members) {
     attendeeListEl.innerHTML = '';
     const sortedMembers = [...members].sort((a, b) => a.localeCompare(b));
@@ -46,11 +47,42 @@ function renderList(members) {
         const item = document.createElement('div');
         item.classList.add('attendee-item');
         item.style.animationDelay = `${index * 0.05}s`;
-        item.innerHTML = `<span class="at-name">${name}</span>`;
+        
+        // 이름과 X 버튼 추가 (onclick 이벤트 연결)
+        item.innerHTML = `
+            <span class="at-name">${name}</span>
+            <button class="delete-btn" onclick="deleteMember('${name}')">×</button>
+        `;
+        
         attendeeListEl.appendChild(item);
         void item.offsetWidth;
         item.classList.add('show');
     });
+}
+
+// 3-2. 관리자 삭제 함수 추가
+async function deleteMember(name) {
+    // 1. 관리자 비밀번호 확인
+    const pwInput = prompt(`비밀번호를 입력하세요:`);
+    
+    if (pwInput === null) return; // 취소 시 종료
+    
+    if (pwInput !== ADMIN_PASSWORD) {
+        alert("비밀번호가 일치하지 않습니다.");
+        return;
+    }
+
+    // 2. Firestore에서 해당 이름 삭제
+    try {
+        const docRef = db.collection("votes").doc(currentSelectedDay);
+        await docRef.update({
+            members: firebase.firestore.FieldValue.arrayRemove(name)
+        });
+        alert(`${name} 님이 삭제되었습니다.`);
+    } catch (error) {
+        console.error("삭제 오류:", error);
+        alert("삭제 중 오류가 발생했습니다.");
+    }
 }
 
 // 초기 실행
