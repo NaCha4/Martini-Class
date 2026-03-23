@@ -63,22 +63,22 @@ function subscribeToSettings() {
     });
 }
 
-// --- [UI] 상태 업데이트 및 렌더링 ---
 function updateUIByStatus() {
     const now = new Date();
     let effectivelyOpen = isRegistrationOpen;
 
-    // 수동으로 닫혀있어도 예약 시간이 지났으면 오픈으로 간주
+    // 수정: openTime이 명확히 존재하고, 현재 시간이 그 시간을 지났을 때만 자동 오픈
     if (!effectivelyOpen && openTime && now >= openTime) {
         effectivelyOpen = true;
     }
 
     if (!effectivelyOpen) {
         let message = "신청 마감됨";
+        // 아직 오픈 전인 예약 상태일 때만 대기 문구 표시
         if (openTime && now < openTime) {
             const diff = openTime - now;
             const mins = Math.ceil(diff / 60000);
-            message = `${mins}분 후 오픈`;
+            message = `신청 대기 중 (${mins}분 후 오픈)`;
         }
         submitBtn.textContent = message;
         submitBtn.style.opacity = "0.5";
@@ -249,19 +249,28 @@ startBtn.addEventListener('click', async () => {
 });
 
 // 3. 신청 마감
+// [관리자] 신청 마감 제어 수정
 endBtn.addEventListener('click', async () => {
     const pw = prompt("신청을 마감하시겠습니까?\n비밀번호를 입력하세요:");
     if (pw !== ADMIN_PASSWORD) return alert("비밀번호 불일치");
 
     try {
-        await db.collection("settings").doc("status").set({ isOpen: false }, { merge: true });
+        await db.collection("settings").doc("status").set({ 
+            isOpen: false, 
+            openTime: null // 마감 시 예약 시간도 초기화하여 자동 오픈 방지
+        }, { merge: true });
+
         const adminIp = await getUserIp();
         await db.collection("logs").add({
-            action: "REGISTRATION_END", ip: adminIp,
+            action: "REGISTRATION_END", 
+            ip: adminIp,
             timestamp: firebase.firestore.FieldValue.serverTimestamp()
         });
-        alert("신청이 마감되었습니다.");
-    } catch (e) { alert("오류 발생"); }
+        alert("신청이 마감되었습니다. 🔒");
+    } catch (e) { 
+        console.error(e);
+        alert("오류 발생"); 
+    }
 });
 
 // 4. 명단 추출
