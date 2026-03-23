@@ -1,0 +1,218 @@
+/* CSS 변수 정의 - 최상단에 위치 */
+:root {
+    /* 모든 포인트 요소에 사용될 색상 (기존 골드) */
+    --point-color: #41FF83; 
+    --export-color: #41FF83;
+    
+    /* 배경 및 기본 텍스트 색상 */
+    --bg-color-dark: #141b2b;
+    --bg-color-lighter: #303b4d;
+    --text-color-main: #f1f5f9;
+    --text-color-sub: #94a3b8;
+    --border-color: #334155;
+}
+
+/* 기본 스타일 초기화 */
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    -webkit-tap-highlight-color: transparent;
+}
+
+body {
+    background-color: var(--bg-color-dark);
+    font-family: 'Noto Sans KR', sans-serif;
+    color: var(--text-color-main);
+    display: flex;
+    justify-content: center;
+    overflow-x: hidden;
+}
+
+/* 모바일 화면 컨테이너 */
+.mobile-container {
+    width: 100%;
+    max-width: 480px;
+    min-height: 100vh;
+    padding: 20px;
+    background: linear-gradient(180deg, var(--bg-color-dark) 0%, var(--bg-color-lighter) 100%);
+    box-shadow: 0 0 30px rgba(0,0,0,0.5);
+}
+
+/* 헤더 디자인 (이미지 로고 적용) */
+header {
+    text-align: center;
+    margin-bottom: 30px;
+    padding: 10px 0;
+}
+
+.logo-image {
+    max-width: 80%; /* 모바일 화면에 맞춰 이미지 크기 조정 */
+    height: auto;
+    margin-bottom: 5px;
+    /* 만약 이미지 원본색을 쓰고 싶다면 아래 drop-shadow는 주석 처리해도 됩니다 */
+    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5)); 
+}
+
+.subtitle {
+    font-size: 0.85rem;
+    color: var(--text-color-sub);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+}
+
+/* 공통 섹션 스타일 */
+.section {
+    margin-bottom: 25px;
+}
+
+h2 {
+    font-size: 1rem;
+    color: var(--text-color-main);
+    margin-bottom: 12px;
+    font-weight: 500;
+}
+
+.limit {
+    font-size: 0.8rem;
+    color: var(--text-color-sub);
+    font-weight: normal;
+}
+
+/* 1. 요일 선택 버튼 (포인트 컬러 적용) */
+.day-selector {
+    display: flex;
+    gap: 10px;
+}
+
+.day-btn {
+    flex: 1;
+    padding: 15px;
+    background-color: var(--bg-color-lighter);
+    border: 2px solid var(--border-color);
+    border-radius: 12px;
+    color: var(--text-color-sub);
+    font-size: 1.1rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.day-btn:active {
+    transform: scale(0.95);
+}
+
+.day-btn.active {
+    /* 포인트 컬러 배경 10% 투명도 */
+    background-color: rgba(177, 142, 82, 0.041); 
+    border-color: var(--point-color); /* 포인트 컬러 테두리 */
+    color: var(--point-color); /* 포인트 컬러 글씨 */
+    box-shadow: 0 0 15px rgba(245, 158, 11, 0.2);
+}
+
+/* 2. 이름 입력란 및 신청 버튼 */
+.input-group {
+    display: flex;
+    gap: 8px;
+}
+
+input[type="text"] {
+    flex: 2;
+    padding: 15px;
+    background-color: var(--bg-color-lighter);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    color: var(--text-color-main);
+    font-size: 1rem;
+}
+
+input[type="text"]:focus {
+    outline: none;
+    border-color: var(--point-color); /* 포커스 시 포인트 컬러 */
+}
+
+#submitBtn {
+    flex: 1;
+    background-color: var(--point-color); /* 포인트 컬러 배경 */
+    border: none;
+    border-radius: 12px;
+    color: var(--bg-color-dark); /* 버튼 글씨는 어둡게 */
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+#submitBtn:active {
+    opacity: 0.9;
+}
+
+/* 3. 신청자 목록 영역 */
+.list-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.count-badge {
+    padding: 4px 10px;
+    background-color: var(--bg-color-lighter);
+    border-radius: 20px;
+    font-size: 0.85rem;
+    color: var(--point-color); /* 포인트 컬러 숫처 */
+    font-weight: 700;
+}
+
+.attendee-list {
+    min-height: 200px;
+}
+
+/* 신청자 개별 아이템 스타일 및 애니메이션 (가나다 정렬용) */
+.attendee-item {
+    padding: 14px 15px;
+    background-color: rgba(255,255,255,0.04);
+    border-radius: 8px;
+    margin-bottom: 8px;
+    display: block; /* 한 줄 꽉 채움 */
+    text-align: left;
+    
+    /* 등장 애니메이션 초기 상태 */
+    opacity: 0;
+    transform: translateY(15px);
+}
+
+/* Fade In & Slide Up 애니메이션 */
+@keyframes fadeInUp {
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.attendee-item.show {
+    animation: fadeInUp 0.35s ease forwards;
+}
+
+.at-name {
+    color: var(--text-color-main);
+    font-size: 1rem;
+}
+
+.export-btn {
+    width: 100%;
+    margin-top: 20px;
+    padding: 15px;
+    background-color: transparent;
+    border: 1px solid var(--point-color);
+    border-radius: 12px;
+    color: var(--point-color);
+    font-size: 0.95rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.export-btn:active {
+    background-color: var(--point-color);
+    color: var(--bg-color-dark);
+}

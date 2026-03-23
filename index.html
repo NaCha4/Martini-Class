@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>마티니 교육 투표</title>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="mobile-container">
+        <header>
+            <img src="assets/images/Name.png" alt="MARTINI Logo" class="logo-image">
+            <p class="subtitle">Weekly Class</p>
+        </header>
+
+        <section class="section">
+            <h2>1. 요일 선택 <span class="limit">(선착순 24명)</span></h2>
+            <div class="day-selector">
+                <button class="day-btn active" data-day="화요일">화</button>
+                <button class="day-btn" data-day="수요일">수</button>
+                <button class="day-btn" data-day="목요일">목</button>
+            </div>
+        </section>
+
+        <section class="section">
+            <h2>2. 이름 입력</h2>
+            <div class="input-group">
+                <input type="text" id="userName" placeholder="이름을 입력하세요">
+                <button id="submitBtn">신청</button>
+            </div>
+        </section>
+
+        <section class="section list-section">
+            <div class="list-header">
+                <h2>신청자 목록 (<span id="selectedDayName">화요일</span>)</h2>
+                <div class="count-badge"><span id="count">0</span> / 24</div>
+            </div>
+            
+            <div id="attendeeList" class="attendee-list">
+                </div>
+
+            <button id="exportBtn" class="export-btn">명단 추출</button>
+        </section>
+    </div>
+
+    <script src="script.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+
+    <script src="script.js"></script>
+</body>
+</html>
