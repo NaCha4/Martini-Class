@@ -1,10 +1,4 @@
-
-
-
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-
-// Your web app's Firebase configuration
+// 1. Firebase 설정 (복사하신 값 유지)
 const firebaseConfig = {
   apiKey: "AIzaSyBS0s30cL-sCo35nN0VjJvDaFyH_yPe930",
   authDomain: "martini-class-d4d69.firebaseapp.com",
@@ -14,8 +8,8 @@ const firebaseConfig = {
   appId: "1:994424737344:web:555117a1674e6ba0ae59a5"
 };
 
-// 2. Firebase 초기화 및 DB 객체 생성
-firebase.initializeApp(firebaseConfig);
+// 2. Firebase 초기화 (이 순서가 중요합니다)
+firebase.initializeApp(firebaseConfig); 
 const db = firebase.firestore();
 const ADMIN_PASSWORD = "0305";
 
