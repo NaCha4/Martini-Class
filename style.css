@@ -11,6 +11,8 @@
     /* 관리자용 버튼 색상 (추가) */
     --export-color: #41FF83;     /* 추출 버튼 색상 */
     --reset-color: #ff4d4d;      /* 초기화 버튼 색상 (Red) */
+
+    --vote-control-color: #bbc7bf; /* 투표 시작/마감 버튼 색상 */
 }
 
 /* 기본 스타일 초기화 */
@@ -272,4 +274,41 @@ input[type="text"]:focus {
 .reset-btn:active {
     background-color: var(--reset-color);
     color: #fff;
+}
+
+/* 관리자 컨트롤 그룹 (가로 배치) */
+.admin-control-group {
+    display: flex;
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.control-btn {
+    flex: 1;
+    padding: 15px;
+    border-radius: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: transparent;
+}
+
+/* 시작 버튼 (그린 테두리) */
+.control-btn.start {
+    border: 1px solid var(--vote-control-color);
+    color: var(--vote-control-color);
+}
+.control-btn.start:active {
+    background-color: varvar(--vote-control-color);
+    color: var(--vote-control-color);
+}
+
+/* 마감 버튼 (레드 테두리) */
+.control-btn.end {
+    border: 1px solid var(--vote-control-color);
+    color: var(--vote-control-color);
+}
+.control-btn.end:active {
+    background-color: var(--vote-control-color);
+    color: var(--vote-control-color);
 }
