@@ -181,17 +181,23 @@ input[type="text"]:focus {
     transform: translateY(15px);
 }
 
-/* 삭제 버튼 스타일 */
+/* 삭제 버튼: 기본적으로 숨김 */
 .delete-btn {
+    display: none; 
     background: none;
     border: none;
-    color: #c2afaf; /* 삭제를 의미하는 빨간색 */
+    color: #c2afaf;
     font-size: 1.2rem;
     font-weight: bold;
     cursor: pointer;
     padding: 0 5px;
     line-height: 1;
     transition: transform 0.2s;
+}
+
+/* 관리자 모드가 활성화된 경우에만 X 버튼 표시 */
+.admin-mode .delete-btn {
+    display: block;
 }
 
 .delete-btn:active {
@@ -215,8 +221,9 @@ input[type="text"]:focus {
     font-size: 1rem;
 }
 
-/* 관리자 버튼 공통 스타일 */
+/* 관리자 버튼 초기 상태: 숨김 */
 .export-btn, .reset-btn {
+    display: none; /* 자바스크립트에서 보여주기 전까지 숨김 */
     width: 100%;
     padding: 15px;
     border-radius: 12px;
