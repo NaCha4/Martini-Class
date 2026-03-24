@@ -1,18 +1,34 @@
-/* CSS 변수 정의 - 최상단 */
+/* CSS 변수 정의 - 모든 색상을 이곳에서 관리합니다 */
 :root {
-    /* 기본 테마 색상 */
-    --point-color: #41FF83;      /* 메인 포인트 (신청 버튼, 강조 등) */
-    --bg-color-dark: #141b2b;
-    --bg-color-lighter: #303b4d;
-    --text-color-main: #f1f5f9;
-    --text-color-sub: #94a3b8;
-    --border-color: #334155;
+    /* 1. 기본 배경 및 컨테이너 */
+    --bg-color-dark: #ffffff;
+    --bg-color-lighter: #f8fafc;
+    --mobile-shadow: rgba(0, 0, 0, 0.5);
 
-    /* 관리자용 버튼 색상 (추가) */
-    --export-color: #41FF83;     /* 추출 버튼 색상 */
-    --reset-color: #ff4d4d;      /* 초기화 버튼 색상 (Red) */
+    /* 2. 포인트 컬러 및 메인 액션 (#41FF83) */
+    --point-color: #41FF83;
+    --point-color-light: rgba(65, 255, 131, 0.1); /* 호버용 연한 네온 */
+    --point-shadow: rgba(65, 255, 131, 0.2);
+    --btn-clicked-color: #000000;
 
-    --vote-control-color: #bbc7bf; /* 투표 시작/마감 버튼 색상 */
+    /* 3. 텍스트 및 경계선 */
+    --text-color-main: #111827;
+    --text-color-sub: #6b7280;
+    --border-color: #575a5f;
+    --input-placeholder: #94a3b8;
+
+    /* 4. 신청자 목록 (Box) */
+    --box-bg-color: rgba(133, 133, 133, 0.123);
+    --count-badge-text: rgba(0, 0, 0, 0.634);
+    --list-item-bg: rgba(255, 255, 255, 0.04); /* 애니메이션용 기본 배경 */
+    --delete-btn-color: #c2afaf;
+
+    /* 5. 관리자 컨트롤 */
+    --export-color: #059669;
+    --reset-color: #ef4444;
+    --reset-hover-bg: rgba(255, 77, 77, 0.1);
+    --reset-active-text: #ffffff;
+    --vote-control-color: #374151;
 }
 
 /* 기본 스타일 초기화 */
@@ -39,10 +55,10 @@ body {
     min-height: 100vh;
     padding: 20px;
     background: linear-gradient(180deg, var(--bg-color-dark) 0%, var(--bg-color-lighter) 100%);
-    box-shadow: 0 0 30px rgba(0,0,0,0.5);
+    /* box-shadow: 0 0 30px var(--mobile-shadow); 필요시 활성화 */
 }
 
-/* 헤더 디자인 (이미지 로고 적용) */
+/* 헤더 디자인 */
 header {
     text-align: center;
     margin-bottom: 30px;
@@ -50,11 +66,9 @@ header {
 }
 
 .logo-image {
-    max-width: 80%; /* 모바일 화면에 맞춰 이미지 크기 조정 */
+    max-width: 80%;
     height: auto;
     margin-bottom: 5px;
-    /* 만약 이미지 원본색을 쓰고 싶다면 아래 drop-shadow는 주석 처리해도 됩니다 */
-    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5)); 
 }
 
 .subtitle {
@@ -82,7 +96,7 @@ h2 {
     font-weight: normal;
 }
 
-/* 1. 요일 선택 버튼 (포인트 컬러 적용) */
+/* 1. 요일 선택 버튼 */
 .day-selector {
     display: flex;
     gap: 10px;
@@ -106,11 +120,9 @@ h2 {
 }
 
 .day-btn.active {
-    /* 포인트 컬러 배경 10% 투명도 */
-    background-color: rgba(177, 142, 82, 0.041); 
-    border-color: var(--point-color); /* 포인트 컬러 테두리 */
-    color: var(--point-color); /* 포인트 컬러 글씨 */
-    box-shadow: 0 0 15px rgba(245, 158, 11, 0.2);
+    background-color: var(--point-color); 
+    border-color: var(--btn-clicked-color);
+    color: var(--btn-clicked-color);
 }
 
 /* 2. 이름 입력란 및 신청 버튼 */
@@ -131,22 +143,19 @@ input[type="text"] {
 
 input[type="text"]:focus {
     outline: none;
-    border-color: var(--point-color); /* 포커스 시 포인트 컬러 */
+    border-color: var(--point-color);
 }
 
-/* 신청 버튼 기본 스타일 수정 및 추가 */
 #submitBtn {
     flex: 1;
     background-color: var(--point-color);
-    border: none;
+    border: 1px solid var(--border-color);
     border-radius: 12px;
-    color: var(--bg-color-dark);
-    font-size: 1rem; /* 기본 크기 (신청) */
+    color: var(--text-color-main);
+    font-size: 1rem;
     font-weight: 700;
     cursor: pointer;
     transition: all 0.2s ease;
-    
-    /* 텍스트가 길어질 때 줄바꿈 방지 및 중앙 정렬 */
     white-space: nowrap;
     display: flex;
     justify-content: center;
@@ -154,18 +163,16 @@ input[type="text"]:focus {
     padding: 0 5px; 
 }
 
-/* 텍스트가 "신청"이 아닐 때 (신청 대기 중, 신청 마감됨 등) 폰트 크기 축소 */
 #submitBtn:not(:empty) {
-    /* 자바스크립트로 텍스트가 바뀌었을 때 글자 수에 따라 대응 */
     font-size: 0.85rem; 
 }
 
-/* 만약 자바스크립트에서 상태별로 클래스를 부여한다면 가장 확실합니다 (추천) */
 #submitBtn.waiting, 
 #submitBtn.closed {
     font-size: 0.8rem;
-    letter-spacing: -0.5px; /* 자간을 좁혀서 한 줄에 잘 들어가게 함 */
+    letter-spacing: -0.5px;
 }
+
 /* 3. 신청자 목록 영역 */
 .list-header {
     display: flex;
@@ -176,10 +183,10 @@ input[type="text"]:focus {
 
 .count-badge {
     padding: 4px 10px;
-    background-color: var(--bg-color-lighter);
+    background-color: var(--point-color);
     border-radius: 20px;
     font-size: 0.85rem;
-    color: var(--point-color); /* 포인트 컬러 숫처 */
+    color: var(--count-badge-text);
     font-weight: 700;
 }
 
@@ -187,25 +194,23 @@ input[type="text"]:focus {
     min-height: 200px;
 }
 
-/* 신청자 아이템 내부 레이아웃 수정 */
 .attendee-item {
-    display: flex; /* 이름과 버튼을 양끝으로 배치 */
+    display: flex;
     justify-content: space-between;
     align-items: center;
     padding: 12px 15px;
-    background-color: rgba(255,255,255,0.04);
+    background-color: var(--box-bg-color);
     border-radius: 8px;
     margin-bottom: 8px;
     opacity: 0;
     transform: translateY(15px);
 }
 
-/* 삭제 버튼: 기본적으로 숨김 */
 .delete-btn {
     display: none; 
     background: none;
     border: none;
-    color: #c2afaf;
+    color: var(--delete-btn-color);
     font-size: 1.2rem;
     font-weight: bold;
     cursor: pointer;
@@ -214,7 +219,6 @@ input[type="text"]:focus {
     transition: transform 0.2s;
 }
 
-/* 관리자 모드가 활성화된 경우에만 X 버튼 표시 */
 .admin-mode .delete-btn {
     display: block;
 }
@@ -223,7 +227,6 @@ input[type="text"]:focus {
     transform: scale(1.3);
 }
 
-/* Fade In & Slide Up 애니메이션 */
 @keyframes fadeInUp {
     to {
         opacity: 1;
@@ -240,9 +243,9 @@ input[type="text"]:focus {
     font-size: 1rem;
 }
 
-/* 관리자 버튼 초기 상태: 숨김 */
+/* 관리자 버튼 */
 .export-btn, .reset-btn {
-    display: none; /* 자바스크립트에서 보여주기 전까지 숨김 */
+    display: none;
     width: 100%;
     padding: 15px;
     border-radius: 12px;
@@ -254,46 +257,38 @@ input[type="text"]:focus {
     margin-top: 10px;
 }
 
-/* 추출 버튼 전용 (Green) */
 .export-btn {
-    margin-top: 25px; /* 목록과 간격 조절 */
-    background-color: transparent;
+    margin-top: 25px;
     border: 1px solid var(--export-color);
     color: var(--export-color);
-    transition: all 0.3s ease; /* 부드러운 전환 효과 */
 }
 
-/* 호버 효과 추가 */
 .export-btn:hover {
-    background-color: rgba(65, 255, 131, 0.1); /* 배경에 살짝 색 채우기 */
-    box-shadow: 0 0 15px rgba(65, 255, 131, 0.2); /* 은은한 네온 효과 */
+    background-color: var(--point-color-light);
+    box-shadow: 0 0 15px var(--point-shadow);
 }
 
-/* 클릭 효과 */
 .export-btn:active {
     background-color: var(--export-color);
     color: var(--bg-color-dark);
-    transform: translateY(0); /* 눌리는 느낌 */
 }
 
-/* 초기화 버튼 전용 (Red) */
 .reset-btn {
     border: 1px solid var(--reset-color);
     color: var(--reset-color);
-    opacity: 0.7; /* 평소엔 조금 흐리게 */
+    opacity: 0.7;
 }
 
-.reset-btn:hover, .reset-btn:active {
+.reset-btn:hover {
     opacity: 1;
-    background-color: rgba(255, 77, 77, 0.1);
+    background-color: var(--reset-hover-bg);
 }
 
 .reset-btn:active {
     background-color: var(--reset-color);
-    color: #fff;
+    color: var(--reset-active-text);
 }
 
-/* 관리자 컨트롤 그룹 (가로 배치) */
 .admin-control-group {
     display: flex;
     gap: 10px;
@@ -310,22 +305,12 @@ input[type="text"]:focus {
     background: transparent;
 }
 
-/* 시작 버튼 (그린 테두리) */
-.control-btn.start {
+.control-btn.start, .control-btn.end {
     border: 1px solid var(--vote-control-color);
-    color: var(--vote-control-color);
-}
-.control-btn.start:active {
-    background-color: varvar(--vote-control-color);
     color: var(--vote-control-color);
 }
 
-/* 마감 버튼 (레드 테두리) */
-.control-btn.end {
-    border: 1px solid var(--vote-control-color);
-    color: var(--vote-control-color);
-}
-.control-btn.end:active {
+.control-btn.start:active, .control-btn.end:active {
     background-color: var(--vote-control-color);
-    color: var(--vote-control-color);
+    color: var(--bg-color-dark);
 }
