@@ -8,14 +8,14 @@
     <link rel="icon" href="assets/images/Logo.png" type="image/x-icon">
     <link rel="apple-touch-icon" href="assets/images/Logo.png">
 
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div class="mobile-container">
         <header>
             <img src="assets/images/Name.png" alt="MARTINI Logo" class="logo-image">
-            <p class="subtitle">Weekly Class</p>
+            <p class="subtitle">정규 칵테일 클래스 신청</p>
         </header>
 
         <section class="section">
@@ -31,7 +31,7 @@
             <h2>2. 이름 입력</h2>
             <div class="input-group">
                 <input type="text" id="userName" placeholder="이름을 입력하세요">
-                <button id="submitBtn">신청</button>
+                <button id="submitBtn">로딩 중...</button>
             </div>
         </section>
 
@@ -41,14 +41,16 @@
                 <div class="count-badge"><span id="count">0</span> / 24</div>
             </div>
             <div id="attendeeList" class="attendee-list"></div>
-            
-            <button id="exportBtn" class="export-btn" style="display:none;">명단 추출</button>
-            <button id="resetBtn" class="reset-btn" style="display:none;">데이터 초기화</button>
+        </section>
 
-            <div class="admin-control-group" id="adminControlGroup" style="display: none;">
-                <button id="startBtn" class="control-btn start">신청 시작/예약</button>
-                <button id="endBtn" class="control-btn end">신청 마감</button>
+        <section class="admin-section">
+            <button id="exportBtn" class="admin-btn export">명단 추출</button>
+            <button id="resetBtn" class="admin-btn reset">데이터 초기화</button>
+            <div id="adminControlGroup" class="admin-btn-group">
+                <button id="startBtn" class="admin-btn control start">시작/예약</button>
+                <button id="endBtn" class="admin-btn control">신청 마감</button>
             </div>
+
         </section>
     </div>
     

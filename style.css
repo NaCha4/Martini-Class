@@ -1,316 +1,100 @@
-/* CSS 변수 정의 - 모든 색상을 이곳에서 관리합니다 */
 :root {
-    /* 1. 기본 배경 및 컨테이너 */
+    --main-font: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
     --bg-color-dark: #ffffff;
     --bg-color-lighter: #f8fafc;
-    --mobile-shadow: rgba(0, 0, 0, 0.5);
-
-    /* 2. 포인트 컬러 및 메인 액션 (#41FF83) */
     --point-color: #41FF83;
-    --point-color-light: rgba(65, 255, 131, 0.1); /* 호버용 연한 네온 */
-    --point-shadow: rgba(65, 255, 131, 0.2);
-    --btn-clicked-color: #000000;
-
-    /* 3. 텍스트 및 경계선 */
     --text-color-main: #111827;
     --text-color-sub: #6b7280;
     --border-color: #575a5f;
-    --input-placeholder: #94a3b8;
-
-    /* 4. 신청자 목록 (Box) */
     --box-bg-color: rgba(133, 133, 133, 0.123);
-    --count-badge-text: rgba(0, 0, 0, 0.634);
-    --list-item-bg: rgba(255, 255, 255, 0.04); /* 애니메이션용 기본 배경 */
-    --delete-btn-color: #c2afaf;
-
-    /* 5. 관리자 컨트롤 */
     --export-color: #059669;
     --reset-color: #ef4444;
-    --reset-hover-bg: rgba(255, 77, 77, 0.1);
-    --reset-active-text: #ffffff;
-    --vote-control-color: #374151;
 }
 
-/* 기본 스타일 초기화 */
 * {
     box-sizing: border-box;
-    margin: 0;
-    padding: 0;
+    margin: 0; padding: 0;
     -webkit-tap-highlight-color: transparent;
+    font-family: var(--main-font);
 }
 
 body {
     background-color: var(--bg-color-dark);
-    font-family: 'Noto Sans KR', sans-serif;
-    color: var(--text-color-main);
-    display: flex;
-    justify-content: center;
-    overflow-x: hidden;
+    display: flex; justify-content: center;
+    letter-spacing: -0.02em;
 }
 
-/* 모바일 화면 컨테이너 */
 .mobile-container {
-    width: 100%;
-    max-width: 480px;
-    min-height: 100vh;
+    width: 100%; max-width: 480px; min-height: 100vh;
     padding: 20px;
     background: linear-gradient(180deg, var(--bg-color-dark) 0%, var(--bg-color-lighter) 100%);
-    /* box-shadow: 0 0 30px var(--mobile-shadow); 필요시 활성화 */
 }
 
-/* 헤더 디자인 */
-header {
-    text-align: center;
-    margin-bottom: 30px;
-    padding: 10px 0;
-}
-
-.logo-image {
-    max-width: 80%;
-    height: auto;
-    margin-bottom: 5px;
-}
-
-.subtitle {
-    font-size: 0.85rem;
-    color: var(--text-color-sub);
-    letter-spacing: 2px;
-    text-transform: uppercase;
-}
-
-/* 공통 섹션 스타일 */
-.section {
+/* 헤더: 로고와 텍스트 간격 조정 */
+header { text-align: center; margin-bottom: 35px; padding-top: 20px; }
+.logo-image { 
+    max-width: 75%; height: auto; 
     margin-bottom: 25px;
+    cursor: pointer; 
 }
+.subtitle { font-size: 0.85rem; color: var(--text-color-main); text-transform: uppercase; }
 
-h2 {
-    font-size: 1rem;
-    color: var(--text-color-main);
-    margin-bottom: 12px;
-    font-weight: 500;
-}
+.section { margin-bottom: 25px; }
+h2 { font-size: 1rem; font-weight: 600; margin-bottom: 12px; }
+.limit { font-size: 0.8rem; color: var(--text-color-sub); font-weight: normal; }
 
-.limit {
-    font-size: 0.8rem;
-    color: var(--text-color-sub);
-    font-weight: normal;
-}
-
-/* 1. 요일 선택 버튼 */
-.day-selector {
-    display: flex;
-    gap: 10px;
-}
-
+/* 요일 선택 */
+.day-selector { display: flex; gap: 10px; }
 .day-btn {
-    flex: 1;
-    padding: 15px;
-    background-color: var(--bg-color-lighter);
-    border: 2px solid var(--border-color);
-    border-radius: 12px;
-    color: var(--text-color-sub);
-    font-size: 1.1rem;
-    font-weight: 700;
-    cursor: pointer;
-    transition: all 0.2s ease;
+    flex: 1; padding: 15px; border-radius: 12px;
+    background: var(--bg-color-lighter); border: 2px solid var(--border-color);
+    font-size: 1.1rem; font-weight: 700; color: var(--text-color-sub);
+    transition: 0.2s;
 }
+.day-btn.active { background: var(--point-color); border-color: #000; color: #000; }
 
-.day-btn:active {
-    transform: scale(0.95);
-}
-
-.day-btn.active {
-    background-color: var(--point-color); 
-    border-color: var(--btn-clicked-color);
-    color: var(--btn-clicked-color);
-}
-
-/* 2. 이름 입력란 및 신청 버튼 */
-.input-group {
-    display: flex;
-    gap: 8px;
-}
-
+/* 입력창 */
+.input-group { display: flex; gap: 8px; }
 input[type="text"] {
-    flex: 2;
-    padding: 15px;
-    background-color: var(--bg-color-lighter);
-    border: 1px solid var(--border-color);
-    border-radius: 12px;
-    color: var(--text-color-main);
-    font-size: 1rem;
+    flex: 2; padding: 15px; border-radius: 12px;
+    border: 1px solid var(--border-color); font-size: 1rem;
 }
-
-input[type="text"]:focus {
-    outline: none;
-    border-color: var(--point-color);
-}
-
 #submitBtn {
-    flex: 1;
-    background-color: var(--point-color);
-    border: 1px solid var(--border-color);
-    border-radius: 12px;
-    color: var(--text-color-main);
-    font-size: 1rem;
-    font-weight: 700;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    white-space: nowrap;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    padding: 0 5px; 
+    flex: 1; background: var(--point-color); border: 1px solid var(--border-color);
+    border-radius: 12px; font-weight: 700; cursor: pointer;
 }
 
-#submitBtn:not(:empty) {
-    font-size: 0.85rem; 
-}
-
-#submitBtn.waiting, 
-#submitBtn.closed {
-    font-size: 0.8rem;
-    letter-spacing: -0.5px;
-}
-
-/* 3. 신청자 목록 영역 */
+/* 명단 헤더: 정렬 고정 */
 .list-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 10px;
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 15px;
 }
-
+.list-header h2 { margin-bottom: 0; }
 .count-badge {
-    padding: 4px 10px;
-    background-color: var(--point-color);
-    border-radius: 20px;
-    font-size: 0.85rem;
-    color: var(--count-badge-text);
-    font-weight: 700;
-}
-
-.attendee-list {
-    min-height: 200px;
+    padding: 4px 12px; background: var(--point-color); border-radius: 20px;
+    font-size: 0.85rem; font-weight: 800; white-space: nowrap;
 }
 
 .attendee-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 12px 15px;
-    background-color: var(--box-bg-color);
-    border-radius: 8px;
-    margin-bottom: 8px;
-    opacity: 0;
-    transform: translateY(15px);
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 12px 15px; background: var(--box-bg-color);
+    border-radius: 10px; margin-bottom: 8px;
+    opacity: 0; transform: translateY(10px); transition: 0.3s;
 }
+.attendee-item.show { opacity: 1; transform: translateY(0); }
+.delete-btn { display: none; color: var(--border-color); font-weight: bold; cursor: pointer; border: none; background: none; font-size: 1.2rem; }
+.admin-mode .delete-btn { display: block; }
 
-.delete-btn {
-    display: none; 
-    background: none;
-    border: none;
-    color: var(--delete-btn-color);
-    font-size: 1.2rem;
-    font-weight: bold;
-    cursor: pointer;
-    padding: 0 5px;
-    line-height: 1;
-    transition: transform 0.2s;
+/* 관리자 섹션: 깨짐 방지 레이아웃 */
+.admin-section { margin-top: 40px; display: flex; flex-direction: column; gap: 12px; }
+.admin-btn {
+    display: none; width: 100%; padding: 15px; border-radius: 12px;
+    font-weight: 700; font-size: 0.95rem; cursor: pointer; text-align: center;
+    background: transparent; transition: 0.2s;
 }
-
-.admin-mode .delete-btn {
-    display: block;
-}
-
-.delete-btn:active {
-    transform: scale(1.3);
-}
-
-@keyframes fadeInUp {
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
-.attendee-item.show {
-    animation: fadeInUp 0.35s ease forwards;
-}
-
-.at-name {
-    color: var(--text-color-main);
-    font-size: 1rem;
-}
-
-/* 관리자 버튼 */
-.export-btn, .reset-btn {
-    display: none;
-    width: 100%;
-    padding: 15px;
-    border-radius: 12px;
-    font-size: 0.95rem;
-    font-weight: 700;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    background-color: transparent;
-    margin-top: 10px;
-}
-
-.export-btn {
-    margin-top: 25px;
-    border: 1px solid var(--export-color);
-    color: var(--export-color);
-}
-
-.export-btn:hover {
-    background-color: var(--point-color-light);
-    box-shadow: 0 0 15px var(--point-shadow);
-}
-
-.export-btn:active {
-    background-color: var(--export-color);
-    color: var(--bg-color-dark);
-}
-
-.reset-btn {
-    border: 1px solid var(--reset-color);
-    color: var(--reset-color);
-    opacity: 0.7;
-}
-
-.reset-btn:hover {
-    opacity: 1;
-    background-color: var(--reset-hover-bg);
-}
-
-.reset-btn:active {
-    background-color: var(--reset-color);
-    color: var(--reset-active-text);
-}
-
-.admin-control-group {
-    display: flex;
-    gap: 10px;
-    margin-top: 10px;
-}
-
-.control-btn {
-    flex: 1;
-    padding: 15px;
-    border-radius: 12px;
-    font-weight: 700;
-    cursor: pointer;
-    transition: all 0.2s;
-    background: transparent;
-}
-
-.control-btn.start, .control-btn.end {
-    border: 1px solid var(--vote-control-color);
-    color: var(--vote-control-color);
-}
-
-.control-btn.start:active, .control-btn.end:active {
-    background-color: var(--vote-control-color);
-    color: var(--bg-color-dark);
-}
+.admin-btn.export { border: 1px solid var(--export-color); color: var(--export-color); }
+.admin-btn.reset { background-color: var(--reset-color); border: 1px solid var(--reset-color); color: #fff; }
+.admin-btn-group { display: none; gap: 10px; width: 100%; }
+.admin-btn.control { flex: 1; border: 1px solid var(--text-color-main); color: var(--text-color-main); display: block; }
+.admin-btn.control.start { background-color: var(--point-color); border: 1px solid var(--point-color); color: var(--text-color-main); }
+.admin-btn:active { transform: scale(0.98); background: rgba(0,0,0,0.05); }
