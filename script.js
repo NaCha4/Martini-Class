@@ -1,4 +1,3 @@
-// --- 기존 상단 설정 및 초기화 로직은 동일 ---
 const firebaseConfig = {
     apiKey: "AIzaSyBS0s30cL-sCo35nN0VjJvDaFyH_yPe930",
     authDomain: "martini-class-d4d69.firebaseapp.com",
@@ -10,7 +9,9 @@ const firebaseConfig = {
 
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
-const ADMIN_PASSWORD = "0305";
+const ADMIN_EMAIL = "admin@martini.com";
+
+const auth = firebase.auth();
 
 const dayButtons = document.querySelectorAll('.day-btn');
 const selectedDayNameEl = document.getElementById('selectedDayName');
@@ -32,7 +33,6 @@ let logoClickCount = 0;
 let userIp = "unknown";
 const allDayMembers = { "화요일": [], "수요일": [], "목요일": [] };
 
-// 초기 설정 함수들 (IP, 구독 등)
 async function initIp() {
     try {
         const response = await fetch('https://api.ipify.org?format=json');
@@ -106,24 +106,31 @@ setInterval(updateUIByStatus, 1000);
 subscribeToAllDays();
 subscribeToSettings();
 
-// [수정] 로고 5번 클릭 시 한 번만 비밀번호 확인
-logoImg.addEventListener('click', () => {
+logoImg.addEventListener('click', async () => {
     logoClickCount++;
     if (logoClickCount === 5) {
+        logoClickCount = 0; // 초기화
+        
         const pw = prompt("관리자 비밀번호를 입력하세요:");
-        if (pw === ADMIN_PASSWORD) {
+        if (!pw) return;
+
+        try {
+            await auth.setPersistence(firebase.auth.Auth.Persistence.NONE);
+            
+            await auth.signInWithEmailAndPassword(ADMIN_EMAIL, pw);
+
             exportBtn.style.display = 'block';
             resetBtn.style.display = 'block';
             adminControlGroup.style.display = 'flex'; 
             attendeeListEl.classList.add('admin-mode');
-            alert("관리자 모드 활성화 🍸");
-        } else {
-            alert("비밀번호가 틀렸습니다.");
+            alert("서버 인증 완료: 관리자 모드 활성화 🍸");
+            
+        } catch (error) {
+            console.error(error);
+            alert("비밀번호가 틀렸거나 권한이 없습니다.");
         }
     }
-    setTimeout(() => { logoClickCount = 0; }, 3000);
 });
-
 dayButtons.forEach(btn => {
     btn.addEventListener('click', (e) => {
         dayButtons.forEach(b => b.classList.remove('active'));
@@ -158,7 +165,6 @@ submitBtn.addEventListener('click', async () => {
     finally { submitBtn.disabled = false; }
 });
 
-// [수정] 이제 각 기능에서 비밀번호를 묻지 않습니다.
 async function deleteMember(name) {
     if (!confirm(`'${name}' 님을 삭제하시겠습니까?`)) return;
     await db.collection("votes").doc(currentSelectedDay).update({ members: firebase.firestore.FieldValue.arrayRemove(name) });

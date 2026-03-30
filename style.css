@@ -30,7 +30,6 @@ body {
     background: linear-gradient(180deg, var(--bg-color-dark) 0%, var(--bg-color-lighter) 100%);
 }
 
-/* 헤더: 로고와 텍스트 간격 조정 */
 header { text-align: center; margin-bottom: 35px; padding-top: 20px; }
 .logo-image { 
     max-width: 75%; height: auto; 
@@ -43,7 +42,6 @@ header { text-align: center; margin-bottom: 35px; padding-top: 20px; }
 h2 { font-size: 1rem; font-weight: 600; margin-bottom: 12px; }
 .limit { font-size: 0.8rem; color: var(--text-color-sub); font-weight: normal; }
 
-/* 요일 선택 */
 .day-selector { display: flex; gap: 10px; }
 .day-btn {
     flex: 1; padding: 15px; border-radius: 12px;
@@ -53,18 +51,16 @@ h2 { font-size: 1rem; font-weight: 600; margin-bottom: 12px; }
 }
 .day-btn.active { background: var(--point-color); border-color: #000; color: #000; }
 
-/* 입력창 */
-/* 입력창 그룹 레이아웃 */
+
 .input-group { 
     display: flex; 
     gap: 8px; 
     width: 100%;
 }
 
-/* 1. 이름 입력창: 남은 공간을 모두 차지하며 유연하게 줄어듦 */
 input[type="text"] {
-    flex: 1; /* flex-grow: 1 과 같음 */
-    min-width: 0; /* 중요: flex 아이템이 컨테이너보다 작아질 수 있게 허용 */
+    flex: 1; 
+    min-width: 0; 
     padding: 15px; 
     border-radius: 12px;
     border: 1px solid var(--border-color); 
@@ -72,20 +68,18 @@ input[type="text"] {
     background: #fff;
 }
 
-/* 2. 신청 버튼: 절대 줄어들지 않도록 고정 */
 #submitBtn {
-    flex-shrink: 0; /* 중요: 화면이 좁아져도 버튼 크기를 유지함 */
-    width: 100px;   /* 버튼의 적정 너비를 직접 지정 (동훈님 취향껏 조절) */
+    flex-shrink: 0; 
+    width: 100px;  
     background: var(--point-color); 
     border: 1px solid var(--border-color);
     border-radius: 12px; 
     font-weight: 700; 
     cursor: pointer;
     color: var(--text-color-main);
-    white-space: nowrap; /* 버튼 안의 글자가 줄바꿈되지 않도록 방지 */
+    white-space: nowrap;
 }
 
-/* 명단 헤더: 정렬 고정 */
 .list-header {
     display: flex; justify-content: space-between; align-items: center;
     margin-bottom: 15px;
@@ -106,7 +100,6 @@ input[type="text"] {
 .delete-btn { display: none; color: var(--border-color); font-weight: bold; cursor: pointer; border: none; background: none; font-size: 1.2rem; }
 .admin-mode .delete-btn { display: block; }
 
-/* 관리자 섹션: 깨짐 방지 레이아웃 */
 .admin-section { margin-top: 40px; display: flex; flex-direction: column; gap: 12px; }
 .admin-btn {
     display: none; width: 100%; padding: 15px; border-radius: 12px;
