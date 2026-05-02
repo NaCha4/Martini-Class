@@ -9,12 +9,10 @@ const firebaseConfig = {
 
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
+const auth = firebase.auth(); 
 const ADMIN_EMAIL = "admin@martini.com";
 
-const auth = firebase.auth();
-
 const dayButtons = document.querySelectorAll('.day-btn');
-const selectedDayNameEl = document.getElementById('selectedDayName');
 const countEl = document.getElementById('count');
 const attendeeListEl = document.getElementById('attendeeList');
 const submitBtn = document.getElementById('submitBtn');
@@ -25,13 +23,13 @@ const adminControlGroup = document.getElementById('adminControlGroup');
 const startBtn = document.getElementById('startBtn');
 const endBtn = document.getElementById('endBtn');
 
-let currentSelectedDay = "화요일";
+let currentSelectedDay = "수요일"; 
 let isRegistrationOpen = false; 
 let openTime = null; 
 let isDataLoaded = false; 
 let logoClickCount = 0;
 let userIp = "unknown";
-const allDayMembers = { "화요일": [], "수요일": [], "목요일": [] };
+const allDayMembers = { "수요일": [], "목요일": [], "금요일": [] };
 
 async function initIp() {
     try {
@@ -42,8 +40,9 @@ async function initIp() {
 }
 initIp();
 
+// 🚨 변경점 2: Firebase 구독 요일을 수, 목, 금으로 변경
 function subscribeToAllDays() {
-    ["화요일", "수요일", "목요일"].forEach(day => {
+    ["수요일", "목요일", "금요일"].forEach(day => {
         db.collection("votes").doc(day).onSnapshot((doc) => {
             allDayMembers[day] = doc.data()?.members || [];
             if (currentSelectedDay === day) renderList(allDayMembers[day]);
@@ -109,14 +108,13 @@ subscribeToSettings();
 logoImg.addEventListener('click', async () => {
     logoClickCount++;
     if (logoClickCount === 5) {
-        logoClickCount = 0; // 초기화
+        logoClickCount = 0;
         
         const pw = prompt("관리자 비밀번호를 입력하세요:");
         if (!pw) return;
 
         try {
             await auth.setPersistence(firebase.auth.Auth.Persistence.NONE);
-            
             await auth.signInWithEmailAndPassword(ADMIN_EMAIL, pw);
 
             exportBtn.style.display = 'block';
@@ -131,12 +129,12 @@ logoImg.addEventListener('click', async () => {
         }
     }
 });
+
 dayButtons.forEach(btn => {
     btn.addEventListener('click', (e) => {
         dayButtons.forEach(b => b.classList.remove('active'));
         e.target.classList.add('active');
         currentSelectedDay = e.target.getAttribute('data-day');
-        selectedDayNameEl.textContent = currentSelectedDay;
         renderList(allDayMembers[currentSelectedDay]);
     });
 });
@@ -184,7 +182,7 @@ endBtn.addEventListener('click', async () => {
 });
 
 exportBtn.addEventListener('click', () => {
-    const days = ["화요일", "수요일", "목요일"];
+    const days = ["수요일", "목요일", "금요일"];
     let csv = days.join(",") + "\n";
     const max = Math.max(...days.map(d => allDayMembers[d].length));
     for(let i=0; i<max; i++) {
@@ -200,7 +198,7 @@ exportBtn.addEventListener('click', () => {
 resetBtn.addEventListener('click', async () => {
     if (!confirm("정말로 모든 요일의 명단을 초기화하시겠습니까? (복구 불가)")) return;
     const batch = db.batch();
-    ["화요일", "수요일", "목요일"].forEach(d => batch.set(db.collection("votes").doc(d), {members:[]}));
+    ["수요일", "목요일", "금요일"].forEach(d => batch.set(db.collection("votes").doc(d), {members:[]}));
     await batch.commit();
     alert("초기화가 완료되었습니다.");
 });
