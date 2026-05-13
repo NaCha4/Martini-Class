@@ -1,0 +1,1463 @@
+/* =========================================================
+   Martini main theme
+   눈이 편한 딥 그린, 버건디, 앰버 팔레트로 전체 화면 색상과 공통 값을 관리합니다.
+   ========================================================= */
+:root {
+  /* 기본 글자색: 밝은 민트 배경 위에서 읽기 좋은 짙은 녹흑색입니다. */
+  --ink: #1f2421;
+
+  /* 보조 글자색: 설명문, 라벨, 약한 정보에 사용합니다. */
+  --muted: #68706b;
+
+  /* 브랜드 포인트 컬러: 사용자가 지정한 핵심 민트 컬러입니다. */
+  --point: #2f5d50;
+
+  /* 진한 포인트 컬러: 버튼 배경처럼 흰 글자가 올라가는 곳에 사용합니다. */
+  --point-deep: #25483f;
+
+  /* 아주 어두운 포인트 컬러: 큰 CTA, 깊이감 있는 배경에 사용합니다. */
+  --point-ink: #172822;
+
+  /* 서브 포인트 컬러: 민트만 반복되지 않도록 보조 카드에 쓰는 차분한 블루그린입니다. */
+  --teal: #3e716b;
+
+  /* 따뜻한 보조색: 칵테일/클럽 분위기를 살리는 작은 강조색입니다. */
+  --citrus: #c58b32;
+
+  /* 차가운 보조 테두리색: 민트 비중을 줄이고 카드 구분감을 줍니다. */
+  --indigo: #6f2f42;
+
+  /* 페이지 기본 표면색입니다. */
+  --paper: #f7f3ec;
+
+  /* 카드 내부처럼 더 밝은 표면에 사용합니다. */
+  --paper-soft: #ffffff;
+
+  /* 선 색상: 카드 테두리, 입력창 테두리 등에 사용합니다. */
+  --line: rgba(31, 36, 33, 0.14);
+
+  /* 흰색 텍스트/표면 공통값입니다. */
+  --white: #ffffff;
+
+  /* 카드 그림자: 과하지 않게 떠 보이는 정도로만 사용합니다. */
+  --shadow: 0 22px 60px rgba(31, 36, 33, 0.13);
+}
+
+/* 모든 요소가 padding과 border를 폭 계산에 포함하도록 맞춥니다. */
+* {
+  box-sizing: border-box;
+}
+
+/* 문서 높이가 화면보다 작아도 배경이 끝까지 이어지게 합니다. */
+html {
+  min-height: 100%;
+  scrollbar-gutter: stable;
+}
+
+/* 전체 페이지의 기본 폰트, 글자색, 단색 배경을 정의합니다. */
+body {
+  min-height: 100vh;
+  margin: 0;
+  color: var(--ink);
+  font-family: "Pretendard", "Noto Sans KR", system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", sans-serif;
+  background: var(--paper);
+}
+
+/* 브라우저 기본 버튼 폰트를 페이지 폰트와 맞춥니다. */
+button {
+  font: inherit;
+}
+
+/* =========================================================
+   Layout shell
+   모든 페이지의 폭과 상하 여백을 잡는 최상위 컨테이너입니다.
+   ========================================================= */
+.site-shell {
+  width: min(1180px, calc(100% - 40px));
+  min-height: 100vh;
+  margin: 0 auto;
+  padding: 28px 0 56px;
+}
+
+/* =========================================================
+   Header and brand
+   상단 로고와 로그인/관리 버튼 영역입니다.
+   ========================================================= */
+.site-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  min-height: 72px;
+}
+
+/* 로고 링크 묶음입니다. */
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+  color: inherit;
+  text-decoration: none;
+}
+
+/* 로고 심볼 이미지를 사용할 때의 크기입니다. */
+.brand__mark {
+  width: 52px;
+  height: 52px;
+  object-fit: contain;
+}
+
+/* Martini 워드마크 이미지 크기입니다. */
+.brand__name {
+  width: min(178px, 42vw);
+  max-height: 44px;
+  object-fit: contain;
+}
+
+/* 우측 상단 액션 버튼 묶음입니다. */
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+/* 헤더 버튼과 카드 버튼의 공통 인터랙션 값입니다. */
+.login-link,
+.gateway-card__button {
+  min-height: 44px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  cursor: pointer;
+  transition:
+    transform 160ms ease,
+    box-shadow 160ms ease,
+    border-color 160ms ease,
+    background-color 160ms ease,
+    color 160ms ease;
+}
+
+/* 로그인/로그아웃 버튼의 기본 스타일입니다. */
+.login-link {
+  padding: 0 18px;
+  background: rgba(255, 255, 255, 0.78);
+  border-color: rgba(111, 47, 66, 0.28);
+  color: var(--point-ink);
+  font-weight: 800;
+}
+
+/* 버튼 hover 시 살짝 떠 보이게 만듭니다. */
+.login-link:hover,
+.gateway-card__button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 28px rgba(31, 36, 33, 0.16);
+}
+
+/* =========================================================
+   Main page intro
+   메인 페이지 왼쪽 타이틀 영역입니다.
+   ========================================================= */
+.main-content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: calc(100vh - 156px);
+  padding: 48px 0 18px;
+}
+
+/* 메인 타이틀 텍스트의 최대 폭입니다. */
+.intro {
+  max-width: 500px;
+}
+
+/* 작은 영문/분류 라벨입니다. */
+.intro__eyebrow,
+.gateway-card__label {
+  margin: 0 0 14px;
+  color: var(--point-deep);
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+/* 좌측 브랜드 영역을 카드형으로 묶어 시각적인 중심을 만듭니다. */
+.intro__brand-card {
+  display: grid;
+  grid-template-columns: 104px minmax(0, 1fr);
+  align-items: center;
+  gap: 18px;
+  width: min(100%, 460px);
+  padding: 18px;
+  border: 1px solid rgba(47, 93, 80, 0.24);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow: var(--shadow);
+}
+
+/* 브랜드 카드 안의 심볼 로고입니다. */
+.intro__logo {
+  width: 104px;
+  height: 104px;
+  object-fit: contain;
+}
+
+/* 브랜드 카드 안의 한글 제목입니다. */
+.intro h1 {
+  margin: 0;
+  color: var(--point-ink);
+  font-size: clamp(2rem, 4vw, 3.8rem);
+  line-height: 1.02;
+  letter-spacing: 0;
+  word-break: keep-all;
+}
+
+/* 브랜드 카드 안의 영문 보조 타이틀입니다. */
+.intro__brand-card p {
+  margin: 8px 0 0;
+  color: var(--point-deep);
+  font-size: clamp(1rem, 1.5vw, 1.18rem);
+  font-weight: 900;
+}
+
+/* 메인 소개 문장입니다. */
+.intro__copy {
+  max-width: 420px;
+  margin: 26px 0 0;
+  color: var(--muted);
+  font-size: clamp(1rem, 1.4vw, 1.14rem);
+  line-height: 1.75;
+  word-break: keep-all;
+}
+
+/* 좌측 하단의 작은 정보 배지 묶음입니다. */
+.intro__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 24px;
+}
+
+/* 정보 배지 각각의 스타일입니다. */
+.intro__meta span {
+  padding: 8px 12px;
+  border: 1px solid rgba(197, 139, 50, 0.38);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.74);
+  color: var(--point-ink);
+  font-size: 0.86rem;
+  font-weight: 900;
+}
+
+/* =========================================================
+   Gateway cards
+   메인 페이지에서 각 기능 페이지로 이동하는 카드 영역입니다.
+   ========================================================= */
+.gateway-grid {
+  display: grid;
+  width: min(100%, 880px);
+  gap: 18px;
+}
+
+/* 기능 이동 카드의 공통 구조입니다. */
+.gateway-card {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 24px;
+  min-height: 236px;
+  padding: clamp(24px, 3vw, 34px);
+  overflow: hidden;
+  border: 1px solid rgba(47, 93, 80, 0.22);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: var(--shadow);
+}
+
+/* 카드 안쪽의 로고 워터마크와 색 오버레이입니다. */
+.gateway-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: 0.16;
+  pointer-events: none;
+}
+
+/* 칵테일 클래스 신청 카드의 민트 오버레이입니다. */
+.gateway-card--ticketing::before {
+  background:
+    linear-gradient(120deg, rgba(47, 93, 80, 0.82), transparent 56%),
+    url("../images/Logo.png") right -80px center / 310px auto no-repeat;
+}
+
+/* 개인 클래스 카드의 보조 블루그린 오버레이입니다. */
+.gateway-card--private::before {
+  background:
+    linear-gradient(120deg, rgba(62, 113, 107, 0.84), transparent 56%),
+    url("../images/Logo.png") right -70px center / 290px auto no-repeat;
+}
+
+/* 관리 페이지 카드의 시트러스 오버레이입니다. */
+.gateway-card--admin::before {
+  background:
+    linear-gradient(120deg, rgba(197, 139, 50, 0.84), transparent 56%),
+    url("../images/Logo.png") right -70px center / 290px auto no-repeat;
+}
+
+/* 카드 콘텐츠가 오버레이보다 위에 오도록 합니다. */
+.gateway-card > * {
+  position: relative;
+}
+
+/* 카드 제목입니다. */
+.gateway-card h2 {
+  margin: 0 0 14px;
+  color: var(--point-ink);
+  font-size: clamp(1.75rem, 3vw, 2.8rem);
+  line-height: 1.08;
+  letter-spacing: 0;
+}
+
+/* 카드 설명문입니다. */
+.gateway-card p:not(.gateway-card__label) {
+  max-width: 420px;
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.7;
+  word-break: keep-all;
+}
+
+/* 카드 안쪽 이동 버튼의 기본값입니다. */
+.gateway-card__button {
+  align-self: end;
+  min-width: 136px;
+  padding: 0 22px;
+  background: var(--point-ink);
+  color: var(--white);
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+/* 신청 카드 버튼은 가장 진한 포인트 컬러를 사용합니다. */
+.gateway-card--ticketing .gateway-card__button {
+  background: var(--point-ink);
+  border-color: var(--citrus);
+}
+
+/* 개인 클래스 카드 버튼은 보조색으로 기능 구분을 줍니다. */
+.gateway-card--private .gateway-card__button {
+  background: var(--teal);
+  border-color: var(--indigo);
+}
+
+/* 관리 페이지 카드 버튼은 따뜻한 보조색으로 구분합니다. */
+.gateway-card--admin .gateway-card__button {
+  background: var(--indigo);
+  border-color: var(--citrus);
+}
+
+/* JS에서 요소를 숨길 때 쓰는 유틸리티 클래스입니다. */
+.is-hidden {
+  display: none !important;
+}
+
+/* =========================================================
+   Login page layout
+   로그인 화면 전용 레이아웃과 입력 폼 스타일입니다.
+   ========================================================= */
+.auth-page .site-shell {
+  display: flex;
+  min-height: 100vh;
+  flex-direction: column;
+}
+
+/* 로그인 패널을 화면 중앙에 배치합니다. */
+.auth-content {
+  display: grid;
+  flex: 1;
+  place-items: center;
+  padding: 54px 0;
+}
+
+/* 로그인 폼을 감싸는 패널입니다. */
+.auth-panel {
+  width: min(100%, 560px);
+  padding: clamp(28px, 5vw, 48px);
+  border: 1px solid rgba(111, 47, 66, 0.22);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: var(--shadow);
+}
+
+/* 로그인 페이지 제목입니다. */
+.auth-panel h1 {
+  margin: 0;
+  color: var(--point-ink);
+  font-size: clamp(2.4rem, 8vw, 4.8rem);
+  line-height: 0.98;
+  letter-spacing: 0;
+}
+
+/* 로그인 페이지 설명문입니다. */
+.auth-panel__copy {
+  margin: 22px 0 0;
+  color: var(--muted);
+  line-height: 1.7;
+  word-break: keep-all;
+}
+
+/* 로그인 입력 폼의 행 간격입니다. */
+.auth-form {
+  display: grid;
+  gap: 10px;
+  margin-top: 24px;
+}
+
+/* 입력 필드 한 묶음입니다. */
+.auth-field {
+  display: grid;
+  gap: 8px;
+}
+
+/* 입력 필드 라벨입니다. */
+.auth-field span {
+  color: var(--point-ink);
+  font-size: 0.92rem;
+  font-weight: 900;
+}
+
+/* 이메일/비밀번호 입력창입니다. */
+.auth-field input {
+  width: 100%;
+  min-height: 48px;
+  padding: 0 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.82);
+  color: var(--ink);
+  font: inherit;
+}
+
+/* 입력창에 포커스가 있을 때 포인트 컬러 링을 보여줍니다. */
+.auth-field input:focus {
+  border-color: var(--point-deep);
+  outline: 3px solid rgba(47, 93, 80, 0.18);
+}
+
+/* 로그인된 상태에서 입력창을 비활성화할 때의 투명도입니다. */
+.auth-field input:disabled {
+  opacity: 0.62;
+}
+
+/* 로그인 페이지 버튼 공통 스타일입니다. */
+.auth-button {
+  min-height: 48px;
+  padding: 0 20px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  cursor: pointer;
+  font-weight: 900;
+  transition:
+    transform 160ms ease,
+    box-shadow 160ms ease,
+    opacity 160ms ease;
+}
+
+/* 로그인 페이지 버튼 hover 스타일입니다. */
+.auth-button:hover:not(:disabled) {
+  opacity: 0.86;
+}
+
+/* 로그인 처리 중 버튼 비활성 상태입니다. */
+.auth-button:disabled {
+  cursor: wait;
+  opacity: 0.58;
+}
+
+/* 로그인 기본 버튼입니다. */
+.auth-button--primary {
+  background: var(--point);
+  color: var(--white);
+}
+
+/* 보조 버튼입니다. */
+.auth-button--ghost {
+  background: rgba(255, 255, 255, 0.78);
+  border-color: rgba(111, 47, 66, 0.28);
+  color: var(--point-ink);
+}
+
+/* =========================================================
+   Admin dashboard
+   관리 페이지의 대시보드, 요약 카드, 관리 기능 패널입니다.
+   ========================================================= */
+.admin-layout {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  gap: 22px;
+  align-items: start;
+  padding: 44px 0 24px;
+}
+
+.admin-sidebar {
+  position: sticky;
+  top: 24px;
+  display: grid;
+  gap: 20px;
+  padding: 22px;
+  border: 1px solid rgba(111, 47, 66, 0.22);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.84);
+  box-shadow: 0 14px 36px rgba(31, 36, 33, 0.08);
+}
+
+.admin-sidebar__label {
+  margin: 0;
+  color: var(--point-deep);
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.admin-sidebar h1 {
+  margin: 0;
+  color: var(--point-ink);
+  font-size: 1.8rem;
+  line-height: 1.1;
+  letter-spacing: 0;
+}
+
+.admin-tab-list {
+  display: grid;
+  gap: 8px;
+}
+
+.admin-tab {
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-weight: 900;
+  text-align: left;
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease;
+}
+
+.admin-tab:hover {
+  border-color: rgba(111, 47, 66, 0.22);
+  background: rgba(255, 255, 255, 0.62);
+  color: var(--point-ink);
+}
+
+.admin-tab.is-active {
+  border-color: rgba(47, 93, 80, 0.28);
+  background: rgba(47, 93, 80, 0.1);
+  color: var(--point-ink);
+}
+
+.admin-workspace {
+  min-width: 0;
+}
+
+.admin-view {
+  display: grid;
+  gap: 22px;
+}
+
+.admin-view[hidden] {
+  display: none;
+}
+
+.admin-hero {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 20px;
+  padding: clamp(24px, 4vw, 38px);
+  border: 1px solid rgba(47, 93, 80, 0.22);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.84);
+  box-shadow: var(--shadow);
+}
+
+.admin-hero h2 {
+  margin: 0;
+  color: var(--point-ink);
+  font-size: clamp(2.2rem, 5vw, 4.6rem);
+  line-height: 1;
+  letter-spacing: 0;
+}
+
+.admin-hero p:not(.intro__eyebrow) {
+  margin: 18px 0 0;
+  color: var(--muted);
+  line-height: 1.7;
+  word-break: keep-all;
+}
+
+.admin-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.admin-stat,
+.admin-panel {
+  border: 1px solid rgba(47, 93, 80, 0.2);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 14px 36px rgba(31, 36, 33, 0.08);
+}
+
+.admin-stat {
+  padding: 20px;
+}
+
+.admin-stat span {
+  color: var(--point-deep);
+  font-size: 0.9rem;
+  font-weight: 900;
+}
+
+.admin-stat strong {
+  display: block;
+  margin-top: 10px;
+  color: var(--point-ink);
+  font-size: 2.4rem;
+  line-height: 1;
+}
+
+.admin-stat p {
+  margin: 10px 0 0;
+  color: var(--muted);
+}
+
+.admin-panel-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.admin-panel {
+  display: grid;
+  gap: 28px;
+  min-height: 220px;
+  padding: 24px;
+}
+
+.admin-panel--wide {
+  grid-column: 1 / -1;
+}
+
+.admin-panel h2 {
+  margin: 0 0 12px;
+  color: var(--point-ink);
+  font-size: clamp(1.4rem, 2.4vw, 2rem);
+  line-height: 1.15;
+  letter-spacing: 0;
+}
+
+.admin-panel p:not(.gateway-card__label) {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.7;
+  word-break: keep-all;
+}
+
+.admin-panel .auth-button {
+  align-self: end;
+  justify-self: start;
+}
+
+.vote-config-panel {
+  gap: 18px;
+}
+
+.vote-config-form {
+  display: grid;
+  gap: 14px;
+}
+
+/* 신청 오픈/마감 상태를 관리하는 카드입니다. */
+.apply-status-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid rgba(111, 47, 66, 0.2);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.76);
+}
+
+/* 신청이 열린 상태일 때 카드에 은은한 강조색을 줍니다. */
+.apply-status-card.is-open {
+  border-color: rgba(47, 93, 80, 0.28);
+  background: rgba(47, 93, 80, 0.08);
+}
+
+/* 상태 문구 영역을 제목과 설명으로 정렬합니다. */
+.apply-status-card span {
+  display: grid;
+  gap: 3px;
+}
+
+/* 신청 상태 제목 텍스트입니다. */
+.apply-status-card strong {
+  color: var(--point-ink);
+  font-size: 0.98rem;
+}
+
+/* 신청 상태 보조 설명 텍스트입니다. */
+.apply-status-card small {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+/* 상태 변경 버튼을 관리 카드 크기에 맞춥니다. */
+.apply-status-card .auth-button {
+  min-height: 40px;
+  padding: 0 16px;
+}
+
+/* 신청 예약 시간을 입력하는 카드입니다. */
+.apply-schedule-card {
+  display: grid;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid rgba(111, 47, 66, 0.18);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+/* 예약 카드의 제목과 해제 버튼을 한 줄로 정렬합니다. */
+.apply-schedule-card__heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+/* 예약 상태 문구 영역입니다. */
+.apply-schedule-card__heading span {
+  display: grid;
+  gap: 3px;
+}
+
+/* 예약 카드 제목 텍스트입니다. */
+.apply-schedule-card__heading strong {
+  color: var(--point-ink);
+  font-size: 0.98rem;
+}
+
+/* 예약 요약 설명 텍스트입니다. */
+.apply-schedule-card__heading small {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 800;
+  line-height: 1.5;
+}
+
+/* 오픈/마감 예약 입력칸을 나란히 배치합니다. */
+.apply-schedule-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+/* 예약 입력 필드 묶음입니다. */
+.apply-schedule-grid label {
+  display: grid;
+  gap: 6px;
+}
+
+/* 예약 입력 필드 라벨입니다. */
+.apply-schedule-grid span {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 900;
+}
+
+/* 날짜와 시간을 입력하는 컨트롤입니다. */
+.apply-schedule-grid input {
+  min-height: 40px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.92rem;
+  font-weight: 800;
+}
+
+/* 예약 입력칸 포커스 표시입니다. */
+.apply-schedule-grid input:focus {
+  border-color: var(--point-deep);
+  outline: 3px solid rgba(47, 93, 80, 0.18);
+}
+
+.vote-capacity-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 76px;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid rgba(111, 47, 66, 0.18);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.76);
+}
+
+.vote-capacity-card span {
+  display: block;
+}
+
+.vote-capacity-card strong {
+  color: var(--point-ink);
+  font-size: 0.98rem;
+}
+
+.vote-capacity-card input {
+  width: 76px;
+  min-height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--ink);
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 900;
+  text-align: center;
+  appearance: textfield;
+}
+
+.vote-capacity-card input::-webkit-outer-spin-button,
+.vote-capacity-card input::-webkit-inner-spin-button {
+  margin: 0;
+  appearance: none;
+}
+
+.vote-capacity-card input:focus {
+  border-color: var(--point-deep);
+  outline: 3px solid rgba(47, 93, 80, 0.18);
+}
+
+.vote-day-list {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.vote-day-row {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-content: start;
+  align-items: start;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid rgba(47, 93, 80, 0.18);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.64);
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.vote-day-row.is-active {
+  border-color: rgba(47, 93, 80, 0.42);
+  background: rgba(47, 93, 80, 0.1);
+  box-shadow: inset 0 -3px 0 var(--point);
+}
+
+.vote-day-row.is-drop-target {
+  border-color: var(--citrus);
+  background: rgba(197, 139, 50, 0.14);
+}
+
+.vote-day-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 34px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  text-align: center;
+}
+
+.vote-day-toggle:hover {
+  color: var(--point-ink);
+}
+
+.vote-day-row.is-active .vote-day-toggle {
+  color: var(--point-ink);
+}
+
+.vote-day-row__name {
+  display: block;
+  width: 100%;
+  color: var(--point-ink);
+  font-size: 0.95rem;
+  font-weight: 900;
+  text-align: center;
+}
+
+.admin-vote-member-list {
+  display: grid;
+  gap: 6px;
+  min-height: 32px;
+  margin: 0;
+  padding: 6px 0 0;
+  list-style: none;
+}
+
+.admin-vote-member {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 24px;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 4px 4px 4px 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.78);
+  color: var(--point-ink);
+  cursor: grab;
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+
+.admin-vote-member.is-dragging {
+  opacity: 0.48;
+}
+
+.admin-vote-member span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-vote-member button {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: 900;
+}
+
+.admin-vote-member button:hover {
+  background: rgba(111, 47, 66, 0.1);
+  color: var(--indigo);
+}
+
+.admin-vote-empty {
+  min-height: 30px;
+  padding: 7px 8px;
+  border-radius: 8px;
+  color: var(--muted);
+  font-size: 0.86rem;
+  text-align: center;
+}
+
+.vote-config-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.vote-config-actions p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.vote-config-button-group {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* =========================================================
+   Public vote page
+   칵테일 클래스 신청 페이지의 신청 폼과 실시간 현황 영역입니다.
+   ========================================================= */
+.vote-layout {
+  display: grid;
+  grid-template-columns: minmax(320px, 0.78fr) minmax(0, 1.22fr);
+  gap: 22px;
+  align-items: start;
+  padding: 44px 0 24px;
+}
+
+.vote-panel {
+  border: 1px solid rgba(47, 93, 80, 0.2);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.84);
+  box-shadow: var(--shadow);
+}
+
+.vote-form-panel {
+  display: grid;
+  gap: 22px;
+  padding: clamp(24px, 4vw, 34px);
+}
+
+.vote-form-panel h1,
+.vote-live-heading h2 {
+  margin: 0;
+  color: var(--point-ink);
+  letter-spacing: 0;
+}
+
+.vote-form-panel h1 {
+  font-size: clamp(2rem, 4vw, 3.6rem);
+  line-height: 1;
+}
+
+.vote-form-panel p:not(.intro__eyebrow) {
+  margin: 18px 0 0;
+  color: var(--muted);
+  line-height: 1.7;
+  word-break: keep-all;
+}
+
+.class-vote-form {
+  display: grid;
+  gap: 14px;
+}
+
+.vote-day-picker {
+  display: grid;
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.vote-day-picker legend {
+  margin-bottom: 6px;
+  color: var(--point-ink);
+  font-size: 0.92rem;
+  font-weight: 900;
+}
+
+.public-day-list {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.public-day-list.is-closed,
+.public-day-list.is-empty {
+  grid-template-columns: 1fr;
+}
+
+.public-day-indicator {
+  position: absolute;
+  inset: 0 auto auto 0;
+  z-index: 0;
+  border: 1px solid rgba(47, 93, 80, 0.42);
+  border-radius: 8px;
+  background: rgba(47, 93, 80, 0.12);
+  box-shadow: inset 0 -3px 0 var(--point);
+  transition:
+    transform 260ms cubic-bezier(0.22, 1, 0.36, 1),
+    width 260ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.public-day-button {
+  position: relative;
+  z-index: 1;
+  min-height: 46px;
+  border: 1px solid rgba(47, 93, 80, 0.2);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-weight: 900;
+  transition:
+    border-color 180ms ease,
+    color 180ms ease;
+}
+
+.public-day-button.is-active {
+  border-color: transparent;
+  color: var(--point-ink);
+}
+
+.public-day-button:active {
+  color: var(--point-ink);
+}
+
+.apply-closed-notice {
+  display: grid;
+  gap: 5px;
+  min-height: 78px;
+  align-content: center;
+  padding: 16px;
+  border: 1px solid rgba(111, 47, 66, 0.2);
+  border-radius: 8px;
+  background: rgba(247, 243, 236, 0.7);
+}
+
+.apply-closed-notice strong {
+  color: var(--point-ink);
+  font-size: 1rem;
+}
+
+.apply-closed-notice span {
+  color: var(--muted);
+  font-size: 0.92rem;
+  font-weight: 800;
+  line-height: 1.5;
+  word-break: keep-all;
+}
+
+.vote-submit-row {
+  display: grid;
+  gap: 12px;
+}
+
+.vote-submit-row p {
+  min-height: 22px;
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.5;
+  word-break: keep-all;
+}
+
+.vote-live-panel {
+  display: grid;
+  gap: 18px;
+  padding: clamp(22px, 3vw, 30px);
+}
+
+.vote-live-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.vote-live-heading h2 {
+  font-size: clamp(1.7rem, 3vw, 2.6rem);
+  line-height: 1.08;
+}
+
+.vote-live-heading span {
+  flex: 0 0 auto;
+  padding: 8px 12px;
+  border: 1px solid rgba(111, 47, 66, 0.24);
+  border-radius: 999px;
+  color: var(--point-ink);
+  font-size: 0.9rem;
+  font-weight: 900;
+}
+
+.vote-board {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.vote-board-day {
+  min-height: 260px;
+  padding: 18px;
+  border: 1px solid rgba(47, 93, 80, 0.16);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.66);
+}
+
+.vote-board-day__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.vote-board-day h3 {
+  margin: 0;
+  color: var(--point-ink);
+  font-size: 1.2rem;
+}
+
+.vote-board-day__header span {
+  color: var(--point-deep);
+  font-weight: 900;
+}
+
+.vote-member-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.vote-member-list li {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: rgba(247, 243, 236, 0.74);
+}
+
+.vote-member-list strong {
+  color: var(--point-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vote-member-list .empty-member {
+  display: block;
+  color: var(--muted);
+  background: transparent;
+}
+
+.empty-state {
+  margin: 0;
+  padding: 14px;
+  border: 1px dashed rgba(111, 47, 66, 0.28);
+  border-radius: 8px;
+  color: var(--muted);
+  text-align: center;
+  word-break: keep-all;
+}
+
+/* =========================================================
+   Tablet responsive
+   태블릿 이하에서 메인 레이아웃을 한 열로 바꿉니다.
+   ========================================================= */
+@media (max-width: 880px) {
+  /* 화면 좌우 여백을 모바일 친화적으로 줄입니다. */
+  .site-shell {
+    width: min(100% - 28px, 680px);
+    padding-top: 18px;
+  }
+
+  /* 상단 헤더 높이를 줄입니다. */
+  .site-header {
+    min-height: 62px;
+  }
+
+  /* 로고 심볼 크기를 줄입니다. */
+  .brand__mark {
+    width: 44px;
+    height: 44px;
+  }
+
+  /* 메인 콘텐츠를 1열 구조로 전환합니다. */
+  .main-content {
+    min-height: auto;
+    padding-top: 48px;
+  }
+
+  /* 카드 높이를 태블릿 화면에 맞춥니다. */
+  .gateway-card {
+    min-height: 220px;
+  }
+
+  .admin-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-sidebar {
+    position: static;
+  }
+
+  .admin-tab-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .admin-tab {
+    text-align: center;
+  }
+
+  .admin-hero {
+    align-items: start;
+    flex-direction: column;
+  }
+
+  .admin-summary,
+  .admin-panel-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-panel--wide {
+    grid-column: auto;
+  }
+
+  .vote-day-row {
+    grid-template-columns: 1fr;
+  }
+
+  .vote-day-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .vote-capacity-card {
+    grid-template-columns: 1fr;
+  }
+
+  .apply-status-card {
+    grid-template-columns: 1fr;
+  }
+
+  .apply-status-card .auth-button {
+    width: 100%;
+  }
+
+  .apply-schedule-card__heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .apply-schedule-card__heading .auth-button {
+    width: 100%;
+  }
+
+  .apply-schedule-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .vote-capacity-card input {
+    width: 100%;
+  }
+
+  .vote-config-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .vote-config-button-group {
+    flex-direction: column;
+  }
+
+  .vote-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .vote-board {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* =========================================================
+   Mobile responsive
+   작은 모바일 화면에서 버튼과 카드를 세로 중심으로 정리합니다.
+   ========================================================= */
+@media (max-width: 620px) {
+  /* 모바일 좌우 여백과 하단 여백입니다. */
+  .site-shell {
+    width: min(100% - 24px, 520px);
+    padding-bottom: 34px;
+  }
+
+  /* 헤더 내부 요소가 위쪽 정렬되게 합니다. */
+  .site-header {
+    align-items: flex-start;
+  }
+
+  /* 로고와 이름 사이 간격을 줄입니다. */
+  .brand {
+    gap: 10px;
+  }
+
+  /* 모바일에서 워드마크가 너무 길어지지 않게 합니다. */
+  .brand__name {
+    width: min(140px, 36vw);
+  }
+
+  /* 우측 상단 버튼들을 세로로 쌓습니다. */
+  .header-actions {
+    flex-direction: column-reverse;
+    align-items: stretch;
+  }
+
+  /* 모바일 헤더 버튼의 높이와 글자 크기입니다. */
+  .login-link {
+    min-height: 40px;
+    padding: 0 14px;
+    font-size: 0.92rem;
+  }
+
+  /* 모바일에서 메인 콘텐츠의 상단 여백입니다. */
+  .main-content {
+    padding-top: 42px;
+  }
+
+  /* 모바일에서 브랜드 카드를 세로형에 가깝게 줄입니다. */
+  .intro__brand-card {
+    grid-template-columns: 76px minmax(0, 1fr);
+    gap: 14px;
+    padding: 14px;
+  }
+
+  /* 모바일 브랜드 로고 크기입니다. */
+  .intro__logo {
+    width: 76px;
+    height: 76px;
+  }
+
+  /* 모바일 메인 제목 크기입니다. */
+  .intro h1 {
+    font-size: clamp(1.8rem, 9vw, 2.8rem);
+  }
+
+  /* 모바일 카드 내부를 세로 배치로 바꿉니다. */
+  .gateway-card {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+    min-height: 248px;
+  }
+
+  /* 모바일 카드 버튼은 카드 폭 전체를 씁니다. */
+  .gateway-card__button {
+    width: 100%;
+  }
+
+  .admin-tab-list {
+    grid-template-columns: 1fr;
+  }
+
+  .vote-day-list {
+    grid-template-columns: 1fr;
+  }
+
+  .public-day-list,
+  .vote-board {
+    grid-template-columns: 1fr;
+  }
+
+  .vote-live-heading {
+    align-items: start;
+    flex-direction: column;
+  }
+}

@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Martini Class Apply</title>
+    <link rel="stylesheet" href="./assets/css/main.css" />
+    <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+    <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+    <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+    <script defer src="./assets/js/firebase.js"></script>
+    <script defer src="./assets/js/vote.js"></script>
+  </head>
+  <body class="vote-page">
+    <div class="site-shell">
+      <header class="site-header" aria-label="Martini vote navigation">
+        <a class="brand" href="./index.html" aria-label="마티니 메인으로 이동">
+          <img class="brand__name" src="./assets/images/Name.png" alt="Martini" />
+        </a>
+
+        <nav class="header-actions" aria-label="페이지 이동">
+          <button class="login-link" type="button" data-route="./index.html">
+            메인으로
+          </button>
+        </nav>
+      </header>
+
+      <main class="vote-layout" aria-labelledby="vote-title">
+        <section class="vote-panel vote-form-panel">
+          <div>
+            <p class="intro__eyebrow">Class Ticketing</p>
+            <h1 id="vote-title">클래스 신청</h1>
+            <p>원하는 요일을 선택하고 이름과 학번을 입력해주세요.</p>
+          </div>
+
+          <form class="class-vote-form" data-class-vote-form>
+            <fieldset class="vote-day-picker">
+              <legend>교육 요일</legend>
+              <div class="public-day-list" data-public-day-list></div>
+            </fieldset>
+
+            <label class="auth-field">
+              <span>이름</span>
+              <input type="text" name="name" autocomplete="name" required />
+            </label>
+
+            <label class="auth-field">
+              <span>학번</span>
+              <input type="text" name="studentId" inputmode="numeric" autocomplete="off" required />
+            </label>
+
+            <div class="vote-submit-row">
+              <p data-vote-message>설정을 불러오고 있습니다.</p>
+              <button class="auth-button auth-button--primary" type="submit" data-vote-submit>
+                신청하기
+              </button>
+            </div>
+          </form>
+        </section>
+
+        <section class="vote-panel vote-live-panel" aria-labelledby="live-title">
+          <div class="vote-live-heading">
+            <div>
+              <p class="intro__eyebrow">Live List</p>
+            </div>
+          </div>
+
+          <div class="vote-board" data-vote-board></div>
+        </section>
+      </main>
+    </div>
+  </body>
+</html>
