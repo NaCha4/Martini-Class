@@ -2,39 +2,57 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
+    <!-- 모바일에서 화면 배율 고정, 사용자 핀치줌 비활성화 -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>마티니 교육 투표</title>
-    
-    <link rel="icon" href="assets/images/Logo.png" type="image/x-icon">
+    <title>마티니 클래스 신청</title>
+
+    <!-- 브라우저 탭 아이콘 -->
+    <link rel="icon" href="assets/images/Logo.png" type="image/png">
+    <!-- iOS 홈 화면에 추가했을 때 사용되는 아이콘 -->
     <link rel="apple-touch-icon" href="assets/images/Logo.png">
 
-    <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+    <!-- Pretendard: 한글 최적화 웹폰트 -->
+    <link rel="stylesheet" as="style" crossorigin
+          href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div class="mobile-container">
+
+        <!-- 헤더: 로고 + 부제목 -->
+        <!-- 로고를 5번 클릭하면 관리자 모드 진입 프롬프트가 뜹니다 (script.js 참고) -->
         <header>
-            <img src="assets/images/Name.png" alt="MARTINI Logo" class="logo-image">
+            <img src="assets/images/Name.png" alt="MARTINI" class="logo-image">
             <p class="subtitle">정규 칵테일 클래스 신청</p>
         </header>
 
+        <!-- 섹션 1: 요일 선택 -->
+        <!-- data-day 속성값이 Firestore 문서 ID와 동일해야 합니다: 화요일 / 수요일 / 목요일 -->
         <section class="section">
             <h2>1. 요일 선택 <span class="limit">(선착순 24명)</span></h2>
             <div class="day-selector">
                 <button class="day-btn active" data-day="화요일">화</button>
-                <button class="day-btn" data-day="수요일">수</button>
-                <button class="day-btn" data-day="목요일">목</button>
+                <button class="day-btn"        data-day="수요일">수</button>
+                <button class="day-btn"        data-day="목요일">목</button>
             </div>
         </section>
 
+        <!-- 섹션 2: 이름 입력 및 신청 -->
+        <!-- maxlength로 클라이언트에서 1차 제한 (script.js에서도 2차 검증) -->
         <section class="section">
             <h2>2. 이름 입력</h2>
             <div class="input-group">
-                <input type="text" id="userName" placeholder="이름을 입력하세요">
+                <input type="text" id="userName"
+                       placeholder="이름을 입력하세요"
+                       maxlength="20"
+                       autocomplete="off">
                 <button id="submitBtn">로딩 중...</button>
             </div>
         </section>
 
+        <!-- 섹션 3: 신청자 목록 -->
+        <!-- selectedDayName: 현재 요일 표시 / count: 신청자 수 표시 -->
+        <!-- attendeeList: JS renderList()가 동적으로 내용을 채웁니다 -->
         <section class="section list-section">
             <div class="list-header">
                 <h2>신청자 목록 (<span id="selectedDayName">화요일</span>)</h2>
@@ -43,20 +61,25 @@
             <div id="attendeeList" class="attendee-list"></div>
         </section>
 
+        <!-- 관리자 전용 버튼 영역 -->
+        <!-- 기본적으로 display:none. 관리자 로그인 성공 시 JS에서 표시합니다. -->
         <section class="admin-section">
             <button id="exportBtn" class="admin-btn export">명단 추출</button>
-            <button id="resetBtn" class="admin-btn reset">데이터 초기화</button>
+            <button id="resetBtn"  class="admin-btn reset">데이터 초기화</button>
             <div id="adminControlGroup" class="admin-btn-group">
-                <button id="startBtn" class="admin-btn control start">시작/예약</button>
-                <button id="endBtn" class="admin-btn control">신청 마감</button>
+                <button id="startBtn" class="admin-btn control start">시작 / 예약</button>
+                <button id="endBtn"   class="admin-btn control">신청 마감</button>
             </div>
-
         </section>
+
     </div>
-    
+
+    <!-- Firebase SDK (compat 버전: firebase.firestore() 방식 사용 가능) -->
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+
+    <!-- 앱 로직 (Firebase 초기화 스크립트 뒤에 위치해야 합니다) -->
     <script src="script.js"></script>
 </body>
 </html>
