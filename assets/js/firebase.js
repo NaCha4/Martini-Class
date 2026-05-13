@@ -123,8 +123,21 @@
     let batch = db.batch();
     let operationCount = 0;
 
-    snapshot.docs.forEach((documentSnapshot) => {
+    const queueDelete = (documentSnapshot) => {
       batch.delete(documentSnapshot.ref);
+      operationCount += 1;
+
+      if (operationCount === 450) {
+        writeBatches.push(batch);
+        batch = db.batch();
+        operationCount = 0;
+      }
+    };
+
+    snapshot.docs.forEach(queueDelete);
+
+    dayKeys.forEach((dayKey) => {
+      batch.set(db.collection("classVoteState").doc(dayKey), { count: 0 }, { merge: true });
       operationCount += 1;
 
       if (operationCount === 450) {
@@ -134,11 +147,9 @@
       }
     });
 
-    dayKeys.forEach((dayKey) => {
-      batch.set(db.collection("classVoteState").doc(dayKey), { count: 0 }, { merge: true });
-    });
-
-    writeBatches.push(batch);
+    if (operationCount > 0) {
+      writeBatches.push(batch);
+    }
 
     await Promise.all(writeBatches.map((writeBatch) => writeBatch.commit()));
   }
@@ -150,7 +161,14 @@
 
     return db.collection("classVotes").onSnapshot((snapshot) => {
       const votes = snapshot.docs
-        .map((documentSnapshot) => documentSnapshot.data())
+        .map((documentSnapshot) => {
+          const data = documentSnapshot.data();
+
+          return {
+            ...data,
+            studentId: data.studentId || documentSnapshot.id,
+          };
+        })
         .sort((a, b) => {
           const aTime = a.updatedAt?.toMillis?.() || 0;
           const bTime = b.updatedAt?.toMillis?.() || 0;
@@ -160,6 +178,94 @@
 
       callback(votes);
     });
+  }
+
+  function subscribeClassAttendance(callback) {
+    if (!db) {
+      throw new Error("Firestore SDK가 로드되지 않았습니다.");
+    }
+
+    return db.collection("classAttendance").onSnapshot((snapshot) => {
+      const attendance = snapshot.docs.map((documentSnapshot) => {
+        const data = documentSnapshot.data();
+        const [, ...studentIdParts] = documentSnapshot.id.split("_");
+
+        return {
+          ...data,
+          attendanceId: documentSnapshot.id,
+          weekKey: data.weekKey || "week-1",
+          weekLabel: data.weekLabel || "1주차",
+          studentId: data.studentId || studentIdParts.join("_") || documentSnapshot.id,
+        };
+      });
+
+      callback(attendance);
+    });
+  }
+
+  function getClassAttendanceDocId(record) {
+    return `${record.weekKey || "week-1"}_${record.studentId}`;
+  }
+
+  async function saveClassAttendance(record) {
+    if (!db) {
+      throw new Error("Firestore SDK가 로드되지 않았습니다.");
+    }
+
+    await db.collection("classAttendance").doc(getClassAttendanceDocId(record)).set(
+      {
+        ...record,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      },
+      { merge: true },
+    );
+  }
+
+  async function replaceWeekClassAttendance(weekKey, records = []) {
+    if (!db) {
+      throw new Error("Firestore SDK가 로드되지 않았습니다.");
+    }
+
+    const snapshot = await db.collection("classAttendance").get();
+    const writeBatches = [];
+    let batch = db.batch();
+    let operationCount = 0;
+
+    const commitIfFull = () => {
+      if (operationCount < 450) return;
+
+      writeBatches.push(batch);
+      batch = db.batch();
+      operationCount = 0;
+    };
+
+    snapshot.docs.forEach((documentSnapshot) => {
+      const data = documentSnapshot.data();
+      const isTargetWeek = data.weekKey === weekKey || (!data.weekKey && weekKey === "week-1");
+
+      if (!isTargetWeek) return;
+
+      batch.delete(documentSnapshot.ref);
+      operationCount += 1;
+      commitIfFull();
+    });
+
+    records.forEach((record) => {
+      batch.set(db.collection("classAttendance").doc(getClassAttendanceDocId(record)), {
+        ...record,
+        status: record.status || "pending",
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      });
+      operationCount += 1;
+      commitIfFull();
+    });
+
+    if (operationCount > 0) {
+      writeBatches.push(batch);
+    }
+
+    await Promise.all(writeBatches.map((writeBatch) => writeBatch.commit()));
   }
 
   async function deleteClassVote(studentId) {
@@ -232,6 +338,9 @@
     saveVoteConfig,
     resetClassVotes,
     subscribeClassVotes,
+    subscribeClassAttendance,
+    saveClassAttendance,
+    replaceWeekClassAttendance,
     deleteClassVote,
     moveClassVote,
   };

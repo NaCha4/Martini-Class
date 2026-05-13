@@ -8,11 +8,13 @@ function moveToPage(target) {
 
 function updateAdminNavigation(isAdmin) {
   const adminCard = document.querySelector("[data-admin-card]");
+  const attendanceCard = document.querySelector("[data-attendance-card]");
   const loginButton = document.querySelector(".login-link");
 
   if (!loginButton) return;
 
   adminCard?.classList.toggle("is-hidden", !isAdmin);
+  attendanceCard?.classList.toggle("is-hidden", !isAdmin);
   loginButton.textContent = isAdmin ? "로그아웃" : "로그인";
   loginButton.dataset.route = isAdmin ? "" : "./login.html";
 }

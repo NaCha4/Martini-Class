@@ -300,6 +300,13 @@ button {
     url("../images/Logo.png") right -70px center / 290px auto no-repeat;
 }
 
+/* 출석부 카드의 차분한 버건디 오버레이입니다. */
+.gateway-card--attendance::before {
+  background:
+    linear-gradient(120deg, rgba(111, 47, 66, 0.78), transparent 56%),
+    url("../images/Logo.png") right -70px center / 290px auto no-repeat;
+}
+
 /* 관리 페이지 카드의 시트러스 오버레이입니다. */
 .gateway-card--admin::before {
   background:
@@ -353,10 +360,17 @@ button {
   border-color: var(--indigo);
 }
 
+/* 출석부 카드 버튼은 버건디 계열로 관리 기능과 구분합니다. */
+.gateway-card--attendance .gateway-card__button {
+  background: var(--indigo);
+  border-color: var(--point);
+}
+
 /* 관리 페이지 카드 버튼은 따뜻한 보조색으로 구분합니다. */
 .gateway-card--admin .gateway-card__button {
-  background: var(--indigo);
+  background: #2b4a57;
   border-color: var(--citrus);
+  color: var(--white);
 }
 
 /* JS에서 요소를 숨길 때 쓰는 유틸리티 클래스입니다. */
@@ -1241,6 +1255,333 @@ button {
   background: transparent;
 }
 
+/* =========================================================
+   Attendance page
+   출석부 페이지의 요약 카드와 요일별 출석 체크 목록입니다.
+   ========================================================= */
+.attendance-layout {
+  display: grid;
+  gap: 18px;
+  padding: 44px 0 24px;
+}
+
+/* 출석부 상단 제목과 요약 숫자를 담는 영역입니다. */
+.attendance-hero {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 18px;
+  align-items: stretch;
+  padding: clamp(24px, 4vw, 38px);
+  border: 1px solid rgba(47, 93, 80, 0.22);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.84);
+  box-shadow: var(--shadow);
+}
+
+/* 출석부 페이지 제목입니다. */
+.attendance-hero h1 {
+  margin: 0;
+  color: var(--point-ink);
+  font-size: clamp(2.2rem, 5vw, 4.4rem);
+  line-height: 1;
+  letter-spacing: 0;
+}
+
+/* 출석부 설명 문구입니다. */
+.attendance-hero p:not(.intro__eyebrow) {
+  margin: 18px 0 0;
+  color: var(--muted);
+  line-height: 1.7;
+  word-break: keep-all;
+}
+
+/* 출석부 신청자, 출석, 결석 숫자 요약입니다. */
+.attendance-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+/* 출석부 요약 숫자 카드입니다. */
+.attendance-summary article {
+  display: grid;
+  align-content: center;
+  gap: 10px;
+  padding: 16px;
+  border: 1px solid rgba(47, 93, 80, 0.18);
+  border-radius: 8px;
+  background: rgba(247, 243, 236, 0.66);
+}
+
+/* 출석부 요약 라벨입니다. */
+.attendance-summary span {
+  color: var(--point-deep);
+  font-size: 0.84rem;
+  font-weight: 900;
+}
+
+/* 출석부 요약 숫자입니다. */
+.attendance-summary strong {
+  color: var(--point-ink);
+  font-size: clamp(2rem, 4vw, 3.1rem);
+  line-height: 1;
+}
+
+/* 출석부 저장 상태 문구입니다. */
+.attendance-message {
+  margin: 0;
+  color: var(--muted);
+  font-weight: 800;
+}
+
+/* 주차 선택과 현재 신청자 명단 덮어쓰기 버튼을 담는 바입니다. */
+.attendance-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: end;
+  padding: 18px;
+  border: 1px solid rgba(47, 93, 80, 0.2);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 14px 36px rgba(31, 36, 33, 0.08);
+}
+
+/* 1주차부터 10주차까지 선택하는 버튼 목록입니다. */
+.attendance-week-list {
+  display: grid;
+  grid-template-columns: repeat(10, minmax(0, 1fr));
+  gap: 7px;
+  margin-top: 10px;
+}
+
+/* 주차 선택 버튼입니다. */
+.attendance-week-button {
+  min-height: 38px;
+  border: 1px solid rgba(47, 93, 80, 0.18);
+  border-radius: 8px;
+  background: rgba(247, 243, 236, 0.72);
+  color: var(--muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 900;
+}
+
+/* 현재 선택된 주차 버튼입니다. */
+.attendance-week-button.is-active {
+  border-color: rgba(47, 93, 80, 0.42);
+  background: rgba(47, 93, 80, 0.12);
+  color: var(--point-ink);
+}
+
+/* 누적 결석 현황 대시보드입니다. */
+.absence-dashboard {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid rgba(111, 47, 66, 0.18);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 14px 36px rgba(31, 36, 33, 0.08);
+}
+
+/* 누적 결석 대시보드 제목 영역입니다. */
+.absence-dashboard__header {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+/* 누적 결석 대시보드 제목입니다. */
+.absence-dashboard h2 {
+  margin: 0;
+  color: var(--point-ink);
+  font-size: 1.35rem;
+}
+
+/* 누적 결석자 목록입니다. */
+.absence-dashboard__list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+/* 누적 결석자 한 명의 요약 행입니다. */
+.absence-person {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 52px;
+  gap: 8px;
+  align-items: center;
+  min-height: 58px;
+  padding: 9px 10px;
+  border-radius: 8px;
+  background: rgba(247, 243, 236, 0.72);
+}
+
+/* 결석자 이름입니다. */
+.absence-person strong {
+  display: block;
+  color: var(--point-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 결석자 학번과 결석 주차 설명입니다. */
+.absence-person span {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 결석 횟수와 주차 목록 영역입니다. */
+.absence-person__meta {
+  min-width: 0;
+  text-align: right;
+}
+
+/* 결석 횟수 숫자입니다. */
+.absence-person__meta strong {
+  color: var(--indigo);
+  font-size: 1.2rem;
+}
+
+/* 요일별 출석부 카드 그리드입니다. */
+.attendance-board {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+/* 요일 하나에 해당하는 출석부 영역입니다. */
+.attendance-day {
+  display: grid;
+  gap: 14px;
+  align-content: start;
+  min-height: 220px;
+  padding: 18px;
+  border: 1px solid rgba(47, 93, 80, 0.18);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 14px 36px rgba(31, 36, 33, 0.08);
+}
+
+/* 요일 제목과 결석 요약을 정렬합니다. */
+.attendance-day__header {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+/* 요일 제목입니다. */
+.attendance-day h2 {
+  margin: 0;
+  color: var(--point-ink);
+  font-size: 1.35rem;
+}
+
+/* 요일별 신청/결석 요약입니다. */
+.attendance-day__header span {
+  display: block;
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+
+/* 요일별 신청자 목록입니다. */
+.attendance-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* 신청자 한 명의 출석 체크 행입니다. */
+.attendance-member {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  min-height: 58px;
+  padding: 10px;
+  border-radius: 8px;
+  background: rgba(247, 243, 236, 0.72);
+}
+
+/* 신청자 이름입니다. */
+.attendance-member strong {
+  display: block;
+  color: var(--point-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 신청자 학번입니다. */
+.attendance-member div > span {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+/* 출석/결석 조작 버튼 묶음입니다. */
+.attendance-actions {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+/* 출석 체크 라벨과 결석 버튼의 공통 모양입니다. */
+.attendance-check,
+.attendance-absent {
+  display: inline-grid;
+  min-height: 36px;
+  align-items: center;
+  padding: 0 12px;
+  border: 1px solid rgba(47, 93, 80, 0.18);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.78);
+  color: var(--muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 900;
+}
+
+/* 실제 체크박스는 시각적으로 숨기고 라벨 클릭은 유지합니다. */
+.attendance-check input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* 출석으로 체크된 상태입니다. */
+.attendance-check.is-active {
+  border-color: rgba(47, 93, 80, 0.42);
+  background: rgba(47, 93, 80, 0.12);
+  color: var(--point-ink);
+}
+
+/* 결석으로 체크된 상태입니다. */
+.attendance-absent.is-active {
+  border-color: rgba(111, 47, 66, 0.42);
+  background: rgba(111, 47, 66, 0.1);
+  color: var(--indigo);
+}
+
 .empty-state {
   margin: 0;
   padding: 14px;
@@ -1364,6 +1705,30 @@ button {
     grid-template-columns: 1fr;
   }
 
+  .attendance-hero {
+    grid-template-columns: 1fr;
+  }
+
+  .attendance-toolbar {
+    grid-template-columns: 1fr;
+  }
+
+  .attendance-toolbar .auth-button {
+    width: 100%;
+  }
+
+  .attendance-week-list {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+
+  .absence-dashboard__list {
+    grid-template-columns: 1fr;
+  }
+
+  .attendance-board {
+    grid-template-columns: 1fr;
+  }
+
   .vote-board {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -1452,8 +1817,35 @@ button {
   }
 
   .public-day-list,
-  .vote-board {
+  .vote-board,
+  .attendance-summary {
     grid-template-columns: 1fr;
+  }
+
+  .attendance-member {
+    grid-template-columns: 1fr;
+  }
+
+  .attendance-actions {
+    align-items: stretch;
+  }
+
+  .attendance-week-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .absence-person {
+    grid-template-columns: 1fr;
+  }
+
+  .absence-person__meta {
+    text-align: left;
+  }
+
+  .attendance-check,
+  .attendance-absent {
+    width: 100%;
+    justify-content: center;
   }
 
   .vote-live-heading {

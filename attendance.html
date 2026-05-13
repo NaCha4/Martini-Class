@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Martini Attendance</title>
+    <link rel="stylesheet" href="./assets/css/main.css" />
+    <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+    <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+    <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+    <script defer src="./assets/js/firebase.js"></script>
+    <script defer src="./assets/js/attendance.js"></script>
+  </head>
+  <body class="attendance-page">
+    <div class="site-shell">
+      <header class="site-header" aria-label="Martini attendance navigation">
+        <a class="brand" href="./index.html" aria-label="마티니 메인으로 이동">
+          <img class="brand__name" src="./assets/images/Name.png" alt="Martini" />
+        </a>
+
+        <nav class="header-actions" aria-label="페이지 이동">
+          <button class="login-link" type="button" data-route="./index.html">
+            메인으로
+          </button>
+        </nav>
+      </header>
+
+      <main class="attendance-layout" aria-labelledby="attendance-title">
+        <section class="attendance-hero">
+          <div>
+            <p class="intro__eyebrow">Class Attendance</p>
+            <h1 id="attendance-title">출석부</h1>
+            <p>1주차부터 10주차까지 출석 상태와 누적 결석 현황을 관리합니다.</p>
+          </div>
+        </section>
+
+        <section class="attendance-toolbar" aria-label="주차 선택과 명단 동기화">
+          <div>
+            <p class="gateway-card__label">Week Select</p>
+            <div class="attendance-week-list" data-attendance-week-list></div>
+          </div>
+          <button class="auth-button auth-button--primary" type="button" data-import-current-votes>
+            현재 신청자 목록으로 덮어쓰기
+          </button>
+        </section>
+
+        <section class="absence-dashboard" aria-labelledby="absence-dashboard-title">
+          <div class="absence-dashboard__header">
+            <div>
+              <p class="gateway-card__label">Absence Dashboard</p>
+              <h2 id="absence-dashboard-title">누적 결석 현황</h2>
+            </div>
+          </div>
+          <div class="absence-dashboard__list" data-absence-dashboard></div>
+        </section>
+
+        <p class="attendance-message" data-attendance-message>
+          출석 정보를 불러오고 있습니다.
+        </p>
+
+        <section class="attendance-board" data-attendance-board aria-label="요일별 출석부"></section>
+      </main>
+    </div>
+  </body>
+</html>

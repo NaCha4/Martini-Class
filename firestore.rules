@@ -31,6 +31,10 @@ service cloud.firestore {
       allow write: if signedIn() || isClassApplyOpen();
     }
 
+    match /classAttendance/{studentId} {
+      allow read, write: if signedIn();
+    }
+
     match /settings/{document} {
       allow read: if true;
       allow write: if signedIn();
