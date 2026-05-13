@@ -8,6 +8,7 @@
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+    <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-storage-compat.js"></script>
     <script defer src="./assets/js/firebase.js"></script>
     <script defer src="./assets/js/admin.js"></script>
   </head>
@@ -174,15 +175,114 @@
           </section>
 
           <section class="admin-view" data-admin-panel="private" role="tabpanel" hidden>
-            <article class="admin-panel admin-panel--wide">
+            <article class="admin-panel admin-panel--wide private-admin-panel">
               <div>
                 <p class="gateway-card__label">Private Class</p>
                 <h2>개인 클래스 관리</h2>
-                <p>주간 이벤트 클래스 설명, 모집 상태, 참여자 목록을 관리할 영역입니다.</p>
+                <p>임원진이 준비하는 주류 행사 글을 작성하고 모집 상태를 관리합니다.</p>
               </div>
-              <button class="auth-button auth-button--ghost" type="button" disabled>
-                준비 중
-              </button>
+
+              <div class="private-class-toolbar" data-private-class-toolbar>
+                <div>
+                  <strong>개인 클래스 목록</strong>
+                  <span>등록된 개인 클래스 글을 확인하고 관리합니다.</span>
+                </div>
+                <button class="auth-button auth-button--primary" type="button" data-private-class-write>
+                  글쓰기
+                </button>
+              </div>
+
+              <form class="private-class-form is-hidden" data-private-class-form>
+                <label class="private-thumbnail-field">
+                  <span>썸네일</span>
+                  <input type="file" name="thumbnail" accept="image/*" data-private-thumbnail-input />
+                  <div class="private-thumbnail-preview" data-private-thumbnail-preview>
+                    <img src="./assets/images/Logo.png" alt="" />
+                    <small>이미지를 선택하면 썸네일로 저장됩니다.</small>
+                  </div>
+                </label>
+
+                <div class="private-class-form__grid">
+                  <label class="auth-field">
+                    <span>클래스 제목</span>
+                    <input type="text" name="title" placeholder="예: 싱글몰트 위스키 입문" required />
+                  </label>
+
+                  <label class="auth-field">
+                    <span>주제</span>
+                    <input type="text" name="category" placeholder="전통주, 위스키, 칵테일" required />
+                  </label>
+
+                  <label class="auth-field">
+                    <span>참여비</span>
+                    <input type="text" name="fee" placeholder="예: 15000원" required />
+                  </label>
+
+                  <label class="auth-field">
+                    <span>진행 일시</span>
+                    <input type="datetime-local" name="eventAt" />
+                  </label>
+
+                  <label class="auth-field">
+                    <span>모집 인원</span>
+                    <input type="number" name="capacity" min="1" max="99" value="8" required />
+                  </label>
+                </div>
+
+                <label class="auth-field">
+                  <span>한 줄 소개</span>
+                  <input type="text" name="summary" placeholder="갤러리 카드에 보일 짧은 소개를 입력하세요." required />
+                </label>
+
+                <label class="auth-field">
+                  <span>상세 설명</span>
+                  <textarea name="description" rows="5" placeholder="행사 취지, 시음 주류, 진행 방식 등을 적어주세요." required></textarea>
+                </label>
+
+                <div class="private-class-form__footer">
+                  <label class="auth-field">
+                    <span>모집 상태</span>
+                    <select name="status">
+                      <option value="upcoming">모집예정</option>
+                      <option value="open">모집중</option>
+                      <option value="closed">마감</option>
+                      <option value="done">종료</option>
+                    </select>
+                  </label>
+
+                  <div class="private-class-actions">
+                    <p data-private-class-status>개인 클래스 글을 작성해주세요.</p>
+                    <div class="private-class-button-group">
+                      <button class="auth-button auth-button--ghost" type="button" data-private-class-cancel>
+                        목록으로
+                      </button>
+                      <button class="auth-button auth-button--primary" type="submit" data-private-class-save>
+                        글 등록
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </form>
+
+              <div class="private-class-detail is-hidden" data-private-class-detail>
+                <div class="private-class-detail__header">
+                  <div>
+                    <p class="gateway-card__label">Class Detail</p>
+                    <h3 data-private-detail-title>개인 클래스 상세</h3>
+                    <p data-private-detail-meta>상세보기할 클래스를 선택해주세요.</p>
+                  </div>
+                  <button class="auth-button auth-button--ghost" type="button" data-private-class-edit>
+                    내용 수정
+                  </button>
+                </div>
+
+                <div>
+                  <h4>신청자 목록</h4>
+                  <ul class="private-applicant-list" data-private-applicant-list></ul>
+                </div>
+              </div>
+
+              <div class="private-class-admin-list" data-private-class-admin-list></div>
             </article>
           </section>
 

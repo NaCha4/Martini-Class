@@ -22,6 +22,7 @@
 
   const auth = firebase.auth();
   const db = firebase.firestore ? firebase.firestore() : null;
+  const storage = firebase.storage ? firebase.storage() : null;
   auth.languageCode = "ko";
 
   function saveAdminSession(isAdmin, user) {
@@ -325,9 +326,208 @@
     });
   }
 
+  function normalizePrivateClassSnapshot(documentSnapshot) {
+    const data = documentSnapshot.data();
+
+    return {
+      ...data,
+      id: documentSnapshot.id,
+      applicationCount: Number(data.applicationCount || 0),
+    };
+  }
+
+  function subscribePrivateClasses(callback) {
+    if (!db) {
+      throw new Error("Firestore SDK가 로드되지 않았습니다.");
+    }
+
+    return db.collection("privateClasses").onSnapshot((snapshot) => {
+      const classes = snapshot.docs
+        .map(normalizePrivateClassSnapshot)
+        .sort((a, b) => {
+          const aTime = a.eventAt?.toMillis?.() || a.createdAt?.toMillis?.() || 0;
+          const bTime = b.eventAt?.toMillis?.() || b.createdAt?.toMillis?.() || 0;
+
+          return bTime - aTime;
+        });
+
+      callback(classes);
+    });
+  }
+
+  function subscribePrivateClassApplications(callback) {
+    if (!db) {
+      throw new Error("Firestore SDK가 로드되지 않았습니다.");
+    }
+
+    return db.collection("privateClassApplications").onSnapshot((snapshot) => {
+      const applications = snapshot.docs
+        .map((documentSnapshot) => ({
+          ...documentSnapshot.data(),
+          id: documentSnapshot.id,
+        }))
+        .sort((a, b) => {
+          const aTime = a.createdAt?.toMillis?.() || 0;
+          const bTime = b.createdAt?.toMillis?.() || 0;
+
+          return aTime - bTime;
+        });
+
+      callback(applications);
+    });
+  }
+
+  async function savePrivateClass(classData) {
+    if (!db) {
+      throw new Error("Firestore SDK가 로드되지 않았습니다.");
+    }
+
+    const privateClassRef = classData.id
+      ? db.collection("privateClasses").doc(classData.id)
+      : db.collection("privateClasses").doc();
+    const snapshot = await privateClassRef.get();
+
+    await privateClassRef.set(
+      {
+        ...classData,
+        id: privateClassRef.id,
+        applicationCount: snapshot.data()?.applicationCount || 0,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        createdAt: snapshot.data()?.createdAt || firebase.firestore.FieldValue.serverTimestamp(),
+      },
+      { merge: true },
+    );
+
+    return privateClassRef.id;
+  }
+
+  async function uploadPrivateClassThumbnail(classId, thumbnailBlob, onProgress) {
+    if (!storage) {
+      throw new Error("Firebase Storage SDK가 로드되지 않았습니다.");
+    }
+
+    const thumbnailRef = storage.ref(`private-class-thumbnails/${classId}/thumbnail.jpg`);
+    const uploadTask = thumbnailRef.put(thumbnailBlob, {
+      contentType: "image/jpeg",
+      cacheControl: "public,max-age=3600",
+    });
+
+    return new Promise((resolve, reject) => {
+      const timeoutId = window.setTimeout(() => {
+        uploadTask.cancel();
+        reject(new Error("썸네일 업로드 시간이 너무 오래 걸립니다. Firebase Storage 설정을 확인해주세요."));
+      }, 60000);
+
+      uploadTask.on(
+        "state_changed",
+        (snapshot) => {
+          const progress = Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100);
+
+          onProgress?.(progress);
+        },
+        (error) => {
+          window.clearTimeout(timeoutId);
+          reject(error);
+        },
+        async () => {
+          window.clearTimeout(timeoutId);
+
+          try {
+            resolve(await uploadTask.snapshot.ref.getDownloadURL());
+          } catch (error) {
+            reject(error);
+          }
+        },
+      );
+    });
+  }
+
+  async function deletePrivateClass(classId) {
+    if (!db) {
+      throw new Error("Firestore SDK가 로드되지 않았습니다.");
+    }
+
+    await db.collection("privateClasses").doc(classId).delete();
+  }
+
+  async function deletePrivateClassApplication(application) {
+    if (!db) {
+      throw new Error("Firestore SDK가 로드되지 않았습니다.");
+    }
+
+    const classRef = db.collection("privateClasses").doc(application.classId);
+    const applicationRef = db.collection("privateClassApplications").doc(application.id);
+
+    await db.runTransaction(async (transaction) => {
+      const classSnapshot = await transaction.get(classRef);
+      const applicationSnapshot = await transaction.get(applicationRef);
+
+      if (!applicationSnapshot.exists) return;
+
+      const applicationCount = Number(classSnapshot.data()?.applicationCount || 0);
+
+      transaction.delete(applicationRef);
+
+      if (classSnapshot.exists) {
+        transaction.update(classRef, {
+          applicationCount: Math.max(applicationCount - 1, 0),
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        });
+      }
+    });
+  }
+
+  async function submitPrivateClassApplication(classData, applicant) {
+    if (!db) {
+      throw new Error("Firestore SDK가 로드되지 않았습니다.");
+    }
+
+    const studentId = String(applicant.studentId || "").trim().replace(/\s+/g, "");
+    const classRef = db.collection("privateClasses").doc(classData.id);
+    const applicationRef = db.collection("privateClassApplications").doc(`${classData.id}_${studentId}`);
+
+    await db.runTransaction(async (transaction) => {
+      const classSnapshot = await transaction.get(classRef);
+      const applicationSnapshot = await transaction.get(applicationRef);
+
+      if (!classSnapshot.exists) {
+        throw new Error("클래스를 찾을 수 없습니다.");
+      }
+
+      if (applicationSnapshot.exists) {
+        throw new Error("이미 신청한 클래스입니다.");
+      }
+
+      const privateClass = classSnapshot.data();
+      const capacity = Number(privateClass.capacity || 0);
+      const applicationCount = Number(privateClass.applicationCount || 0);
+
+      if (privateClass.status !== "open") {
+        throw new Error("모집 중인 클래스가 아닙니다.");
+      }
+
+      if (capacity > 0 && applicationCount >= capacity) {
+        throw new Error("모집 인원이 마감되었습니다.");
+      }
+
+      transaction.set(applicationRef, {
+        classId: classData.id,
+        classTitle: privateClass.title,
+        name: applicant.name,
+        studentId,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      });
+      transaction.update(classRef, {
+        applicationCount: applicationCount + 1,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      });
+    });
+  }
+
   window.MartiniFirebase = {
     auth,
     db,
+    storage,
     readAdminSession,
     saveAdminSession,
     signInWithEmail,
@@ -343,5 +543,12 @@
     replaceWeekClassAttendance,
     deleteClassVote,
     moveClassVote,
+    subscribePrivateClasses,
+    subscribePrivateClassApplications,
+    savePrivateClass,
+    uploadPrivateClassThumbnail,
+    deletePrivateClass,
+    deletePrivateClassApplication,
+    submitPrivateClassApplication,
   };
 })();

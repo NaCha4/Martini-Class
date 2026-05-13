@@ -461,6 +461,32 @@ button {
   outline: 3px solid rgba(47, 93, 80, 0.18);
 }
 
+/* 긴 설명과 선택 값을 입력하는 필드입니다. */
+.auth-field textarea,
+.auth-field select {
+  width: 100%;
+  min-height: 48px;
+  padding: 12px 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.82);
+  color: var(--ink);
+  font: inherit;
+}
+
+/* 여러 줄 설명 입력칸은 세로 크기를 조정할 수 있게 둡니다. */
+.auth-field textarea {
+  resize: vertical;
+  line-height: 1.6;
+}
+
+/* 설명 입력칸과 선택 상자 포커스 표시입니다. */
+.auth-field textarea:focus,
+.auth-field select:focus {
+  border-color: var(--point-deep);
+  outline: 3px solid rgba(47, 93, 80, 0.18);
+}
+
 /* 로그인된 상태에서 입력창을 비활성화할 때의 투명도입니다. */
 .auth-field input:disabled {
   opacity: 0.62;
@@ -1012,6 +1038,296 @@ button {
   flex-shrink: 0;
 }
 
+/* 개인 클래스 관리 패널입니다. */
+.private-admin-panel {
+  gap: 18px;
+}
+
+/* 개인 클래스 기본 목록 화면의 상단 도구 영역입니다. */
+.private-class-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid rgba(47, 93, 80, 0.18);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+/* 개인 클래스 목록 도구 영역의 제목입니다. */
+.private-class-toolbar strong {
+  display: block;
+  color: var(--point-ink);
+  font-size: 1rem;
+}
+
+/* 개인 클래스 목록 도구 영역의 설명입니다. */
+.private-class-toolbar span {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 0.88rem;
+  font-weight: 800;
+}
+
+/* 개인 클래스 글 작성 폼입니다. */
+.private-class-form {
+  display: grid;
+  gap: 14px;
+}
+
+/* 개인 클래스 썸네일 업로드 필드입니다. */
+.private-thumbnail-field {
+  display: grid;
+  gap: 10px;
+}
+
+/* 썸네일 업로드 라벨입니다. */
+.private-thumbnail-field > span {
+  color: var(--point-ink);
+  font-size: 0.92rem;
+  font-weight: 900;
+}
+
+/* 썸네일 파일 입력입니다. */
+.private-thumbnail-field input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.82);
+  color: var(--ink);
+  font: inherit;
+}
+
+/* 썸네일 미리보기 영역입니다. */
+.private-thumbnail-preview {
+  display: grid;
+  grid-template-columns: 160px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid rgba(47, 93, 80, 0.16);
+  border-radius: 8px;
+  background: rgba(247, 243, 236, 0.62);
+}
+
+/* 썸네일 미리보기 이미지입니다. */
+.private-thumbnail-preview img {
+  width: 160px;
+  aspect-ratio: 16 / 10;
+  object-fit: cover;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.78);
+}
+
+/* 썸네일 미리보기 안내 문구입니다. */
+.private-thumbnail-preview small {
+  color: var(--muted);
+  font-weight: 800;
+  line-height: 1.5;
+}
+
+/* 개인 클래스 기본 정보를 2열로 정리합니다. */
+.private-class-form__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+/* 개인 클래스 폼 하단 상태와 버튼 영역입니다. */
+.private-class-form__footer {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.36fr) minmax(0, 1fr);
+  gap: 12px;
+  align-items: end;
+}
+
+/* 개인 클래스 저장 상태와 등록 버튼 묶음입니다. */
+.private-class-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+/* 개인 클래스 폼의 저장/취소 버튼 묶음입니다. */
+.private-class-button-group {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* 개인 클래스 저장 상태 문구입니다. */
+.private-class-actions p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+/* 관리자에서 등록된 개인 클래스 목록입니다. */
+.private-class-admin-list {
+  display: grid;
+  gap: 10px;
+}
+
+/* 관리자 개인 클래스 목록의 한 행입니다. */
+.private-admin-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 14px;
+  border: 1px solid rgba(47, 93, 80, 0.16);
+  border-radius: 8px;
+  background: rgba(247, 243, 236, 0.64);
+}
+
+/* 관리자 개인 클래스 목록 버튼 묶음입니다. */
+.private-admin-item__actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+/* 관리자 개인 클래스 제목입니다. */
+.private-admin-item h3 {
+  margin: 8px 0 6px;
+  color: var(--point-ink);
+  font-size: 1.1rem;
+}
+
+/* 관리자 개인 클래스 소개입니다. */
+.private-admin-item p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+/* 관리자 개인 클래스 보조 정보입니다. */
+.private-admin-item small {
+  display: block;
+  margin-top: 7px;
+  color: var(--point-deep);
+  font-weight: 900;
+}
+
+/* 개인 클래스 모집 상태 배지입니다. */
+.private-class-status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  padding: 0 9px;
+  border-radius: 999px;
+  background: rgba(47, 93, 80, 0.12);
+  color: var(--point-ink);
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+/* 모집예정 상태 배지입니다. */
+.private-class-status--upcoming {
+  background: rgba(62, 113, 107, 0.12);
+  color: var(--teal);
+}
+
+/* 모집중 상태 배지입니다. */
+.private-class-status--open {
+  border: 1px solid rgba(47, 93, 80, 0.34);
+  background: #f4fff7;
+  color: var(--point-ink);
+  box-shadow: 0 8px 20px rgba(47, 93, 80, 0.22);
+}
+
+/* 마감 상태 배지입니다. */
+.private-class-status--closed {
+  background: rgba(197, 139, 50, 0.16);
+  color: #74501b;
+}
+
+/* 종료 상태 배지입니다. */
+.private-class-status--done {
+  background: rgba(111, 47, 66, 0.12);
+  color: var(--indigo);
+}
+
+/* 개인 클래스 상세 관리 영역입니다. */
+.private-class-detail {
+  display: grid;
+  gap: 16px;
+  padding: 18px;
+  border: 1px solid rgba(47, 93, 80, 0.18);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+/* 개인 클래스 상세 상단입니다. */
+.private-class-detail__header {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+/* 개인 클래스 상세 제목입니다. */
+.private-class-detail h3,
+.private-class-detail h4 {
+  margin: 0;
+  color: var(--point-ink);
+}
+
+/* 개인 클래스 상세 보조 문구입니다. */
+.private-class-detail p {
+  margin: 8px 0 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+/* 개인 클래스 신청자 목록입니다. */
+.private-applicant-list {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* 개인 클래스 신청자 한 명입니다. */
+.private-applicant {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 10px;
+  border-radius: 8px;
+  background: rgba(247, 243, 236, 0.72);
+}
+
+/* 개인 클래스 신청자 이름입니다. */
+.private-applicant strong {
+  display: block;
+  color: var(--point-ink);
+}
+
+/* 개인 클래스 신청자 학번입니다. */
+.private-applicant span {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+/* 개인 클래스 신청자가 없을 때 표시됩니다. */
+.private-applicant-empty {
+  padding: 12px;
+  border-radius: 8px;
+  color: var(--muted);
+  background: rgba(247, 243, 236, 0.72);
+  text-align: center;
+}
+
 /* =========================================================
    Public vote page
    칵테일 클래스 신청 페이지의 신청 폼과 실시간 현황 영역입니다.
@@ -1253,6 +1569,343 @@ button {
   display: block;
   color: var(--muted);
   background: transparent;
+}
+
+/* =========================================================
+   Private class page
+   개인 클래스 소개와 갤러리형 신청 카드 영역입니다.
+   ========================================================= */
+.private-layout {
+  display: grid;
+  gap: 18px;
+  padding: 44px 0 24px;
+}
+
+/* 개인 클래스 로딩과 신청 상태 문구입니다. */
+.private-message {
+  min-height: 22px;
+  margin: 0;
+  color: var(--muted);
+  font-weight: 800;
+}
+
+/* 개인 클래스 갤러리 그리드입니다. */
+.private-class-gallery {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  width: min(100%, 940px);
+  margin: 0 auto;
+}
+
+/* 상세 글 화면에서는 목록용 폭 제한을 풀어 전체 영역을 사용합니다. */
+.private-class-gallery.is-detail {
+  grid-template-columns: 1fr;
+  width: 100%;
+  max-width: none;
+  justify-items: center;
+  min-height: calc(100vh - 128px);
+  cursor: pointer;
+}
+
+/* 개인 클래스 카드입니다. */
+.private-class-card {
+  display: grid;
+  grid-template-rows: 220px minmax(0, 1fr);
+  min-height: 460px;
+  overflow: hidden;
+  border: 1px solid rgba(47, 93, 80, 0.18);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.84);
+  box-shadow: 0 14px 36px rgba(31, 36, 33, 0.08);
+  cursor: pointer;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
+}
+
+/* 개인 클래스 카드를 눌러 상세로 들어갈 수 있음을 보여줍니다. */
+.private-class-card:hover,
+.private-class-card:focus-visible {
+  border-color: rgba(47, 93, 80, 0.36);
+  box-shadow: 0 18px 42px rgba(31, 36, 33, 0.12);
+  outline: 0;
+  transform: translateY(-2px);
+}
+
+/* 개인 클래스 카드 상단 이미지 영역입니다. */
+.private-class-card__visual {
+  position: relative;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background:
+    linear-gradient(120deg, rgba(47, 93, 80, 0.82), rgba(111, 47, 66, 0.5)),
+    var(--paper);
+}
+
+/* 개인 클래스 카드 로고 이미지입니다. */
+.private-class-card__visual img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.92;
+}
+
+/* 개인 클래스 카드 상태 배지 위치입니다. */
+.private-class-card__visual .private-class-status {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  background: rgba(255, 255, 255, 0.86);
+}
+
+/* 개인 클래스 카드 본문입니다. */
+.private-class-card__body {
+  display: grid;
+  gap: 14px;
+  align-content: start;
+  padding: 18px;
+}
+
+/* 개인 클래스 카드 제목입니다. */
+.private-class-card h2 {
+  margin: 0 0 10px;
+  color: var(--point-ink);
+  font-size: 1.45rem;
+  line-height: 1.15;
+}
+
+/* 개인 클래스 카드 짧은 소개입니다. */
+.private-class-card p {
+  display: -webkit-box;
+  overflow: hidden;
+  margin: 0;
+  color: var(--muted);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-height: 1.6;
+  word-break: keep-all;
+}
+
+/* 개인 클래스 목록 카드의 핵심 정보를 한 줄로 정리합니다. */
+.private-class-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+/* 개인 클래스 목록 카드의 메타 배지입니다. */
+.private-class-card__meta span {
+  padding: 6px 9px;
+  border-radius: 999px;
+  background: rgba(247, 243, 236, 0.8);
+  color: var(--point-deep);
+  font-size: 0.82rem;
+  font-weight: 900;
+}
+
+/* 개인 클래스 상세 글 화면입니다. */
+.private-class-detail-post {
+  display: grid;
+  row-gap: 0;
+  width: min(100%, 820px);
+  margin: 0 auto;
+  cursor: default;
+}
+
+/* 개인 클래스 상세 글의 상단 이미지 영역입니다. */
+.private-class-detail-post__visual {
+  position: relative;
+  display: grid;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 8px 8px 0 0;
+  background:
+    linear-gradient(120deg, rgba(47, 93, 80, 0.82), rgba(111, 47, 66, 0.5)),
+    var(--paper);
+}
+
+/* 상세 이미지와 본문이 자연스럽게 이어지도록 아래쪽을 페이드 처리합니다. */
+.private-class-detail-post__visual::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0;
+  height: 56%;
+  background: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0),
+    rgba(255, 255, 255, 0.62) 54%,
+    rgba(255, 255, 255, 0.96)
+  );
+  pointer-events: none;
+}
+
+/* 개인 클래스 상세 글 로고 이미지입니다. */
+.private-class-detail-post__visual img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.94;
+}
+
+/* 개인 클래스 상세 글 상태 배지 위치입니다. */
+.private-class-detail-post__visual .private-class-status {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  background: rgba(255, 255, 255, 0.86);
+}
+
+/* 개인 클래스 상세 글 본문입니다. */
+.private-class-detail-post__body {
+  display: grid;
+  gap: 24px;
+  position: relative;
+  z-index: 1;
+  margin-top: -34px;
+  padding: clamp(30px, 5vw, 54px);
+  border: 1px solid rgba(47, 93, 80, 0.18);
+  border-top-color: rgba(47, 93, 80, 0.08);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.84);
+  box-shadow: 0 14px 36px rgba(31, 36, 33, 0.08);
+}
+
+/* 개인 클래스 상세 글 제목입니다. */
+.private-class-detail-post h1 {
+  margin: 0;
+  color: var(--point-ink);
+  font-size: clamp(2.4rem, 5vw, 4.4rem);
+  line-height: 1.05;
+  letter-spacing: 0;
+}
+
+/* 개인 클래스 상세 글 리드 문장입니다. */
+.private-class-lead {
+  margin: 0;
+  color: var(--muted);
+  font-size: clamp(1.08rem, 1.6vw, 1.24rem);
+  font-weight: 800;
+  line-height: 1.7;
+  word-break: keep-all;
+}
+
+/* 개인 클래스 메타 정보입니다. */
+.private-class-meta {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+  margin: 0;
+  max-width: 420px;
+  padding-top: 0;
+}
+
+/* 개인 클래스 메타 항목입니다. */
+.private-class-meta div {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  padding: 0;
+  background: transparent;
+}
+
+/* 개인 클래스 메타 라벨입니다. */
+.private-class-meta dt {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+/* 개인 클래스 메타 값입니다. */
+.private-class-meta dd {
+  margin: 0;
+  color: var(--point-ink);
+  font-size: 0.95rem;
+  font-weight: 900;
+}
+
+/* 개인 클래스 상세 설명입니다. */
+.private-class-description {
+  padding-top: 4px;
+}
+
+/* 개인 클래스 상세 본문 문단 묶음입니다. */
+.private-class-article {
+  display: grid;
+  gap: 14px;
+  padding: 10px 0 6px;
+  border-top: 1px solid rgba(31, 36, 33, 0.08);
+  border-bottom: 1px solid rgba(31, 36, 33, 0.08);
+}
+
+/* 개인 클래스 상세 본문 문단입니다. */
+.private-class-article p {
+  margin: 0;
+  color: var(--ink);
+  font-size: 1.04rem;
+  line-height: 1.85;
+  word-break: keep-all;
+}
+
+/* 개인 클래스 신청 폼입니다. */
+.private-apply-form {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+  align-items: stretch;
+  max-width: 420px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+/* 개인 클래스 신청 입력 묶음입니다. */
+.private-apply-form label {
+  display: grid;
+  gap: 6px;
+}
+
+/* 개인 클래스 신청 입력 라벨입니다. */
+.private-apply-form span {
+  color: var(--point-ink);
+  font-size: 0.82rem;
+  font-weight: 900;
+}
+
+/* 개인 클래스 신청 입력창입니다. */
+.private-apply-form input {
+  min-height: 46px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--ink);
+  font: inherit;
+}
+
+/* 개인 클래스 신청 버튼입니다. */
+.private-apply-form .auth-button {
+  width: 100%;
+}
+
+/* 개인 클래스 신청 입력창 포커스입니다. */
+.private-apply-form input:focus {
+  border-color: var(--point-deep);
+  outline: 3px solid rgba(47, 93, 80, 0.18);
+}
+
+/* 개인 클래스 마감 안내입니다. */
+.private-class-closed {
+  padding: 12px;
+  border-radius: 8px;
+  background: rgba(247, 243, 236, 0.72);
+  font-weight: 900;
+  text-align: center;
 }
 
 /* =========================================================
@@ -1651,6 +2304,41 @@ button {
     grid-template-columns: 1fr;
   }
 
+  .private-class-form__grid,
+  .private-class-form__footer,
+  .private-thumbnail-preview,
+  .private-class-gallery {
+    grid-template-columns: 1fr;
+  }
+
+  .private-class-actions,
+  .private-class-toolbar,
+  .private-admin-item {
+    align-items: stretch;
+    grid-template-columns: 1fr;
+  }
+
+  .private-class-actions,
+  .private-class-toolbar,
+  .private-admin-item__actions,
+  .private-class-detail__header {
+    flex-direction: column;
+  }
+
+  .private-class-toolbar .auth-button,
+  .private-admin-item__actions .auth-button,
+  .private-class-detail__header .auth-button {
+    width: 100%;
+  }
+
+  .private-thumbnail-preview img {
+    width: 100%;
+  }
+
+  .private-class-button-group {
+    flex-direction: column;
+  }
+
   .admin-panel--wide {
     grid-column: auto;
   }
@@ -1703,6 +2391,10 @@ button {
 
   .vote-layout {
     grid-template-columns: 1fr;
+  }
+
+  .private-class-gallery {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .attendance-hero {
@@ -1820,6 +2512,23 @@ button {
   .vote-board,
   .attendance-summary {
     grid-template-columns: 1fr;
+  }
+
+  .private-class-meta,
+  .private-applicant {
+    grid-template-columns: 1fr;
+  }
+
+  .private-class-gallery {
+    grid-template-columns: 1fr;
+  }
+
+  .private-class-detail-post__visual {
+    width: 100%;
+  }
+
+  .private-apply-form .auth-button {
+    width: 100%;
   }
 
   .attendance-member {

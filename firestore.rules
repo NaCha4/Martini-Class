@@ -16,6 +16,10 @@ service cloud.firestore {
       return !isReservedClosed && (config.isOpen == true || isReservedOpen);
     }
 
+    function isPrivateClassOpen(classId) {
+      return get(/databases/$(database)/documents/privateClasses/$(classId)).data.status == "open";
+    }
+
     match /votes/{day} {
       allow read: if true;
       allow write: if true;
@@ -33,6 +37,23 @@ service cloud.firestore {
 
     match /classAttendance/{studentId} {
       allow read, write: if signedIn();
+    }
+
+    match /privateClasses/{classId} {
+      allow read: if true;
+      allow create, delete: if signedIn();
+      allow update: if signedIn()
+        || (
+          isPrivateClassOpen(classId)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["applicationCount", "updatedAt"])
+          && request.resource.data.applicationCount == resource.data.applicationCount + 1
+        );
+    }
+
+    match /privateClassApplications/{applicationId} {
+      allow read: if signedIn();
+      allow create: if isPrivateClassOpen(request.resource.data.classId);
+      allow update, delete: if signedIn();
     }
 
     match /settings/{document} {
