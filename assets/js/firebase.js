@@ -524,6 +524,131 @@
     });
   }
 
+  function subscribeInventoryItems(callback) {
+    if (!db) {
+      throw new Error("Firestore SDK가 로드되지 않았습니다.");
+    }
+
+    return db.collection("inventoryItems").onSnapshot((snapshot) => {
+      const items = snapshot.docs
+        .map((documentSnapshot) => ({
+          ...documentSnapshot.data(),
+          id: documentSnapshot.id,
+        }))
+        .sort((a, b) => {
+          const categoryCompare = String(a.category || "").localeCompare(String(b.category || ""), "ko");
+
+          if (categoryCompare !== 0) return categoryCompare;
+
+          const itemCompare = String(a.itemName || a.typeName || "").localeCompare(String(b.itemName || b.typeName || ""), "ko");
+
+          if (itemCompare !== 0) return itemCompare;
+
+          return String(a.productName || a.name || "").localeCompare(String(b.productName || b.name || ""), "ko");
+        });
+
+      callback(items);
+    });
+  }
+
+  async function saveInventoryItem(itemData) {
+    if (!db) {
+      throw new Error("Firestore SDK가 로드되지 않았습니다.");
+    }
+
+    const itemRef = itemData.id
+      ? db.collection("inventoryItems").doc(itemData.id)
+      : db.collection("inventoryItems").doc();
+    const snapshot = await itemRef.get();
+
+    await itemRef.set(
+      {
+        ...itemData,
+        id: itemRef.id,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        createdAt: snapshot.data()?.createdAt || firebase.firestore.FieldValue.serverTimestamp(),
+      },
+      { merge: true },
+    );
+
+    return itemRef.id;
+  }
+
+  async function updateInventoryQuantity(itemId, quantity) {
+    if (!db) {
+      throw new Error("Firestore SDK가 로드되지 않았습니다.");
+    }
+
+    await db.collection("inventoryItems").doc(itemId).set(
+      {
+        quantity: Math.max(Number(quantity) || 0, 0),
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      },
+      { merge: true },
+    );
+  }
+
+  async function deleteInventoryItem(itemId) {
+    if (!db) {
+      throw new Error("Firestore SDK가 로드되지 않았습니다.");
+    }
+
+    await db.collection("inventoryItems").doc(itemId).delete();
+  }
+
+  function subscribeClassSchedules(callback) {
+    if (!db) {
+      throw new Error("Firestore SDK가 로드되지 않았습니다.");
+    }
+
+    return db.collection("classSchedules").onSnapshot((snapshot) => {
+      const schedules = snapshot.docs
+        .map((documentSnapshot) => ({
+          ...documentSnapshot.data(),
+          id: documentSnapshot.id,
+        }))
+        .sort((a, b) => {
+          const aTime = a.createdAt?.toMillis?.() || 0;
+          const bTime = b.createdAt?.toMillis?.() || 0;
+
+          return bTime - aTime;
+        });
+
+      callback(schedules);
+    });
+  }
+
+  async function saveClassSchedule(scheduleData) {
+    if (!db) {
+      throw new Error("Firestore SDK가 로드되지 않았습니다.");
+    }
+
+    const scheduleRef = scheduleData.id
+      ? db.collection("classSchedules").doc(scheduleData.id)
+      : db.collection("classSchedules").doc();
+    const snapshot = await scheduleRef.get();
+
+    await scheduleRef.set(
+      {
+        ...scheduleData,
+        id: scheduleRef.id,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        createdAt: snapshot.data()?.createdAt || firebase.firestore.FieldValue.serverTimestamp(),
+      },
+      { merge: true },
+    );
+
+    return scheduleRef.id;
+  }
+
+  async function deleteClassSchedule(scheduleId) {
+    if (!db) {
+      throw new Error("Firestore SDK가 로드되지 않았습니다.");
+    }
+
+    await db.collection("classSchedules").doc(scheduleId).delete();
+  }
+
   window.MartiniFirebase = {
     auth,
     db,
@@ -550,5 +675,12 @@
     deletePrivateClass,
     deletePrivateClassApplication,
     submitPrivateClassApplication,
+    subscribeInventoryItems,
+    saveInventoryItem,
+    updateInventoryQuantity,
+    deleteInventoryItem,
+    subscribeClassSchedules,
+    saveClassSchedule,
+    deleteClassSchedule,
   };
 })();

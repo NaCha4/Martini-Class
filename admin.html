@@ -68,6 +68,15 @@
             >
               재고 관리
             </button>
+            <button
+              class="admin-tab"
+              type="button"
+              role="tab"
+              aria-selected="false"
+              data-admin-tab="schedule"
+            >
+              교육 일정
+            </button>
           </nav>
         </aside>
 
@@ -77,7 +86,6 @@
               <div>
                 <p class="intro__eyebrow">Executive Dashboard</p>
                 <h2>대시보드</h2>
-                <p>마티니 클래스 운영에 필요한 주요 현황을 한눈에 확인하는 공간입니다.</p>
               </div>
             </div>
 
@@ -89,13 +97,31 @@
               </article>
               <article class="admin-stat">
                 <span>개인 클래스</span>
-                <strong>-</strong>
-                <p>이벤트 클래스 신청</p>
+                <strong data-dashboard-private-applications>0</strong>
+                <p>전체 개인 클래스 신청</p>
               </article>
               <article class="admin-stat">
-                <span>재고 상태</span>
-                <strong>-</strong>
-                <p>확인 필요 품목</p>
+                <span>신청 상태</span>
+                <strong data-dashboard-apply-status>-</strong>
+                <p>정규 클래스 오픈 여부</p>
+              </article>
+            </div>
+
+            <div class="admin-dashboard-grid" aria-label="운영 상세 현황">
+              <article class="dashboard-card">
+                <div>
+                  <p class="gateway-card__label">Regular Class</p>
+                  <h3>정규 신청 현황</h3>
+                </div>
+                <div class="dashboard-list" data-dashboard-vote-list></div>
+              </article>
+
+              <article class="dashboard-card">
+                <div>
+                  <p class="gateway-card__label">Private Class</p>
+                  <h3>개인 클래스 현황</h3>
+                </div>
+                <div class="dashboard-list" data-dashboard-private-list></div>
               </article>
             </div>
           </section>
@@ -105,7 +131,6 @@
               <div>
                 <p class="gateway-card__label">Class Apply</p>
                 <h2>칵테일 클래스 신청 관리</h2>
-                <p>교육을 진행할 요일과 요일별 선착순 최대 인원을 설정합니다.</p>
               </div>
 
               <form class="vote-config-form" data-vote-config-form>
@@ -179,7 +204,6 @@
               <div>
                 <p class="gateway-card__label">Private Class</p>
                 <h2>개인 클래스 관리</h2>
-                <p>임원진이 준비하는 주류 행사 글을 작성하고 모집 상태를 관리합니다.</p>
               </div>
 
               <div class="private-class-toolbar" data-private-class-toolbar>
@@ -287,15 +311,149 @@
           </section>
 
           <section class="admin-view" data-admin-panel="inventory" role="tabpanel" hidden>
-            <article class="admin-panel admin-panel--wide">
-              <div>
-                <p class="gateway-card__label">Inventory</p>
-                <h2>재고 관리</h2>
-                <p>주류, 시럽, 가니시, 소모품 재고를 기록하고 확인할 영역입니다.</p>
+            <article class="admin-panel admin-panel--wide inventory-panel">
+              <div class="inventory-heading">
+                <div>
+                  <p class="gateway-card__label">Inventory</p>
+                  <h2>재고 관리</h2>
+                </div>
+                <p data-inventory-status>재고를 불러오고 있습니다.</p>
               </div>
-              <button class="auth-button auth-button--ghost" type="button" disabled>
-                준비 중
-              </button>
+
+              <section class="inventory-usage-panel">
+                <div class="inventory-usage-panel__header">
+                  <div>
+                    <p class="gateway-card__label">Weekly Usage</p>
+                    <h3>주차별 재고 계산</h3>
+                  </div>
+                  <button class="auth-button auth-button--ghost" type="button" data-usage-load-votes>
+                    현재 신청 인원 불러오기
+                  </button>
+                </div>
+
+                <div class="inventory-usage-controls">
+                  <label class="auth-field">
+                    <span>교육일정</span>
+                    <select data-usage-schedule-select></select>
+                  </label>
+                  <label class="auth-field">
+                    <span>주차</span>
+                    <select data-usage-week-select></select>
+                  </label>
+                  <label class="auth-field">
+                    <span>예상 인원</span>
+                    <input type="number" min="0" value="0" data-usage-attendees />
+                  </label>
+                  <label class="auth-field">
+                    <span>여유분 %</span>
+                    <input type="number" min="0" max="100" value="10" data-usage-buffer />
+                  </label>
+                </div>
+
+                <div class="inventory-usage-result" data-usage-result>
+                  <p class="empty-state">교육일정과 주차를 선택하면 필요한 재고량을 계산합니다.</p>
+                </div>
+              </section>
+
+              <div class="inventory-list" data-inventory-list></div>
+
+              <form class="inventory-form" data-inventory-form>
+                <div class="inventory-form__heading">
+                  <strong>재고 등록 / 수정</strong>
+                </div>
+
+                <div class="inventory-form__grid">
+                  <label class="auth-field">
+                    <span>분류</span>
+                    <select name="category" required>
+                      <option value="alcohol">술</option>
+                      <option value="juice">음료</option>
+                      <option value="mix">믹스/가루</option>
+                      <option value="supply">소모품</option>
+                      <option value="etc">기타</option>
+                    </select>
+                  </label>
+
+                  <label class="auth-field">
+                    <span>품목</span>
+                    <input type="text" name="itemName" placeholder="보드카, 진, 럼, 라임 주스" required />
+                  </label>
+
+                  <label class="auth-field">
+                    <span>상품명</span>
+                    <input type="text" name="name" placeholder="앱솔루트 보드카, 바톤 보드카" required />
+                  </label>
+
+                  <label class="auth-field">
+                    <span>수량</span>
+                    <input type="number" name="quantity" min="0" step="0.1" value="0" required />
+                  </label>
+
+                  <label class="auth-field">
+                    <span>단위</span>
+                    <input type="text" name="unit" placeholder="병, 개, 팩, g" required />
+                  </label>
+                </div>
+
+                <label class="auth-field">
+                  <span>메모</span>
+                  <input type="text" name="memo" placeholder="보관 위치나 구매 예정 메모를 적어주세요." />
+                </label>
+
+                <div class="inventory-actions">
+                  <button class="auth-button auth-button--ghost" type="button" data-inventory-delete hidden>
+                    삭제
+                  </button>
+                  <button class="auth-button auth-button--ghost" type="button" data-inventory-cancel hidden>
+                    취소
+                  </button>
+                  <button class="auth-button auth-button--primary" type="submit" data-inventory-save>
+                    재고 저장
+                  </button>
+                </div>
+              </form>
+            </article>
+          </section>
+
+          <section class="admin-view" data-admin-panel="schedule" role="tabpanel" hidden>
+            <article class="admin-panel admin-panel--wide schedule-panel">
+              <div class="schedule-heading">
+                <div>
+                  <p class="gateway-card__label">Class Schedule</p>
+                  <h2>교육 일정</h2>
+                </div>
+                <p data-schedule-status>교육일정을 불러오고 있습니다.</p>
+              </div>
+
+              <section class="schedule-section">
+                <p class="gateway-card__label">Class Schedule</p>
+                <h3>완성된 교육일정</h3>
+                <div class="schedule-list" data-schedule-list></div>
+              </section>
+
+              <form class="schedule-form" data-schedule-form>
+                <div class="schedule-form__header">
+                  <div>
+                    <p class="gateway-card__label">Schedule Builder</p>
+                    <h3>주차별 레시피 저장</h3>
+                  </div>
+                  <label class="auth-field">
+                    <span>일정 이름</span>
+                    <input type="text" name="title" placeholder="2026-1 정규 클래스" required />
+                  </label>
+                </div>
+
+                <div class="schedule-week-list" data-schedule-week-list></div>
+
+                <div class="schedule-actions">
+                  <button class="auth-button auth-button--ghost" type="button" data-schedule-add-week>
+                    주차 추가
+                  </button>
+                  <button class="auth-button auth-button--primary" type="submit" data-schedule-save>
+                    교육일정 저장
+                  </button>
+                </div>
+              </form>
             </article>
           </section>
         </section>

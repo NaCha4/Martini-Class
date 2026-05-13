@@ -687,6 +687,77 @@ button {
   gap: 14px;
 }
 
+/* 대시보드의 상세 현황 카드 그리드입니다. */
+.admin-dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+/* 대시보드 상세 현황 카드입니다. */
+.dashboard-card {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  min-height: 210px;
+  padding: 20px;
+  border: 1px solid rgba(47, 93, 80, 0.2);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 14px 36px rgba(31, 36, 33, 0.08);
+}
+
+/* 대시보드 상세 카드 제목입니다. */
+.dashboard-card h3 {
+  margin: 0;
+  color: var(--point-ink);
+  font-size: 1.2rem;
+}
+
+/* 대시보드 상세 카드의 목록입니다. */
+.dashboard-list {
+  display: grid;
+  gap: 8px;
+}
+
+/* 대시보드 상세 목록 한 줄입니다. */
+.dashboard-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  min-height: 38px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(247, 243, 236, 0.66);
+}
+
+/* 대시보드 상세 목록에서 확인이 필요한 줄입니다. */
+.dashboard-row.is-alert {
+  background: rgba(166, 54, 54, 0.08);
+}
+
+/* 대시보드 상세 목록의 이름 영역입니다. */
+.dashboard-row span {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 대시보드 상세 목록의 수치 영역입니다. */
+.dashboard-row strong {
+  color: var(--point-ink);
+  font-size: 0.9rem;
+  font-weight: 900;
+}
+
+.dashboard-row.is-alert strong {
+  color: #a63636;
+}
+
 .admin-panel {
   display: grid;
   gap: 28px;
@@ -2235,6 +2306,641 @@ button {
   color: var(--indigo);
 }
 
+/* 재고 관리 탭의 전체 패널 간격입니다. */
+.inventory-panel {
+  gap: 18px;
+}
+
+/* 재고 관리 제목과 저장 상태 문구를 양쪽으로 정렬합니다. */
+.inventory-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+/* 재고 저장 상태 문구가 과하게 커지지 않게 잡습니다. */
+.inventory-heading > p {
+  max-width: 320px;
+  color: var(--muted);
+  font-size: 0.92rem;
+  font-weight: 800;
+  text-align: right;
+}
+
+/* 재고 입력 폼의 큰 박스입니다. */
+.inventory-form {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid rgba(111, 47, 66, 0.18);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+/* 재고 입력 폼이 보조 기능임을 보여주는 작은 제목입니다. */
+.inventory-form__heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--point-ink);
+  font-size: 0.98rem;
+  font-weight: 900;
+}
+
+/* 품목명, 분류, 수량, 단위를 한 줄에 배치합니다. */
+.inventory-form__grid {
+  display: grid;
+  grid-template-columns: minmax(110px, 0.75fr) minmax(150px, 1fr) minmax(190px, 1.25fr) minmax(90px, 0.55fr) minmax(90px, 0.55fr);
+  gap: 10px;
+}
+
+/* 재고 폼 하단 저장 버튼 영역입니다. */
+.inventory-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* 주차별 레시피를 기준으로 필요한 재고를 계산하는 패널입니다. */
+.inventory-usage-panel {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid rgba(47, 93, 80, 0.16);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.74);
+}
+
+/* 재고 계산 패널의 제목과 신청 인원 불러오기 버튼입니다. */
+.inventory-usage-panel__header {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+/* 재고 계산 패널 제목입니다. */
+.inventory-usage-panel__header h3 {
+  margin: 0;
+  color: var(--point-ink);
+  font-size: 1.18rem;
+}
+
+/* 교육일정, 주차, 인원, 여유분 입력 영역입니다. */
+.inventory-usage-controls {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.2fr) minmax(110px, 0.6fr) minmax(100px, 0.55fr) minmax(100px, 0.55fr);
+  gap: 10px;
+}
+
+/* 재고 계산 결과 영역입니다. */
+.inventory-usage-result {
+  display: grid;
+  gap: 8px;
+}
+
+/* 계산 결과 상단 요약입니다. */
+.usage-result-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(247, 243, 236, 0.72);
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+
+/* 계산 결과의 일정명입니다. */
+.usage-result-summary strong {
+  color: var(--point-ink);
+}
+
+/* 필요한 재고 계산 행 목록입니다. */
+.usage-result-list {
+  display: grid;
+  gap: 6px;
+}
+
+/* 재고 하나의 현재량, 사용량, 판정을 보여주는 행입니다. */
+.usage-result-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) repeat(3, minmax(90px, 0.55fr));
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid rgba(47, 93, 80, 0.12);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.78);
+}
+
+/* 부족한 재료는 붉은 계열로 강조합니다. */
+.usage-result-row.is-short {
+  border-color: rgba(166, 54, 54, 0.34);
+  background: rgba(166, 54, 54, 0.08);
+}
+
+/* 계산 결과의 각 숫자 칸입니다. */
+.usage-result-row > div {
+  display: grid;
+  gap: 3px;
+}
+
+/* 계산 결과 라벨입니다. */
+.usage-result-row span {
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 900;
+}
+
+/* 계산 결과 숫자입니다. */
+.usage-result-row strong {
+  color: var(--point-ink);
+  font-size: 0.94rem;
+}
+
+/* 부족한 재료의 판정 숫자입니다. */
+.usage-result-row.is-short > div:last-child strong {
+  color: #a63636;
+}
+
+/* 계산 결과 재료명 영역입니다. */
+.usage-result-row__name strong {
+  font-size: 1rem;
+}
+
+/* 단위가 맞지 않을 때 보조 경고를 표시합니다. */
+.usage-result-row small {
+  color: #a63636;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+/* 등록된 재고 목록의 카드 그리드입니다. */
+.inventory-list {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+/* 분류별 재고를 담는 보드입니다. */
+.inventory-category-board {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid rgba(47, 93, 80, 0.16);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.7);
+}
+
+/* 분류명과 등록 개수를 보여주는 보드 상단입니다. */
+.inventory-category-board__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+/* 분류별 등록 개수입니다. */
+.inventory-category-board__header strong {
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-weight: 900;
+}
+
+/* 분류 안의 품목 목록입니다. */
+.inventory-category-board__items {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 8px;
+}
+
+/* 분류 안에 재고가 없을 때의 빈 상태입니다. */
+.inventory-category-empty {
+  min-height: 70px;
+  margin: 0;
+  padding: 12px 8px;
+  border: 1px dashed rgba(111, 47, 66, 0.2);
+  border-radius: 8px;
+  color: var(--muted);
+  display: grid;
+  place-items: center;
+  font-size: 0.9rem;
+  font-weight: 800;
+  text-align: center;
+}
+
+/* 품목 하나와 그 아래 상품들을 묶는 영역입니다. */
+.inventory-product-group {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid rgba(111, 47, 66, 0.12);
+  border-radius: 8px;
+  background: rgba(247, 243, 236, 0.46);
+}
+
+/* 품목명과 상품 개수를 보여주는 머리글입니다. */
+.inventory-product-group__header {
+  display: flex;
+  align-items: center;
+}
+
+/* 보드카, 진, 럼 같은 품목명입니다. */
+.inventory-product-group__header h3 {
+  margin: 0;
+  color: var(--point-ink);
+  font-size: 0.94rem;
+  line-height: 1.2;
+}
+
+/* 품목 아래 실제 상품 카드 목록입니다. */
+.inventory-product-group__items {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 5px;
+}
+
+/* 재고 한 품목을 보여주는 행 카드입니다. */
+.inventory-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid rgba(47, 93, 80, 0.12);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.76);
+  cursor: pointer;
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease;
+}
+
+/* 재고 상품 행에 마우스를 올렸을 때 수정 가능함을 보여줍니다. */
+.inventory-item:hover {
+  border-color: rgba(47, 93, 80, 0.32);
+  background: rgba(255, 255, 255, 0.92);
+}
+
+/* 재고 품목의 이름과 메모 영역입니다. */
+.inventory-item__main {
+  min-width: 0;
+}
+
+/* 재고 분류 배지의 기본 스타일입니다. */
+.inventory-category {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 9px;
+  border-radius: 999px;
+  background: rgba(47, 93, 80, 0.1);
+  color: var(--point-ink);
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+/* 술 분류는 포인트 계열로 표시합니다. */
+.inventory-category--alcohol {
+  background: rgba(111, 47, 66, 0.12);
+  color: var(--indigo);
+}
+
+/* 주스 분류는 따뜻한 색으로 표시합니다. */
+.inventory-category--juice {
+  background: rgba(197, 139, 50, 0.16);
+  color: #755017;
+}
+
+/* 믹스/가루 분류는 차분한 초록 계열로 표시합니다. */
+.inventory-category--mix {
+  background: rgba(47, 93, 80, 0.12);
+  color: var(--point-ink);
+}
+
+/* 소모품 분류는 중립적인 색으로 표시합니다. */
+.inventory-category--supply {
+  background: rgba(31, 36, 33, 0.08);
+  color: var(--ink);
+}
+
+/* 기타 분류는 연한 테두리 느낌으로 표시합니다. */
+.inventory-category--etc {
+  background: rgba(255, 255, 255, 0.86);
+  color: var(--muted);
+}
+
+/* 재고 상품명입니다. */
+.inventory-item h4 {
+  margin: 0;
+  color: var(--point-ink);
+  font-size: 0.84rem;
+  line-height: 1.2;
+}
+
+/* 재고 메모입니다. */
+.inventory-item p {
+  margin: 3px 0 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
+/* 메모가 없는 품목의 보조 문구입니다. */
+.inventory-item__muted {
+  opacity: 0.72;
+}
+
+/* 수량과 단위를 크게 보여주는 영역입니다. */
+.inventory-item__stock {
+  display: grid;
+  justify-items: end;
+  gap: 2px;
+  color: var(--muted);
+  min-width: 58px;
+}
+
+/* 재고 수량 숫자입니다. */
+.inventory-item__stock strong {
+  color: var(--point-ink);
+  font-size: 1.45rem;
+  line-height: 1;
+}
+
+/* 재고 단위 텍스트입니다. */
+.inventory-item__stock span {
+  font-size: 0.72rem;
+  font-weight: 900;
+}
+
+/* 교육일정 관리 패널의 전체 간격입니다. */
+.schedule-panel {
+  gap: 18px;
+}
+
+/* 교육일정 제목과 저장 상태를 양쪽에 배치합니다. */
+.schedule-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+/* 교육일정 저장 상태 문구입니다. */
+.schedule-heading > p {
+  max-width: 320px;
+  color: var(--muted);
+  font-size: 0.92rem;
+  font-weight: 800;
+  text-align: right;
+}
+
+/* 완성된 교육일정 목록 영역입니다. */
+.schedule-section {
+  display: grid;
+  gap: 10px;
+}
+
+/* 교육일정 섹션 제목입니다. */
+.schedule-section h3,
+.schedule-form__header h3 {
+  margin: 0;
+  color: var(--point-ink);
+  font-size: 1.25rem;
+}
+
+/* 저장된 교육일정 카드 목록입니다. */
+.schedule-list {
+  display: grid;
+  gap: 8px;
+}
+
+/* 저장된 교육일정 한 개를 보여주는 카드입니다. */
+.schedule-saved-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid rgba(47, 93, 80, 0.14);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.76);
+}
+
+/* 저장된 교육일정 제목입니다. */
+.schedule-saved-card h3 {
+  margin: 0;
+  color: var(--point-ink);
+  font-size: 1rem;
+}
+
+/* 저장된 교육일정 요약 정보입니다. */
+.schedule-saved-card p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 800;
+}
+
+/* 저장된 교육일정 카드의 불러오기/삭제 버튼입니다. */
+.schedule-saved-card__actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: 8px;
+}
+
+/* 저장된 교육일정 카드 안의 버튼 크기입니다. */
+.schedule-saved-card__actions .auth-button {
+  min-height: 34px;
+  padding: 0 12px;
+}
+
+/* 저장된 교육일정의 주차별 칵테일 요약입니다. */
+.schedule-saved-weeks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+/* 저장된 교육일정 주차 요약 한 칸입니다. */
+.schedule-saved-weeks span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 26px;
+  padding: 0 9px;
+  border-radius: 999px;
+  background: rgba(247, 243, 236, 0.8);
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+/* 저장된 교육일정 주차 숫자입니다. */
+.schedule-saved-weeks strong {
+  color: var(--point-ink);
+}
+
+/* 주차별 교육일정 생성 폼입니다. */
+.schedule-form {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid rgba(111, 47, 66, 0.18);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+/* 생성 폼의 제목과 일정 이름 입력칸입니다. */
+.schedule-form__header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 0.8fr);
+  align-items: end;
+  gap: 14px;
+}
+
+/* 주차 카드 목록입니다. */
+.schedule-week-list {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+/* 한 주차의 교육 내용을 담는 카드입니다. */
+.schedule-week-card {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid rgba(47, 93, 80, 0.14);
+  border-radius: 8px;
+  background: rgba(247, 243, 236, 0.52);
+}
+
+/* 주차 숫자와 삭제 버튼 영역입니다. */
+.schedule-week-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+/* 주차 숫자 입력 라벨입니다. */
+.schedule-week-card__header label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--point-ink);
+  font-weight: 900;
+}
+
+/* 주차 숫자 입력칸입니다. */
+.schedule-week-card__header input {
+  width: 64px;
+  min-height: 34px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--ink);
+  font: inherit;
+  font-weight: 900;
+  text-align: center;
+}
+
+/* 주차 삭제 버튼입니다. */
+.schedule-week-card__header button,
+.schedule-ingredient-row button {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(111, 47, 66, 0.08);
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: 900;
+}
+
+/* 칵테일 두 개를 한 주차 안에 배치합니다. */
+.schedule-cocktail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+/* 한 칵테일의 이름과 재료를 담는 박스입니다. */
+.schedule-cocktail {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid rgba(47, 93, 80, 0.1);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.68);
+}
+
+/* 재료 선택 목록입니다. */
+.schedule-ingredient-list {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+/* 재료 선택 행입니다. */
+.schedule-ingredient-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(74px, 0.32fr) minmax(54px, 0.24fr) 28px;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+/* 재료 선택 드롭다운과 사용량 입력칸입니다. */
+.schedule-ingredient-row select,
+.schedule-ingredient-row input {
+  min-height: 34px;
+  width: 100%;
+  min-width: 0;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.94);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+/* 1인 사용량 숫자 입력칸의 기본 위아래 화살표를 숨깁니다. */
+.schedule-ingredient-row input[type="number"] {
+  appearance: textfield;
+}
+
+/* 크롬 계열 브라우저에서 숫자 입력 화살표를 숨깁니다. */
+.schedule-ingredient-row input[type="number"]::-webkit-outer-spin-button,
+.schedule-ingredient-row input[type="number"]::-webkit-inner-spin-button {
+  margin: 0;
+  appearance: none;
+}
+
+/* 주차 추가와 저장 버튼 영역입니다. */
+.schedule-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 .empty-state {
   margin: 0;
   padding: 14px;
@@ -2300,6 +3006,7 @@ button {
   }
 
   .admin-summary,
+  .admin-dashboard-grid,
   .admin-panel-grid {
     grid-template-columns: 1fr;
   }
@@ -2337,6 +3044,33 @@ button {
 
   .private-class-button-group {
     flex-direction: column;
+  }
+
+  .inventory-heading,
+  .inventory-actions,
+  .inventory-usage-panel__header,
+  .usage-result-summary,
+  .schedule-saved-card,
+  .schedule-saved-card__actions,
+  .schedule-heading,
+  .schedule-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .inventory-heading > p,
+  .schedule-heading > p {
+    max-width: none;
+    text-align: left;
+  }
+
+  .inventory-form__grid,
+  .inventory-usage-controls,
+  .usage-result-row,
+  .schedule-form__header,
+  .schedule-cocktail-grid,
+  .schedule-ingredient-row {
+    grid-template-columns: 1fr;
   }
 
   .admin-panel--wide {
@@ -2525,6 +3259,14 @@ button {
 
   .private-class-detail-post__visual {
     width: 100%;
+  }
+
+  .inventory-item {
+    grid-template-columns: 1fr;
+  }
+
+  .inventory-item__stock {
+    justify-items: start;
   }
 
   .private-apply-form .auth-button {
