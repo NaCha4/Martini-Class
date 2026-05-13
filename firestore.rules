@@ -1,9 +1,43 @@
 rules_version = '2';
 
+// ========================================
+// Firestore 보안 규칙
+// ========================================
+// 컬렉션별로 읽기/쓰기 권한을 분리하여 보안을 강화합니다.
+//
+// 컬렉션 구조:
+//   votes/{요일}     - 신청자 이름 배열 (예: { members: ["홍길동", ...] })
+//   settings/status  - 신청 상태 및 예약 시간 (isOpen, openTime)
+//   logs/{자동ID}    - 신청 로그 (name, day, ip, timestamp)
+// ========================================
+
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /{document=**} {
-      allow read, write: if true;
+
+    // votes 컬렉션: 신청자 명단
+    //   - 읽기: 누구나 가능 (목록 공개 표시용)
+    //   - 쓰기: 누구나 가능 (신청 및 관리자 삭제용)
+    //   ※ 더 강한 보안이 필요하다면 쓰기를 request.auth != null로 제한할 수 있으나,
+    //     그 경우 일반 사용자 신청이 불가능해집니다.
+    match /votes/{day} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // settings 컬렉션: 신청 상태 관리
+    //   - 읽기: 누구나 가능 (버튼 상태 표시, 카운트다운 계산용)
+    //   - 쓰기: 인증된 사용자만 가능 (관리자만 신청 시작/마감 가능)
+    match /settings/{document} {
+      allow read:  if true;
+      allow write: if request.auth != null;
+    }
+
+    // logs 컬렉션: 신청 기록
+    //   - 읽기: 인증된 사용자만 가능 (관리자만 로그 조회 가능)
+    //   - 쓰기: 누구나 가능 (신청 시 자동 기록)
+    match /logs/{document} {
+      allow read:  if request.auth != null;
+      allow write: if true;
     }
   }
 }
