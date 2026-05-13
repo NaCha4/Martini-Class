@@ -1,85 +1,81 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-    <meta charset="UTF-8">
-    <!-- 모바일에서 화면 배율 고정, 사용자 핀치줌 비활성화 -->
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>마티니 클래스 신청</title>
-
-    <!-- 브라우저 탭 아이콘 -->
-    <link rel="icon" href="assets/images/Logo.png" type="image/png">
-    <!-- iOS 홈 화면에 추가했을 때 사용되는 아이콘 -->
-    <link rel="apple-touch-icon" href="assets/images/Logo.png">
-
-    <!-- Pretendard: 한글 최적화 웹폰트 -->
-    <link rel="stylesheet" as="style" crossorigin
-          href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
-    <link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Martini 칵테일 클래스</title>
+  <link rel="icon" href="assets/images/Logo.png" type="image/png" />
+  <link rel="apple-touch-icon" href="assets/images/Logo.png" />
+  <link rel="stylesheet" href="style.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet" />
 </head>
-<body>
-    <div class="mobile-container">
+<body class="page-home">
 
-        <!-- 헤더: 로고 + 부제목 -->
-        <!-- 로고를 5번 클릭하면 관리자 모드 진입 프롬프트가 뜹니다 (script.js 참고) -->
-        <header>
-            <img src="assets/images/Name.png" alt="MARTINI" class="logo-image">
-            <p class="subtitle">정규 칵테일 클래스 신청</p>
-        </header>
-
-        <!-- 섹션 1: 요일 선택 -->
-        <!-- data-day 속성값이 Firestore 문서 ID와 동일해야 합니다: 화요일 / 수요일 / 목요일 -->
-        <section class="section">
-            <h2>1. 요일 선택 <span class="limit">(선착순 24명)</span></h2>
-            <div class="day-selector">
-                <button class="day-btn active" data-day="화요일">화</button>
-                <button class="day-btn"        data-day="수요일">수</button>
-                <button class="day-btn"        data-day="목요일">목</button>
-            </div>
-        </section>
-
-        <!-- 섹션 2: 이름 입력 및 신청 -->
-        <!-- maxlength로 클라이언트에서 1차 제한 (script.js에서도 2차 검증) -->
-        <section class="section">
-            <h2>2. 이름 입력</h2>
-            <div class="input-group">
-                <input type="text" id="userName"
-                       placeholder="이름을 입력하세요"
-                       maxlength="20"
-                       autocomplete="off">
-                <button id="submitBtn">로딩 중...</button>
-            </div>
-        </section>
-
-        <!-- 섹션 3: 신청자 목록 -->
-        <!-- selectedDayName: 현재 요일 표시 / count: 신청자 수 표시 -->
-        <!-- attendeeList: JS renderList()가 동적으로 내용을 채웁니다 -->
-        <section class="section list-section">
-            <div class="list-header">
-                <h2>신청자 목록 (<span id="selectedDayName">화요일</span>)</h2>
-                <div class="count-badge"><span id="count">0</span> / 24</div>
-            </div>
-            <div id="attendeeList" class="attendee-list"></div>
-        </section>
-
-        <!-- 관리자 전용 버튼 영역 -->
-        <!-- 기본적으로 display:none. 관리자 로그인 성공 시 JS에서 표시합니다. -->
-        <section class="admin-section">
-            <button id="exportBtn" class="admin-btn export">명단 추출</button>
-            <button id="resetBtn"  class="admin-btn reset">데이터 초기화</button>
-            <div id="adminControlGroup" class="admin-btn-group">
-                <button id="startBtn" class="admin-btn control start">시작 / 예약</button>
-                <button id="endBtn"   class="admin-btn control">신청 마감</button>
-            </div>
-        </section>
-
+  <!-- ── Navigation ── -->
+  <nav class="navbar">
+    <div class="nav-inner">
+      <a href="index.html" class="nav-brand">
+        <img src="assets/images/Logo.png" alt="Martini" class="nav-logo-img" />
+        <img src="assets/images/Name.png" alt="Martini" class="nav-logo-name" />
+      </a>
+      <div class="nav-right">
+        <a href="login.html" class="btn btn-ghost">로그인</a>
+      </div>
     </div>
+  </nav>
 
-    <!-- Firebase SDK (compat 버전: firebase.firestore() 방식 사용 가능) -->
-    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+  <!-- ── Hero ── -->
+  <section class="hero">
+    <div class="hero-bg"></div>
+    <div class="hero-content">
+      <span class="hero-eyebrow">마티니 칵테일 동아리</span>
+      <h1 class="hero-title">나만의 칵테일을<br />만들어보세요</h1>
+      <p class="hero-desc">직접 재료를 고르고, 레시피를 배우며<br />특별한 한 잔을 완성하는 경험</p>
+      <a href="vote.html" class="btn btn-primary btn-lg">칵테일 클래스 신청하기</a>
+    </div>
+  </section>
 
-    <!-- 앱 로직 (Firebase 초기화 스크립트 뒤에 위치해야 합니다) -->
-    <script src="script.js"></script>
+  <!-- ── Features ── -->
+  <section class="section features-section">
+    <div class="container">
+      <h2 class="section-title">클래스 안내</h2>
+      <div class="features-grid">
+        <div class="feature-card">
+          <div class="feature-icon">🍸</div>
+          <h3>칵테일 선택 투표</h3>
+          <p>원하는 칵테일에 투표하고 다음 클래스에서 직접 만들어보세요.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">📚</div>
+          <h3>레시피 가이드</h3>
+          <p>전문 바텐더가 준비한 레시피로 단계별 클래스를 진행합니다.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">🎉</div>
+          <h3>소모임 운영</h3>
+          <p>소규모 인원으로 편안하게 배우고 즐기는 동아리 활동.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── CTA ── -->
+  <section class="section cta-section">
+    <div class="container cta-inner">
+      <h2>지금 바로 참여하세요</h2>
+      <p>클래스 신청 및 칵테일 투표는 아래 버튼을 통해 진행할 수 있습니다.</p>
+      <a href="vote.html" class="btn btn-primary">클래스 신청 바로가기</a>
+    </div>
+  </section>
+
+  <!-- ── Footer ── -->
+  <footer class="footer">
+    <div class="container">
+      <p>© 2026 Martini 칵테일 동아리. All rights reserved.</p>
+    </div>
+  </footer>
+
 </body>
 </html>
