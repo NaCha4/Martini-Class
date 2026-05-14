@@ -31,6 +31,32 @@ function isValidApplySchedule(config) {
   return config.reservedCloseAt > config.reservedOpenAt;
 }
 
+function clearSelectedAdminVoteMember() {
+  selectedAdminVoteStudentId = "";
+  voteDayList?.querySelectorAll(".admin-vote-member.is-selected").forEach((member) => {
+    member.classList.remove("is-selected");
+  });
+}
+
+async function moveAdminVoteToDay(studentId, targetDay) {
+  const targetWeekday = WEEKDAYS.find((weekday) => weekday.key === targetDay);
+  const vote = adminClassVotes.find((classVote) => classVote.studentId === studentId);
+
+  if (!studentId || !targetWeekday || vote?.day === targetDay) {
+    clearSelectedAdminVoteMember();
+    return;
+  }
+
+  try {
+    setVoteConfigStatus(`${vote.name} 신청 요일을 이동하고 있습니다.`);
+    await window.MartiniFirebase.moveClassVote(studentId, targetDay, targetWeekday.label);
+    setVoteConfigStatus(`${vote.name} 신청 요일이 ${targetWeekday.label}로 변경되었습니다.`);
+    clearSelectedAdminVoteMember();
+  } catch {
+    setVoteConfigStatus("신청 요일 변경에 실패했습니다.");
+  }
+}
+
 function bindVoteCapacityToggles() {
   voteDayList?.addEventListener("click", (event) => {
     const toggleButton = event.target.closest("[data-vote-toggle]");
@@ -50,6 +76,23 @@ function bindVoteCapacityToggles() {
 function bindVoteMemberActions() {
   voteDayList?.addEventListener("click", async (event) => {
     const deleteButton = event.target.closest("[data-delete-vote]");
+    const member = event.target.closest("[data-student-id]");
+    const row = event.target.closest("[data-vote-day]");
+
+    if (!deleteButton && member) {
+      selectedAdminVoteStudentId = selectedAdminVoteStudentId === member.dataset.studentId
+        ? ""
+        : member.dataset.studentId;
+      voteDayList.querySelectorAll(".admin-vote-member").forEach((voteMember) => {
+        voteMember.classList.toggle("is-selected", voteMember.dataset.studentId === selectedAdminVoteStudentId);
+      });
+      return;
+    }
+
+    if (!deleteButton && selectedAdminVoteStudentId && row) {
+      await moveAdminVoteToDay(selectedAdminVoteStudentId, row.dataset.voteDay);
+      return;
+    }
 
     if (!deleteButton) return;
 
@@ -112,18 +155,8 @@ function bindVoteMemberActions() {
 
     const studentId = event.dataTransfer.getData("text/plain");
     const targetDay = row.dataset.voteDay;
-    const targetWeekday = WEEKDAYS.find((weekday) => weekday.key === targetDay);
-    const vote = adminClassVotes.find((classVote) => classVote.studentId === studentId);
 
-    if (!studentId || !targetWeekday || vote?.day === targetDay) return;
-
-    try {
-      setVoteConfigStatus(`${vote.name} 신청 요일을 이동하고 있습니다.`);
-      await window.MartiniFirebase.moveClassVote(studentId, targetDay, targetWeekday.label);
-      setVoteConfigStatus(`${vote.name} 신청 요일이 ${targetWeekday.label}로 변경되었습니다.`);
-    } catch {
-      setVoteConfigStatus("신청 요일 변경에 실패했습니다.");
-    }
+    await moveAdminVoteToDay(studentId, targetDay);
   });
 }
 

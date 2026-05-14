@@ -5152,3 +5152,13 @@ button {
   color: var(--point-ink);
   box-shadow: inset 0 -2px 0 var(--point-deep);
 }
+
+.admin-page .admin-vote-member {
+  touch-action: manipulation;
+}
+
+.admin-page .admin-vote-member.is-selected {
+  border-bottom-color: var(--point-deep);
+  color: var(--point-ink);
+  box-shadow: inset 0 -2px 0 var(--point-deep);
+}

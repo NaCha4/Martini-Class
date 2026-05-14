@@ -95,6 +95,7 @@ let privateClassMode = "browse";
 let editingInventoryItemId = "";
 let editingClassScheduleId = "";
 let currentVoteConfig = null;
+let selectedAdminVoteStudentId = "";
 
 function bindNavigation() {
   bindRouteNavigation();
@@ -322,7 +323,7 @@ function renderAdminVoteMembers() {
 
     list.innerHTML = votes.length
       ? votes.map((vote) => `
-        <li class="admin-vote-member" draggable="true" data-student-id="${vote.studentId}">
+        <li class="admin-vote-member${selectedAdminVoteStudentId === vote.studentId ? " is-selected" : ""}" draggable="true" data-student-id="${vote.studentId}">
           <span>${vote.name}</span>
           <button type="button" aria-label="${vote.name} 신청 삭제" data-delete-vote="${vote.studentId}">×</button>
         </li>
