@@ -5124,3 +5124,21 @@ body {
   font-weight: 800;
   line-height: 1.45;
 }
+
+:root,
+html,
+body {
+  color-scheme: light;
+}
+
+html,
+body {
+  background-color: #f4f1e9;
+}
+
+input,
+textarea,
+select,
+button {
+  color-scheme: light;
+}
