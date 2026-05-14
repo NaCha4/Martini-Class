@@ -64,8 +64,8 @@ function scheduleApplyViewUpdate() {
 
   const now = Date.now();
   const upcomingScheduleTimes = [
-    normalizeConfigDate(voteConfig?.reservedOpenAt),
-    normalizeConfigDate(voteConfig?.reservedCloseAt),
+    normalizeDate(voteConfig?.reservedOpenAt),
+    normalizeDate(voteConfig?.reservedCloseAt),
   ]
     .map((date) => date?.getTime())
     .filter((time) => Number.isFinite(time) && time > now);
