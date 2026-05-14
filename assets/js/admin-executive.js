@@ -2,6 +2,8 @@ function createLocalId(prefix) {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+let selectedExecutiveMemberId = "";
+
 function getDefaultExecutiveConfig() {
   return {
     departments: [
@@ -98,7 +100,7 @@ function renderExecutiveOrg() {
         }
 
         return `
-          <div class="executive-member" draggable="true" data-executive-member="${member.id}">
+          <div class="executive-member${selectedExecutiveMemberId === member.id ? " is-selected" : ""}" draggable="true" data-executive-member="${member.id}">
             <strong>${escapeHtml(member.name || "이름 없음")}</strong>
           </div>
         `;
@@ -247,14 +249,58 @@ async function saveExecutiveConfig(nextConfig) {
   renderExecutiveManagement();
 }
 
+function clearSelectedExecutiveMember() {
+  selectedExecutiveMemberId = "";
+  executiveOrg?.querySelectorAll(".executive-member.is-selected").forEach((member) => {
+    member.classList.remove("is-selected");
+  });
+}
+
+async function assignExecutiveMemberToDay(memberId, dayKey) {
+  const nextConfig = normalizeExecutiveConfig(executiveConfig || getDefaultExecutiveConfig());
+
+  if (!memberId || !dayKey || !getExecutiveMemberMap(nextConfig).has(memberId)) return;
+
+  if (!nextConfig.assignments[dayKey].includes(memberId)) {
+    nextConfig.assignments[dayKey].push(memberId);
+  }
+
+  try {
+    await saveExecutiveConfig(nextConfig);
+    clearSelectedExecutiveMember();
+  } catch {
+    return;
+  }
+}
+
+async function assignExecutiveMemberToEvent(memberId, eventId) {
+  const nextConfig = normalizeExecutiveConfig(executiveConfig || getDefaultExecutiveConfig());
+  const eventItem = nextConfig.events.find((item) => item.id === eventId);
+
+  if (!memberId || !eventItem || !getExecutiveMemberMap(nextConfig).has(memberId)) return;
+
+  if (!eventItem.assignees.includes(memberId)) {
+    eventItem.assignees.push(memberId);
+  }
+
+  try {
+    await saveExecutiveConfig(nextConfig);
+    clearSelectedExecutiveMember();
+  } catch {
+    return;
+  }
+}
+
 function bindExecutiveActions() {
   executiveEditButton?.addEventListener("click", () => {
+    clearSelectedExecutiveMember();
     executiveDraft = JSON.parse(JSON.stringify(executiveConfig || getDefaultExecutiveConfig()));
     isExecutiveEditing = true;
     renderExecutiveManagement();
   });
 
   executiveCancelButton?.addEventListener("click", () => {
+    clearSelectedExecutiveMember();
     executiveDraft = null;
     isExecutiveEditing = false;
     renderExecutiveManagement();
@@ -306,6 +352,18 @@ function bindExecutiveActions() {
   });
 
   executiveOrg?.addEventListener("click", (event) => {
+    const selectedMember = event.target.closest("[data-executive-member]");
+
+    if (!isExecutiveEditing && selectedMember) {
+      selectedExecutiveMemberId = selectedExecutiveMemberId === selectedMember.dataset.executiveMember
+        ? ""
+        : selectedMember.dataset.executiveMember;
+      executiveOrg.querySelectorAll(".executive-member").forEach((member) => {
+        member.classList.toggle("is-selected", member.dataset.executiveMember === selectedExecutiveMemberId);
+      });
+      return;
+    }
+
     if (!isExecutiveEditing) return;
 
     const departmentElement = event.target.closest("[data-executive-department]");
@@ -395,27 +453,21 @@ function bindExecutiveActions() {
 
     const memberId = event.dataTransfer.getData("text/plain");
     const dayKey = dayElement.dataset.executiveDay;
-    const nextConfig = normalizeExecutiveConfig(executiveConfig || getDefaultExecutiveConfig());
 
-    if (!memberId || !dayKey || !getExecutiveMemberMap(nextConfig).has(memberId)) return;
-
-    if (!nextConfig.assignments[dayKey].includes(memberId)) {
-      nextConfig.assignments[dayKey].push(memberId);
-    }
-
-    try {
-      await saveExecutiveConfig(nextConfig);
-    } catch {
-      return;
-    }
+    await assignExecutiveMemberToDay(memberId, dayKey);
   });
 
   executiveDayBoard?.addEventListener("click", async (event) => {
     const removeButton = event.target.closest("[data-remove-executive-assignment]");
+    const dayElement = event.target.closest("[data-executive-day]");
+
+    if (!removeButton && selectedExecutiveMemberId && dayElement?.classList.contains("is-active")) {
+      await assignExecutiveMemberToDay(selectedExecutiveMemberId, dayElement.dataset.executiveDay);
+      return;
+    }
 
     if (!removeButton) return;
 
-    const dayElement = removeButton.closest("[data-executive-day]");
     const dayKey = dayElement?.dataset.executiveDay;
     const memberId = removeButton.dataset.removeExecutiveAssignment;
     const nextConfig = normalizeExecutiveConfig(executiveConfig || getDefaultExecutiveConfig());
@@ -478,20 +530,8 @@ function bindExecutiveActions() {
     eventElement.classList.remove("is-drop-target");
 
     const memberId = event.dataTransfer.getData("text/plain");
-    const nextConfig = normalizeExecutiveConfig(executiveConfig || getDefaultExecutiveConfig());
-    const eventItem = nextConfig.events.find((item) => item.id === eventElement.dataset.executiveEvent);
 
-    if (!memberId || !eventItem || !getExecutiveMemberMap(nextConfig).has(memberId)) return;
-
-    if (!eventItem.assignees.includes(memberId)) {
-      eventItem.assignees.push(memberId);
-    }
-
-    try {
-      await saveExecutiveConfig(nextConfig);
-    } catch {
-      return;
-    }
+    await assignExecutiveMemberToEvent(memberId, eventElement.dataset.executiveEvent);
   });
 
   executiveEventBoard?.addEventListener("click", async (event) => {
@@ -500,6 +540,17 @@ function bindExecutiveActions() {
     const eventElement = event.target.closest("[data-executive-event]");
     const nextConfig = normalizeExecutiveConfig(executiveConfig || getDefaultExecutiveConfig());
     const eventItem = nextConfig.events.find((item) => item.id === eventElement?.dataset.executiveEvent);
+
+    if (
+      selectedExecutiveMemberId
+      && eventElement
+      && !removeEventButton
+      && !removeAssignmentButton
+      && !event.target.closest("input, button")
+    ) {
+      await assignExecutiveMemberToEvent(selectedExecutiveMemberId, eventElement.dataset.executiveEvent);
+      return;
+    }
 
     if (!eventElement || (!removeEventButton && !removeAssignmentButton)) return;
 
