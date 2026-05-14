@@ -1,45 +1,18 @@
 const privateGallery = document.querySelector("[data-private-class-gallery]");
 const privateMessage = document.querySelector("[data-private-message]");
+const { bindRouteNavigation, escapeHtml, moveToPage, normalizeDate } = window.MartiniUtils;
 
 let privateClasses = [];
 let selectedPrivateClassId = "";
 
-function moveToPage(target) {
-  if (!target) return;
-
-  window.location.href = target;
-}
-
 function bindNavigation() {
-  document.querySelectorAll("[data-route]").forEach((element) => {
-    element.addEventListener("click", () => {
-      moveToPage(element.dataset.route);
-    });
-  });
+  bindRouteNavigation();
 }
 
 function setPrivateMessage(message) {
   if (!privateMessage) return;
 
   privateMessage.textContent = message;
-}
-
-function escapeHtml(value) {
-  return String(value || "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
-}
-
-function normalizeDate(value) {
-  if (!value) return null;
-  if (typeof value.toDate === "function") return value.toDate();
-
-  const date = value instanceof Date ? value : new Date(value);
-
-  return Number.isNaN(date.getTime()) ? null : date;
 }
 
 function formatClassDate(value) {
@@ -133,8 +106,8 @@ function renderPrivateClassList() {
 
           <div class="private-class-card__meta">
             <span>${formatClassDate(privateClass.eventAt)}</span>
-            <span>${escapeHtml(privateClass.fee)}</span>
-            <span>${applicationCount}/${capacity || "-"}명</span>
+            <span>${escapeHtml(privateClass.fee || "\uBBF8\uC815")}</span>
+            <span>${applicationCount}/${capacity || "-"}\uBA85</span>
           </div>
         </div>
       </article>

@@ -114,45 +114,79 @@
     );
   }
 
+  function getExecutiveConfigRef() {
+    if (!db) {
+      throw new Error("Firestore SDK가 로드되지 않았습니다.");
+    }
+
+    return db.collection("settings").doc("executiveConfig");
+  }
+
+  function subscribeExecutiveConfig(callback) {
+    return getExecutiveConfigRef().onSnapshot((snapshot) => {
+      callback(snapshot.exists ? snapshot.data() : null);
+    });
+  }
+
+  async function saveExecutiveConfig(config) {
+    await getExecutiveConfigRef().set(
+      {
+        ...config,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      },
+      { merge: true },
+    );
+  }
+
+  function createBatchWriter(maxOperations = 450) {
+    const writeBatches = [];
+    let batch = db.batch();
+    let operationCount = 0;
+
+    function queue(operation) {
+      operation(batch);
+      operationCount += 1;
+
+      if (operationCount < maxOperations) return;
+
+      writeBatches.push(batch);
+      batch = db.batch();
+      operationCount = 0;
+    }
+
+    async function commit() {
+      if (operationCount > 0) {
+        writeBatches.push(batch);
+      }
+
+      await Promise.all(writeBatches.map((writeBatch) => writeBatch.commit()));
+    }
+
+    return {
+      commit,
+      queue,
+    };
+  }
+
   async function resetClassVotes(dayKeys = []) {
     if (!db) {
       throw new Error("Firestore SDK가 로드되지 않았습니다.");
     }
 
     const snapshot = await db.collection("classVotes").get();
-    const writeBatches = [];
-    let batch = db.batch();
-    let operationCount = 0;
+    const writer = createBatchWriter();
 
-    const queueDelete = (documentSnapshot) => {
-      batch.delete(documentSnapshot.ref);
-      operationCount += 1;
-
-      if (operationCount === 450) {
-        writeBatches.push(batch);
-        batch = db.batch();
-        operationCount = 0;
-      }
-    };
-
-    snapshot.docs.forEach(queueDelete);
-
-    dayKeys.forEach((dayKey) => {
-      batch.set(db.collection("classVoteState").doc(dayKey), { count: 0 }, { merge: true });
-      operationCount += 1;
-
-      if (operationCount === 450) {
-        writeBatches.push(batch);
-        batch = db.batch();
-        operationCount = 0;
-      }
+    snapshot.docs.forEach((documentSnapshot) => {
+      writer.queue((batch) => batch.delete(documentSnapshot.ref));
     });
 
-    if (operationCount > 0) {
-      writeBatches.push(batch);
-    }
+    dayKeys.forEach((dayKey) => {
+      writer.queue((batch) => {
+        batch.set(db.collection("classVoteState").doc(dayKey), { count: 0 }, { merge: true });
+      });
+    });
 
-    await Promise.all(writeBatches.map((writeBatch) => writeBatch.commit()));
+    await writer.commit();
   }
 
   function subscribeClassVotes(callback) {
@@ -228,17 +262,7 @@
     }
 
     const snapshot = await db.collection("classAttendance").get();
-    const writeBatches = [];
-    let batch = db.batch();
-    let operationCount = 0;
-
-    const commitIfFull = () => {
-      if (operationCount < 450) return;
-
-      writeBatches.push(batch);
-      batch = db.batch();
-      operationCount = 0;
-    };
+    const writer = createBatchWriter();
 
     snapshot.docs.forEach((documentSnapshot) => {
       const data = documentSnapshot.data();
@@ -246,27 +270,21 @@
 
       if (!isTargetWeek) return;
 
-      batch.delete(documentSnapshot.ref);
-      operationCount += 1;
-      commitIfFull();
+      writer.queue((batch) => batch.delete(documentSnapshot.ref));
     });
 
     records.forEach((record) => {
-      batch.set(db.collection("classAttendance").doc(getClassAttendanceDocId(record)), {
-        ...record,
-        status: record.status || "pending",
-        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      writer.queue((batch) => {
+        batch.set(db.collection("classAttendance").doc(getClassAttendanceDocId(record)), {
+          ...record,
+          status: record.status || "pending",
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+          createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+        });
       });
-      operationCount += 1;
-      commitIfFull();
     });
 
-    if (operationCount > 0) {
-      writeBatches.push(batch);
-    }
-
-    await Promise.all(writeBatches.map((writeBatch) => writeBatch.commit()));
+    await writer.commit();
   }
 
   async function deleteClassVote(studentId) {
@@ -540,6 +558,17 @@
 
           if (categoryCompare !== 0) return categoryCompare;
 
+          const aOrder = Number(a.itemOrder);
+          const bOrder = Number(b.itemOrder);
+          const hasAOrder = Number.isFinite(aOrder);
+          const hasBOrder = Number.isFinite(bOrder);
+
+          if (hasAOrder || hasBOrder) {
+            if (!hasAOrder) return 1;
+            if (!hasBOrder) return -1;
+            if (aOrder !== bOrder) return aOrder - bOrder;
+          }
+
           const itemCompare = String(a.itemName || a.typeName || "").localeCompare(String(b.itemName || b.typeName || ""), "ko");
 
           if (itemCompare !== 0) return itemCompare;
@@ -572,6 +601,33 @@
     );
 
     return itemRef.id;
+  }
+
+  async function updateInventoryItemOrders(updates = []) {
+    if (!db) {
+      throw new Error("Firestore SDK가 로드되지 않았습니다.");
+    }
+
+    const validUpdates = updates.filter((update) => update?.id);
+
+    if (!validUpdates.length) return;
+
+    const writer = createBatchWriter();
+
+    validUpdates.forEach((update) => {
+      writer.queue((batch) => {
+        batch.set(
+          db.collection("inventoryItems").doc(update.id),
+          {
+            itemOrder: Number(update.itemOrder) || 0,
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+          },
+          { merge: true },
+        );
+      });
+    });
+
+    await writer.commit();
   }
 
   async function updateInventoryQuantity(itemId, quantity) {
@@ -661,6 +717,8 @@
     isExecutive,
     getVoteConfig,
     saveVoteConfig,
+    subscribeExecutiveConfig,
+    saveExecutiveConfig,
     resetClassVotes,
     subscribeClassVotes,
     subscribeClassAttendance,
@@ -677,6 +735,7 @@
     submitPrivateClassApplication,
     subscribeInventoryItems,
     saveInventoryItem,
+    updateInventoryItemOrders,
     updateInventoryQuantity,
     deleteInventoryItem,
     subscribeClassSchedules,

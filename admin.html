@@ -9,8 +9,15 @@
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-storage-compat.js"></script>
+    <script defer src="./assets/js/utils.js"></script>
     <script defer src="./assets/js/firebase.js"></script>
     <script defer src="./assets/js/admin.js"></script>
+    <script defer src="./assets/js/admin-dashboard.js"></script>
+    <script defer src="./assets/js/admin-executive.js"></script>
+    <script defer src="./assets/js/admin-private-class.js"></script>
+    <script defer src="./assets/js/admin-inventory.js"></script>
+    <script defer src="./assets/js/admin-schedule.js"></script>
+    <script defer src="./assets/js/admin-vote.js"></script>
   </head>
   <body class="admin-page">
     <div class="site-shell">
@@ -40,6 +47,15 @@
               data-admin-tab="dashboard"
             >
               대시보드
+            </button>
+            <button
+              class="admin-tab"
+              type="button"
+              role="tab"
+              aria-selected="false"
+              data-admin-tab="executive"
+            >
+              임원 관리
             </button>
             <button
               class="admin-tab"
@@ -124,6 +140,64 @@
                 <div class="dashboard-list" data-dashboard-private-list></div>
               </article>
             </div>
+          </section>
+
+          <section class="admin-view" data-admin-panel="executive" role="tabpanel" hidden>
+            <article class="admin-panel admin-panel--wide executive-panel">
+              <div class="executive-heading">
+                <div>
+                  <p class="gateway-card__label">Executive Team</p>
+                  <h2>임원 관리</h2>
+                </div>
+                <div class="executive-actions">
+                  <button class="auth-button auth-button--ghost" type="button" data-executive-edit>
+                    수정
+                  </button>
+                  <button class="auth-button auth-button--primary" type="button" data-executive-save hidden>
+                    저장
+                  </button>
+                  <button class="auth-button auth-button--ghost" type="button" data-executive-cancel hidden>
+                    취소
+                  </button>
+                </div>
+              </div>
+
+              <section class="executive-section">
+                <div class="executive-section__header">
+                  <div>
+                    <p class="gateway-card__label">Organization</p>
+                    <h3>조직도</h3>
+                  </div>
+                  <button class="auth-button auth-button--ghost" type="button" data-executive-add-department hidden>
+                    부서 추가
+                  </button>
+                </div>
+                <div class="executive-org" data-executive-org></div>
+              </section>
+
+              <section class="executive-section">
+                <div class="executive-section__header">
+                  <div>
+                    <p class="gateway-card__label">Day Assignment</p>
+                    <h3>요일별 담당 임원</h3>
+                  </div>
+                </div>
+                <div class="executive-day-board" data-executive-day-board></div>
+              </section>
+
+              <section class="executive-section">
+                <div class="executive-section__header">
+                  <div>
+                    <p class="gateway-card__label">Event Assignment</p>
+                    <h3>이벤트 담당 임원</h3>
+                  </div>
+                  <button class="auth-button auth-button--ghost" type="button" data-executive-add-event>
+                    이벤트 추가
+                  </button>
+                </div>
+                <div class="executive-event-board" data-executive-event-board></div>
+              </section>
+            </article>
           </section>
 
           <section class="admin-view" data-admin-panel="vote" role="tabpanel" hidden>

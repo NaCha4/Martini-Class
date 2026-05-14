@@ -1,10 +1,5 @@
 const ROUTE_SELECTOR = "[data-route]";
-
-function moveToPage(target) {
-  if (!target) return;
-
-  window.location.href = target;
-}
+const { bindRouteNavigation, moveToPage } = window.MartiniUtils;
 
 function updateAdminNavigation(isAdmin) {
   const adminCard = document.querySelector("[data-admin-card]");
@@ -24,16 +19,15 @@ function readAdminSession() {
 }
 
 function bindNavigation() {
-  document.querySelectorAll(ROUTE_SELECTOR).forEach((element) => {
-    element.addEventListener("click", async () => {
+  bindRouteNavigation({
+    selector: ROUTE_SELECTOR,
+    beforeRoute: async (event, element) => {
       if (element.classList.contains("login-link") && readAdminSession()) {
+        event.preventDefault();
         await window.MartiniFirebase?.signOutUser();
         updateAdminNavigation(false);
-        return;
       }
-
-      moveToPage(element.dataset.route);
-    });
+    },
   });
 }
 

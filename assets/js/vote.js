@@ -12,24 +12,15 @@ const voteBoardElement = document.querySelector("[data-vote-board]");
 const voteForm = document.querySelector("[data-class-vote-form]");
 const voteMessage = document.querySelector("[data-vote-message]");
 const voteSubmitButton = document.querySelector("[data-vote-submit]");
+const { bindRouteNavigation, normalizeDate } = window.MartiniUtils;
 
 let voteConfig = null;
 let selectedDay = "";
 let currentVotes = [];
 let applyScheduleTimer = null;
 
-function moveToPage(target) {
-  if (!target) return;
-
-  window.location.href = target;
-}
-
 function bindNavigation() {
-  document.querySelectorAll("[data-route]").forEach((element) => {
-    element.addEventListener("click", () => {
-      moveToPage(element.dataset.route);
-    });
-  });
+  bindRouteNavigation();
 }
 
 function setVoteMessage(message) {
@@ -48,19 +39,10 @@ function getCapacity() {
   return Number.isFinite(capacity) && capacity > 0 ? capacity : DEFAULT_CAPACITY;
 }
 
-function normalizeConfigDate(value) {
-  if (!value) return null;
-  if (typeof value.toDate === "function") return value.toDate();
-
-  const date = value instanceof Date ? value : new Date(value);
-
-  return Number.isNaN(date.getTime()) ? null : date;
-}
-
 function isApplyOpen() {
   const now = new Date();
-  const reservedOpenAt = normalizeConfigDate(voteConfig?.reservedOpenAt);
-  const reservedCloseAt = normalizeConfigDate(voteConfig?.reservedCloseAt);
+  const reservedOpenAt = normalizeDate(voteConfig?.reservedOpenAt);
+  const reservedCloseAt = normalizeDate(voteConfig?.reservedCloseAt);
 
   if (reservedCloseAt && reservedCloseAt <= now) return false;
 

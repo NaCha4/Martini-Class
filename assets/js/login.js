@@ -2,12 +2,7 @@ const loginForm = document.querySelector("[data-login-form]");
 const loginButton = document.querySelector("[data-login-button]");
 const logoutButton = document.querySelector("[data-logout-button]");
 const adminButton = document.querySelector("[data-admin-button]");
-
-function moveToPage(target) {
-  if (!target) return;
-
-  window.location.href = target;
-}
+const { bindRouteNavigation, moveToPage } = window.MartiniUtils;
 
 function setLoading(isLoading) {
   loginButton.disabled = isLoading;
@@ -41,11 +36,7 @@ function getLoginErrorMessage(error) {
 }
 
 function bindNavigation() {
-  document.querySelectorAll("[data-route]").forEach((element) => {
-    element.addEventListener("click", () => {
-      moveToPage(element.dataset.route);
-    });
-  });
+  bindRouteNavigation();
 }
 
 async function handleLogin(event) {

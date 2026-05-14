@@ -20,23 +20,14 @@ const absentCountElement = document.querySelector("[data-attendance-absent]");
 const weekListElement = document.querySelector("[data-attendance-week-list]");
 const importCurrentVotesButton = document.querySelector("[data-import-current-votes]");
 const absenceDashboard = document.querySelector("[data-absence-dashboard]");
+const { bindRouteNavigation, escapeHtml, moveToPage } = window.MartiniUtils;
 
 let classVotes = [];
 let attendanceRecords = [];
 let selectedWeekKey = WEEKS[0].key;
 
-function moveToPage(target) {
-  if (!target) return;
-
-  window.location.href = target;
-}
-
 function bindNavigation() {
-  document.querySelectorAll("[data-route]").forEach((element) => {
-    element.addEventListener("click", () => {
-      moveToPage(element.dataset.route);
-    });
-  });
+  bindRouteNavigation();
 }
 
 function bindAuthGuard() {
@@ -58,15 +49,6 @@ function setAttendanceMessage(message) {
   if (!attendanceMessage) return;
 
   attendanceMessage.textContent = message;
-}
-
-function escapeHtml(value) {
-  return String(value || "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
 }
 
 function getSelectedWeek() {
