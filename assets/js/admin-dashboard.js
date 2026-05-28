@@ -41,12 +41,12 @@ function renderDashboardStats() {
 
         return `
           <div class="dashboard-row">
-            <span>${escapeHtml(privateClass.title || "개인 클래스")}</span>
+            <span>${escapeHtml(privateClass.title || "신청 게시글")}</span>
             <strong>${escapeHtml(getPrivateClassStatusLabel(privateClass.status))} · ${countText}</strong>
           </div>
         `;
       }).join("")
-      : `<p class="empty-state">등록된 개인 클래스가 없습니다.</p>`;
+      : `<p class="empty-state">등록된 신청 게시글이 없습니다.</p>`;
   }
 
 }

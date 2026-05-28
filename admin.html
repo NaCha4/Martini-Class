@@ -73,7 +73,7 @@
               aria-selected="false"
               data-admin-tab="private"
             >
-              개인 클래스 관리
+              게시글 관리
             </button>
             <button
               class="admin-tab"
@@ -112,9 +112,9 @@
                 <p>이번 주 신청 현황</p>
               </article>
               <article class="admin-stat">
-                <span>개인 클래스</span>
+                <span>신청 게시글</span>
                 <strong data-dashboard-private-applications>0</strong>
-                <p>전체 개인 클래스 신청</p>
+                <p>전체 게시글 신청</p>
               </article>
               <article class="admin-stat">
                 <span>신청 상태</span>
@@ -134,8 +134,8 @@
 
               <article class="dashboard-card">
                 <div>
-                  <p class="gateway-card__label">Private Class</p>
-                  <h3>개인 클래스 현황</h3>
+                  <p class="gateway-card__label">Application Posts</p>
+                  <h3>게시글 신청 현황</h3>
                 </div>
                 <div class="dashboard-list" data-dashboard-private-list></div>
               </article>
@@ -276,17 +276,17 @@
           <section class="admin-view" data-admin-panel="private" role="tabpanel" hidden>
             <article class="admin-panel admin-panel--wide private-admin-panel">
               <div>
-                <p class="gateway-card__label">Private Class</p>
-                <h2>개인 클래스 관리</h2>
+                <p class="gateway-card__label">Application Posts</p>
+                <h2>게시글 관리</h2>
               </div>
 
               <div class="private-class-toolbar" data-private-class-toolbar>
                 <div>
-                  <strong>개인 클래스 목록</strong>
-                  <span>등록된 개인 클래스 글을 확인하고 관리합니다.</span>
+                  <strong>게시글 목록</strong>
+                  <span>등록된 신청 게시글을 확인하고 관리합니다.</span>
                 </div>
                 <button class="auth-button auth-button--primary" type="button" data-private-class-write>
-                  글쓰기
+                  게시글 쓰기
                 </button>
               </div>
 
@@ -302,13 +302,13 @@
 
                 <div class="private-class-form__grid">
                   <label class="auth-field">
-                    <span>클래스 제목</span>
-                    <input type="text" name="title" placeholder="예: 싱글몰트 위스키 입문" required />
+                    <span>게시글 제목</span>
+                    <input type="text" name="title" placeholder="예: MT 신청 / 개강총회 신청" required />
                   </label>
 
                   <label class="auth-field">
-                    <span>주제</span>
-                    <input type="text" name="category" placeholder="전통주, 위스키, 칵테일" required />
+                    <span>분류</span>
+                    <input type="text" name="category" placeholder="MT, 개강총회, 클래스, 이벤트" required />
                   </label>
 
                   <label class="auth-field">
@@ -329,12 +329,12 @@
 
                 <label class="auth-field">
                   <span>한 줄 소개</span>
-                  <input type="text" name="summary" placeholder="갤러리 카드에 보일 짧은 소개를 입력하세요." required />
+                  <input type="text" name="summary" placeholder="목록 카드에 보일 짧은 소개를 입력하세요." required />
                 </label>
 
                 <label class="auth-field">
                   <span>상세 설명</span>
-                  <textarea name="description" rows="5" placeholder="행사 취지, 시음 주류, 진행 방식 등을 적어주세요." required></textarea>
+                  <textarea name="description" rows="5" placeholder="행사 취지, 진행 방식, 안내사항 등을 적어주세요." required></textarea>
                 </label>
 
                 <div class="private-class-form__footer">
@@ -349,7 +349,7 @@
                   </label>
 
                   <div class="private-class-actions">
-                    <p data-private-class-status>개인 클래스 글을 작성해주세요.</p>
+                    <p data-private-class-status>신청 게시글을 작성해주세요.</p>
                     <div class="private-class-button-group">
                       <button class="auth-button auth-button--ghost" type="button" data-private-class-cancel>
                         목록으로
@@ -365,9 +365,9 @@
               <div class="private-class-detail is-hidden" data-private-class-detail>
                 <div class="private-class-detail__header">
                   <div>
-                    <p class="gateway-card__label">Class Detail</p>
-                    <h3 data-private-detail-title>개인 클래스 상세</h3>
-                    <p data-private-detail-meta>상세보기할 클래스를 선택해주세요.</p>
+                    <p class="gateway-card__label">Post Detail</p>
+                    <h3 data-private-detail-title>게시글 상세</h3>
+                    <p data-private-detail-meta>상세보기할 게시글을 선택해주세요.</p>
                   </div>
                   <button class="auth-button auth-button--ghost" type="button" data-private-class-edit>
                     내용 수정

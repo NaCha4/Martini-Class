@@ -230,15 +230,15 @@ function bindPrivateClassInteractions() {
 
     try {
       submitButton.disabled = true;
-      setPrivateMessage("개인 클래스를 신청하고 있습니다.");
+      setPrivateMessage("클래스에 신청하고 있습니다.");
       await window.MartiniFirebase.submitPrivateClassApplication(privateClass, {
         name: String(formData.get("name") || "").trim(),
         studentId: String(formData.get("studentId") || "").trim(),
       });
       form.reset();
-      setPrivateMessage("개인 클래스 신청이 완료되었습니다.");
+      setPrivateMessage("해당 클래스 신청이 완료되었습니다.");
     } catch (error) {
-      setPrivateMessage(error.message || "개인 클래스 신청에 실패했습니다.");
+      setPrivateMessage(error.message || "해당 클래스 신청에 실패했습니다.");
     } finally {
       submitButton.disabled = false;
     }
@@ -249,7 +249,7 @@ function subscribePrivateClasses() {
   const martiniFirebase = window.MartiniFirebase;
 
   if (!martiniFirebase?.subscribePrivateClasses) {
-    setPrivateMessage("개인 클래스를 불러올 수 없습니다.");
+    setPrivateMessage("게시물을 불러올 수 없습니다.");
     return;
   }
 

@@ -11,7 +11,7 @@ function renderPrivateClasses() {
   if (!privateClassAdminList) return;
 
   if (!privateClasses.length) {
-    privateClassAdminList.innerHTML = `<p class="empty-state">아직 등록된 개인 클래스가 없습니다.</p>`;
+    privateClassAdminList.innerHTML = `<p class="empty-state">아직 등록된 신청 게시글이 없습니다.</p>`;
     return;
   }
 
@@ -115,7 +115,7 @@ function fillPrivateClassForm(privateClass) {
   privateClassForm.elements.status.value = privateClass.status || "upcoming";
   renderPrivateThumbnailPreview(privateClass.thumbnailDataUrl || privateClass.thumbnailUrl);
   privateClassSaveButton.textContent = "수정 저장";
-  setPrivateClassStatus("선택한 개인 클래스 내용을 수정하고 있습니다.");
+  setPrivateClassStatus("선택한 게시글 내용을 수정하고 있습니다.");
   setPrivateClassMode("write");
   privateClassForm.scrollIntoView({ behavior: "smooth", block: "start" });
 }
@@ -200,13 +200,13 @@ async function compressPrivateThumbnail(file) {
 function startPrivateClassWrite() {
   selectedPrivateClassId = "";
   resetPrivateClassForm();
-  setPrivateClassStatus("개인 클래스 글을 작성해주세요.");
+  setPrivateClassStatus("신청 게시글을 작성해주세요.");
   setPrivateClassMode("write");
 }
 
 function cancelPrivateClassWrite() {
   resetPrivateClassForm();
-  setPrivateClassStatus("개인 클래스 목록을 확인하고 있습니다.");
+  setPrivateClassStatus("게시글 목록을 확인하고 있습니다.");
   setPrivateClassMode("browse");
 }
 
@@ -243,7 +243,7 @@ async function handlePrivateClassSubmit(event) {
     privateClassSaveButton.disabled = true;
     const isEditing = Boolean(editingPrivateClassId);
     const thumbnailFile = privateThumbnailInput?.files?.[0];
-    setPrivateClassStatus("개인 클래스 글을 저장하고 있습니다.");
+    setPrivateClassStatus("신청 게시글을 저장하고 있습니다.");
     const classData = collectPrivateClassData();
     const savedClassId = await martiniFirebase.savePrivateClass(classData);
 
@@ -266,9 +266,9 @@ async function handlePrivateClassSubmit(event) {
     selectedPrivateClassId = "";
     resetPrivateClassForm();
     setPrivateClassMode("browse");
-    setPrivateClassStatus(isEditing ? "개인 클래스 글이 수정되었습니다." : "개인 클래스 글이 등록되었습니다.");
+    setPrivateClassStatus(isEditing ? "신청 게시글이 수정되었습니다." : "신청 게시글이 등록되었습니다.");
   } catch (error) {
-    setPrivateClassStatus(error.message || "개인 클래스 글 저장에 실패했습니다. Firebase 권한을 확인해주세요.");
+    setPrivateClassStatus(error.message || "신청 게시글 저장에 실패했습니다. Firebase 권한을 확인해주세요.");
   } finally {
     privateClassSaveButton.disabled = false;
   }
@@ -297,7 +297,7 @@ function bindPrivateClassActions() {
     if (viewButton) {
       selectedPrivateClassId = viewButton.dataset.viewPrivateClass;
       renderPrivateClassDetail();
-      setPrivateClassStatus("선택한 개인 클래스 상세를 확인하고 있습니다.");
+      setPrivateClassStatus("선택한 게시글 상세를 확인하고 있습니다.");
       privateClassDetail?.scrollIntoView({ behavior: "smooth", block: "start" });
       return;
     }
@@ -305,21 +305,21 @@ function bindPrivateClassActions() {
     if (!deleteButton) return;
 
     const privateClass = privateClasses.find((item) => item.id === deleteButton.dataset.deletePrivateClass);
-    const confirmed = window.confirm(`${privateClass?.title || "이 개인 클래스"} 글을 삭제할까요?`);
+    const confirmed = window.confirm(`${privateClass?.title || "이 게시글"}을 삭제할까요?`);
 
     if (!confirmed) return;
 
     try {
       deleteButton.disabled = true;
-      setPrivateClassStatus("개인 클래스 글을 삭제하고 있습니다.");
+      setPrivateClassStatus("신청 게시글을 삭제하고 있습니다.");
       await window.MartiniFirebase.deletePrivateClass(deleteButton.dataset.deletePrivateClass);
       if (selectedPrivateClassId === deleteButton.dataset.deletePrivateClass) {
         selectedPrivateClassId = "";
         renderPrivateClassDetail();
       }
-      setPrivateClassStatus("개인 클래스 글이 삭제되었습니다.");
+      setPrivateClassStatus("신청 게시글이 삭제되었습니다.");
     } catch {
-      setPrivateClassStatus("개인 클래스 글 삭제에 실패했습니다.");
+      setPrivateClassStatus("신청 게시글 삭제에 실패했습니다.");
     } finally {
       deleteButton.disabled = false;
     }
