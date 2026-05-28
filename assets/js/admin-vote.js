@@ -163,9 +163,9 @@ function bindVoteMemberActions() {
 function subscribeAdminClassVotes() {
   const martiniFirebase = window.MartiniFirebase;
 
-  if (!martiniFirebase?.subscribeClassVotes) return;
+  if (!martiniFirebase?.subscribeClassVotes) return null;
 
-  martiniFirebase.subscribeClassVotes((votes) => {
+  return martiniFirebase.subscribeClassVotes((votes) => {
     adminClassVotes = votes;
     renderDashboardStats();
     renderAdminVoteMembers();
@@ -176,9 +176,9 @@ function subscribeAdminClassVotes() {
 function subscribeAdminAttendance() {
   const martiniFirebase = window.MartiniFirebase;
 
-  if (!martiniFirebase?.subscribeClassAttendance) return;
+  if (!martiniFirebase?.subscribeClassAttendance) return null;
 
-  martiniFirebase.subscribeClassAttendance((attendance) => {
+  return martiniFirebase.subscribeClassAttendance((attendance) => {
     attendanceRecords = attendance;
     renderDashboardStats();
   });

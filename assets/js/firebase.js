@@ -194,7 +194,7 @@
       throw new Error("Firestore SDK가 로드되지 않았습니다.");
     }
 
-    return db.collection("classVotes").onSnapshot((snapshot) => {
+    return db.collection("classVotes").orderBy("updatedAt").onSnapshot((snapshot) => {
       const votes = snapshot.docs
         .map((documentSnapshot) => {
           const data = documentSnapshot.data();
@@ -203,12 +203,6 @@
             ...data,
             studentId: data.studentId || documentSnapshot.id,
           };
-        })
-        .sort((a, b) => {
-          const aTime = a.updatedAt?.toMillis?.() || 0;
-          const bTime = b.updatedAt?.toMillis?.() || 0;
-
-          return aTime - bTime;
         });
 
       callback(votes);
@@ -378,18 +372,12 @@
       throw new Error("Firestore SDK가 로드되지 않았습니다.");
     }
 
-    return db.collection("privateClassApplications").onSnapshot((snapshot) => {
+    return db.collection("privateClassApplications").orderBy("createdAt").onSnapshot((snapshot) => {
       const applications = snapshot.docs
         .map((documentSnapshot) => ({
           ...documentSnapshot.data(),
           id: documentSnapshot.id,
-        }))
-        .sort((a, b) => {
-          const aTime = a.createdAt?.toMillis?.() || 0;
-          const bTime = b.createdAt?.toMillis?.() || 0;
-
-          return aTime - bTime;
-        });
+        }));
 
       callback(applications);
     });
@@ -657,18 +645,12 @@
       throw new Error("Firestore SDK가 로드되지 않았습니다.");
     }
 
-    return db.collection("classSchedules").onSnapshot((snapshot) => {
+    return db.collection("classSchedules").orderBy("createdAt", "desc").onSnapshot((snapshot) => {
       const schedules = snapshot.docs
         .map((documentSnapshot) => ({
           ...documentSnapshot.data(),
           id: documentSnapshot.id,
-        }))
-        .sort((a, b) => {
-          const aTime = a.createdAt?.toMillis?.() || 0;
-          const bTime = b.createdAt?.toMillis?.() || 0;
-
-          return bTime - aTime;
-        });
+        }));
 
       callback(schedules);
     });

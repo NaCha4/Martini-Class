@@ -96,6 +96,7 @@ let editingInventoryItemId = "";
 let editingClassScheduleId = "";
 let currentVoteConfig = null;
 let selectedAdminVoteStudentId = "";
+const adminDataSubscriptions = {};
 
 function bindNavigation() {
   bindRouteNavigation();
@@ -140,6 +141,45 @@ function setScheduleStatus(message) {
   if (!scheduleStatus) return;
 
   scheduleStatus.textContent = message;
+}
+
+function startAdminDataSubscription(key, subscribe) {
+  if (adminDataSubscriptions[key]) return;
+
+  const unsubscribe = subscribe?.();
+
+  if (!unsubscribe) return;
+
+  adminDataSubscriptions[key] = typeof unsubscribe === "function" ? unsubscribe : true;
+}
+
+function ensureAdminTabData(tabName) {
+  if (tabName === "dashboard") {
+    startAdminDataSubscription("classVotes", subscribeAdminClassVotes);
+    startAdminDataSubscription("privateClasses", subscribePrivateClasses);
+    return;
+  }
+
+  if (tabName === "vote") {
+    startAdminDataSubscription("classVotes", subscribeAdminClassVotes);
+    return;
+  }
+
+  if (tabName === "executive") {
+    startAdminDataSubscription("executiveConfig", subscribeExecutiveConfig);
+    return;
+  }
+
+  if (tabName === "private") {
+    startAdminDataSubscription("privateClasses", subscribePrivateClasses);
+    startAdminDataSubscription("privateClassApplications", subscribePrivateClassApplications);
+    return;
+  }
+
+  if (tabName === "inventory" || tabName === "schedule") {
+    startAdminDataSubscription("inventoryItems", subscribeInventoryItems);
+    startAdminDataSubscription("classSchedules", subscribeClassSchedules);
+  }
 }
 
 function getDefaultVoteConfig() {
@@ -347,6 +387,8 @@ function setActiveAdminTab(targetTab) {
     panel.classList.toggle("is-active", isActive);
     panel.hidden = !isActive;
   });
+
+  ensureAdminTabData(targetTab);
 }
 
 function bindAdminTabs() {
@@ -369,13 +411,7 @@ document.addEventListener("DOMContentLoaded", () => {
   bindScheduleActions();
   setupDefaultScheduleWeeks();
   loadVoteConfig();
-  subscribeAdminClassVotes();
-  subscribeAdminAttendance();
-  subscribeExecutiveConfig();
-  subscribePrivateClasses();
-  subscribePrivateClassApplications();
-  subscribeInventoryItems();
-  subscribeClassSchedules();
+  ensureAdminTabData("dashboard");
   voteConfigForm?.addEventListener("submit", handleVoteConfigSubmit);
   privateClassForm?.addEventListener("submit", handlePrivateClassSubmit);
   voteResetButton?.addEventListener("click", handleVoteReset);

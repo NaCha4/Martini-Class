@@ -27,6 +27,10 @@ function setVoteMessage(message) {
   voteMessage.textContent = message;
 }
 
+function canOverrideApplyRules() {
+  return window.MartiniFirebase?.readAdminSession?.() === true;
+}
+
 function getEnabledDays() {
   if (!voteConfig?.days) return [];
 
@@ -40,6 +44,8 @@ function getCapacity() {
 }
 
 function isApplyOpen() {
+  if (canOverrideApplyRules()) return true;
+
   const now = new Date();
   const reservedOpenAt = normalizeDate(voteConfig?.reservedOpenAt);
   const reservedCloseAt = normalizeDate(voteConfig?.reservedCloseAt);
@@ -108,7 +114,10 @@ function renderDayPicker() {
     return;
   }
 
-  selectedDay = selectedDay || enabledDays[0].key;
+  if (!enabledDays.some((weekday) => weekday.key === selectedDay)) {
+    selectedDay = enabledDays[0].key;
+  }
+
   voteSubmitButton.disabled = false;
 
   dayListElement.innerHTML = `
@@ -198,6 +207,16 @@ function bindDayPicker() {
   });
 }
 
+function bindApplyRuleOverrideUpdates() {
+  const martiniFirebase = window.MartiniFirebase;
+
+  if (!martiniFirebase?.subscribeAuth) return;
+
+  martiniFirebase.subscribeAuth(() => {
+    updateApplyView();
+  });
+}
+
 async function loadVoteConfig() {
   const martiniFirebase = window.MartiniFirebase;
 
@@ -214,20 +233,12 @@ async function loadVoteConfig() {
 }
 
 function subscribeVotes() {
-  const db = window.MartiniFirebase?.db;
+  const martiniFirebase = window.MartiniFirebase;
 
-  if (!db) return;
+  if (!martiniFirebase?.subscribeClassVotes) return;
 
-  db.collection("classVotes").onSnapshot((snapshot) => {
-    currentVotes = snapshot.docs
-      .map((doc) => doc.data())
-      .sort((a, b) => {
-        const aTime = a.updatedAt?.toMillis?.() || 0;
-        const bTime = b.updatedAt?.toMillis?.() || 0;
-
-        return aTime - bTime;
-      });
-
+  martiniFirebase.subscribeClassVotes((votes) => {
+    currentVotes = votes;
     renderVoteBoard();
   });
 }
@@ -236,6 +247,7 @@ async function submitVote({ name, studentId, day }) {
   const firebase = window.firebase;
   const db = window.MartiniFirebase?.db;
   const capacity = getCapacity();
+  const shouldOverrideApplyRules = canOverrideApplyRules();
 
   if (!firebase || !db) {
     throw new Error("Firebase 연결을 확인해주세요.");
@@ -270,7 +282,7 @@ async function submitVote({ name, studentId, day }) {
       throw new Error("ALREADY_SAME_DAY");
     }
 
-    if (targetCount >= capacity) {
+    if (!shouldOverrideApplyRules && targetCount >= capacity) {
       throw new Error("DAY_FULL");
     }
 
@@ -336,6 +348,11 @@ async function handleVoteSubmit(event) {
     return;
   }
 
+  if (!getEnabledDays().some((weekday) => weekday.key === selectedDay)) {
+    setVoteMessage("현재 신청 가능한 요일을 선택해주세요.");
+    return;
+  }
+
   if (!name || !studentId) {
     setVoteMessage("이름과 학번을 입력해주세요.");
     return;
@@ -357,6 +374,7 @@ async function handleVoteSubmit(event) {
 document.addEventListener("DOMContentLoaded", () => {
   bindNavigation();
   bindDayPicker();
+  bindApplyRuleOverrideUpdates();
   loadVoteConfig();
   subscribeVotes();
   voteForm.addEventListener("submit", handleVoteSubmit);

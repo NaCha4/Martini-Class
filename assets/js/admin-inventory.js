@@ -350,9 +350,9 @@ function bindInventoryActions() {
 function subscribeInventoryItems() {
   const martiniFirebase = window.MartiniFirebase;
 
-  if (!martiniFirebase?.subscribeInventoryItems) return;
+  if (!martiniFirebase?.subscribeInventoryItems) return null;
 
-  martiniFirebase.subscribeInventoryItems((items) => {
+  return martiniFirebase.subscribeInventoryItems((items) => {
     inventoryItems = items;
     renderInventoryItems();
     refreshScheduleIngredientOptions();

@@ -573,9 +573,9 @@ function bindExecutiveActions() {
 function subscribeExecutiveConfig() {
   const martiniFirebase = window.MartiniFirebase;
 
-  if (!martiniFirebase?.subscribeExecutiveConfig) return;
+  if (!martiniFirebase?.subscribeExecutiveConfig) return null;
 
-  martiniFirebase.subscribeExecutiveConfig((config) => {
+  return martiniFirebase.subscribeExecutiveConfig((config) => {
     executiveConfig = normalizeExecutiveConfig(config);
 
     if (!isExecutiveEditing) {

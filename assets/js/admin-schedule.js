@@ -530,9 +530,9 @@ function bindScheduleActions() {
 function subscribeClassSchedules() {
   const martiniFirebase = window.MartiniFirebase;
 
-  if (!martiniFirebase?.subscribeClassSchedules) return;
+  if (!martiniFirebase?.subscribeClassSchedules) return null;
 
-  martiniFirebase.subscribeClassSchedules((schedules) => {
+  return martiniFirebase.subscribeClassSchedules((schedules) => {
     classSchedules = schedules;
     renderClassSchedules();
     renderUsageCalculation();

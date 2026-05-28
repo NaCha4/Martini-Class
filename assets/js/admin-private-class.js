@@ -355,9 +355,9 @@ function bindPrivateClassActions() {
 function subscribePrivateClasses() {
   const martiniFirebase = window.MartiniFirebase;
 
-  if (!martiniFirebase?.subscribePrivateClasses) return;
+  if (!martiniFirebase?.subscribePrivateClasses) return null;
 
-  martiniFirebase.subscribePrivateClasses((classes) => {
+  return martiniFirebase.subscribePrivateClasses((classes) => {
     privateClasses = classes;
     renderPrivateClasses();
     renderPrivateClassDetail();
@@ -368,9 +368,9 @@ function subscribePrivateClasses() {
 function subscribePrivateClassApplications() {
   const martiniFirebase = window.MartiniFirebase;
 
-  if (!martiniFirebase?.subscribePrivateClassApplications) return;
+  if (!martiniFirebase?.subscribePrivateClassApplications) return null;
 
-  martiniFirebase.subscribePrivateClassApplications((applications) => {
+  return martiniFirebase.subscribePrivateClassApplications((applications) => {
     privateClassApplications = applications;
     renderPrivateClassDetail();
     renderDashboardStats();

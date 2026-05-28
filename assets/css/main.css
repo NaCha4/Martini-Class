@@ -878,6 +878,10 @@ button {
   text-align: center;
 }
 
+.executive-day .executive-empty {
+  font-size: 0.78rem;
+}
+
 .executive-department__header button,
 .executive-member button,
 .executive-event__header button,
