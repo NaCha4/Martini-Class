@@ -23,6 +23,7 @@
   const auth = firebase.auth();
   const db = firebase.firestore ? firebase.firestore() : null;
   const storage = firebase.storage ? firebase.storage() : null;
+  const MEETING_MINUTES_EMBED_LIMIT = 350 * 1024;
   auth.languageCode = "ko";
 
   function saveAdminSession(isAdmin, user) {
@@ -448,6 +449,228 @@
     });
   }
 
+  function getMeetingMinutesRef() {
+    if (!db) {
+      throw new Error("Firestore SDK가 로드되지 않았습니다.");
+    }
+
+    return db.collection("settings").doc("meetingMinutes");
+  }
+
+  function subscribeMeetingMinuteFiles(callback) {
+    if (!db) {
+      throw new Error("Firestore SDK가 로드되지 않았습니다.");
+    }
+
+    let baseFiles = {};
+    let completedFiles = [];
+    const emit = () => {
+      const legacyCompleted = baseFiles.completed?.downloadUrl ? [baseFiles.completed] : [];
+
+      callback({
+        ...baseFiles,
+        completedFiles: [...completedFiles, ...legacyCompleted],
+      });
+    };
+    const unsubscribeBase = getMeetingMinutesRef().onSnapshot((snapshot) => {
+      baseFiles = snapshot.exists ? snapshot.data() : {};
+      emit();
+    });
+    const unsubscribeCompleted = db
+      .collection("settings")
+      .where("meetingMinuteType", "==", "completed")
+      .onSnapshot((snapshot) => {
+        completedFiles = snapshot.docs
+          .map((documentSnapshot) => ({
+            ...documentSnapshot.data(),
+            id: documentSnapshot.id,
+          }))
+          .sort((a, b) => Number(b.createdAtMs || 0) - Number(a.createdAtMs || 0));
+        emit();
+      });
+
+    return () => {
+      unsubscribeBase();
+      unsubscribeCompleted();
+    };
+  }
+
+  async function saveMeetingMinuteFileData(fileType, fileData) {
+    if (fileType === "completed") {
+      const documentId = `meetingMinutesCompleted_${fileData.createdAtMs}_${Math.random()
+        .toString(36)
+        .slice(2, 8)}`;
+      const documentRef = db.collection("settings").doc(documentId);
+
+      await documentRef.set({
+        ...fileData,
+        id: documentId,
+        meetingMinuteType: "completed",
+        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      });
+
+      return {
+        ...fileData,
+        id: documentId,
+        meetingMinuteType: "completed",
+      };
+    }
+
+    await getMeetingMinutesRef().set(
+      {
+        [fileType]: fileData,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      },
+      { merge: true },
+    );
+
+    return fileData;
+  }
+
+  function readFileAsDataUrl(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+
+      reader.addEventListener("load", () => resolve(reader.result));
+      reader.addEventListener("error", () => reject(reader.error));
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function saveEmbeddedMeetingMinuteFile(fileType, file, safeName, onProgress) {
+    onProgress?.(100, "encoding");
+
+    const dataUrl = await readFileAsDataUrl(file);
+    const timestamp = Date.now();
+    const fileData = {
+      name: file.name || safeName,
+      path: `firestore:settings/meetingMinutes/${fileType}`,
+      size: file.size || 0,
+      type: file.type || "application/octet-stream",
+      downloadUrl: dataUrl,
+      storageMode: "firestore",
+      createdAtMs: timestamp,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    };
+
+    onProgress?.(100, "saving");
+    return saveMeetingMinuteFileData(fileType, fileData);
+  }
+
+  async function uploadMeetingMinuteFile(fileType, file, onProgress) {
+    if (!db) {
+      throw new Error("Firestore SDK가 로드되지 않았습니다.");
+    }
+
+    if (!["template", "completed"].includes(fileType)) {
+      throw new Error("회의록 파일 종류를 확인해주세요.");
+    }
+
+    if (!file) {
+      throw new Error("업로드할 파일을 선택해주세요.");
+    }
+
+    const timestamp = Date.now();
+    const safeName = String(file.name || "meeting-minutes")
+      .replace(/[\\/:*?"<>|#%{}^~\[\]`]/g, "-")
+      .slice(0, 120);
+
+    if (file.size <= MEETING_MINUTES_EMBED_LIMIT) {
+      return saveEmbeddedMeetingMinuteFile(fileType, file, safeName, onProgress);
+    }
+
+    if (!storage) {
+      throw new Error("Firebase Storage SDK가 로드되지 않았습니다.");
+    }
+
+    const fileRef = storage.ref(`meeting-minutes/${fileType}/${timestamp}-${safeName}`);
+    const uploadTask = fileRef.put(file, {
+      contentType: file.type || "application/octet-stream",
+      cacheControl: fileType === "template" ? "public,max-age=3600" : "private,max-age=0",
+    });
+
+    const snapshot = await new Promise((resolve, reject) => {
+      const timeoutId = window.setTimeout(() => {
+        uploadTask.cancel();
+        reject(new Error("회의록 업로드 시간이 너무 오래 걸립니다. 파일 크기와 네트워크 상태를 확인해주세요."));
+      }, 120000);
+      let transferredBytes = 0;
+      const stalledId = window.setTimeout(() => {
+        if (transferredBytes > 0) return;
+
+        onProgress?.(0, "connecting-slow");
+      }, 10000);
+
+      uploadTask.on(
+        "state_changed",
+        (uploadSnapshot) => {
+          const totalBytes = uploadSnapshot.totalBytes || file.size || 1;
+          transferredBytes = uploadSnapshot.bytesTransferred || 0;
+          const progress = Math.round(
+            (transferredBytes / totalBytes) * 100,
+          );
+          const stage = transferredBytes > 0 ? "upload" : "connecting";
+
+          onProgress?.(Math.min(100, Math.max(0, progress)), stage);
+        },
+        (error) => {
+          window.clearTimeout(timeoutId);
+          window.clearTimeout(stalledId);
+          reject(error);
+        },
+        () => {
+          window.clearTimeout(timeoutId);
+          window.clearTimeout(stalledId);
+          resolve(uploadTask.snapshot);
+        },
+      );
+    });
+
+    onProgress?.(100, "finalizing");
+    const downloadUrl = await snapshot.ref.getDownloadURL();
+    const fileData = {
+      name: file.name || safeName,
+      path: snapshot.ref.fullPath,
+      size: file.size || 0,
+      type: file.type || "",
+      downloadUrl,
+      storageMode: "storage",
+      createdAtMs: timestamp,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    };
+
+    onProgress?.(100, "saving");
+    return saveMeetingMinuteFileData(fileType, fileData);
+  }
+
+  async function deleteMeetingMinuteFile(file) {
+    if (!db) {
+      throw new Error("Firestore SDK가 로드되지 않았습니다.");
+    }
+
+    if (file?.storageMode === "storage" && file.path && storage) {
+      try {
+        await storage.ref(file.path).delete();
+      } catch (error) {
+        console.warn("Meeting minutes storage file deletion failed", error);
+      }
+    }
+
+    if (file?.id) {
+      await db.collection("settings").doc(file.id).delete();
+      return;
+    }
+
+    await getMeetingMinutesRef().set(
+      {
+        completed: firebase.firestore.FieldValue.delete(),
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      },
+      { merge: true },
+    );
+  }
+
   async function deletePrivateClass(classId) {
     if (!db) {
       throw new Error("Firestore SDK가 로드되지 않았습니다.");
@@ -743,6 +966,9 @@
     subscribePrivateClassApplications,
     savePrivateClass,
     uploadPrivateClassThumbnail,
+    subscribeMeetingMinuteFiles,
+    uploadMeetingMinuteFile,
+    deleteMeetingMinuteFile,
     deletePrivateClass,
     deletePrivateClassApplication,
     submitPrivateClassApplication,

@@ -179,6 +179,11 @@ function ensureAdminTabData(tabName) {
   if (tabName === "inventory" || tabName === "schedule") {
     startAdminDataSubscription("inventoryItems", subscribeInventoryItems);
     startAdminDataSubscription("classSchedules", subscribeClassSchedules);
+    return;
+  }
+
+  if (tabName === "minutes") {
+    startAdminDataSubscription("meetingMinutes", subscribeMeetingMinuteFiles);
   }
 }
 
@@ -409,6 +414,7 @@ document.addEventListener("DOMContentLoaded", () => {
   bindPrivateClassActions();
   bindInventoryActions();
   bindScheduleActions();
+  bindMeetingMinutesActions();
   setupDefaultScheduleWeeks();
   loadVoteConfig();
   ensureAdminTabData("dashboard");

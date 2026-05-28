@@ -113,6 +113,7 @@ body {
 .private-applicant,
 .inventory-product-group,
 .schedule-week-card,
+.minutes-card,
 .schedule-cocktail,
 .executive-member,
 .executive-assignee-list li:not(.executive-empty),
@@ -2891,6 +2892,125 @@ button {
   color: var(--point-ink);
 }
 
+.minutes-panel {
+  gap: 16px;
+}
+
+.minutes-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.minutes-heading > p {
+  margin: 0;
+  max-width: 320px;
+  color: var(--muted);
+  font-size: 0.92rem;
+  font-weight: 800;
+  text-align: right;
+}
+
+.minutes-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+.minutes-card {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid rgba(47, 93, 80, 0.14);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.76);
+}
+
+.minutes-card h3 {
+  margin: 0;
+  color: var(--point-ink);
+  font-size: 1.08rem;
+}
+
+.minutes-card span[data-minutes-file-name] {
+  display: block;
+  min-width: 0;
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 0.86rem;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.minutes-file-picker[hidden] {
+  display: none !important;
+}
+
+.minutes-file-list {
+  display: grid;
+  gap: 8px;
+}
+
+.minutes-file-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(69, 84, 80, 0.14);
+}
+
+.minutes-file-item > span {
+  min-width: 0;
+  color: var(--ink);
+  font-size: 0.9rem;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.minutes-file-item .auth-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  min-height: 34px;
+  padding: 0 12px;
+  line-height: 1;
+  text-decoration: none;
+}
+
+.minutes-file-item__actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+.minutes-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.minutes-actions .auth-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  text-decoration: none;
+}
+
+.auth-button.is-disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .schedule-form {
   display: grid;
   gap: 14px;
@@ -3152,13 +3272,16 @@ button {
   .schedule-saved-card,
   .schedule-saved-card__actions,
   .schedule-heading,
-  .schedule-actions {
+  .schedule-actions,
+  .minutes-heading,
+  .minutes-actions {
     align-items: stretch;
     flex-direction: column;
   }
 
   .inventory-heading > p,
-  .schedule-heading > p {
+  .schedule-heading > p,
+  .minutes-heading > p {
     max-width: none;
     text-align: left;
   }
@@ -3171,7 +3294,8 @@ button {
   .executive-event-board,
   .schedule-form__header,
   .schedule-cocktail-grid,
-  .schedule-ingredient-row {
+  .schedule-ingredient-row,
+  .minutes-grid {
     grid-template-columns: 1fr;
   }
 
@@ -3943,6 +4067,7 @@ select:focus {
 .schedule-form,
 .schedule-saved-card,
 .schedule-week-card,
+.minutes-card,
 .schedule-cocktail,
 .schedule-ingredient-row,
 .schedule-saved-weeks > span,
@@ -3956,6 +4081,7 @@ select:focus {
 .schedule-form,
 .schedule-saved-card,
 .schedule-week-card,
+.minutes-card,
 .schedule-cocktail,
 .schedule-ingredient-row,
 .schedule-saved-weeks > span,
@@ -4158,6 +4284,7 @@ select:focus {
 .admin-page .inventory-product-group,
 .admin-page .schedule-saved-card,
 .admin-page .schedule-week-card,
+.admin-page .minutes-card,
 .admin-page .executive-department,
 .admin-page .executive-day,
 .admin-page .executive-event {
@@ -4189,6 +4316,7 @@ select:focus {
 .admin-page .inventory-usage-panel,
 .admin-page .inventory-form,
 .admin-page .schedule-saved-card,
+.admin-page .minutes-card,
 .admin-page .executive-department,
 .admin-page .executive-day,
 .admin-page .executive-event {
@@ -4198,7 +4326,8 @@ select:focus {
 .admin-page .private-admin-item,
 .admin-page .inventory-category-board,
 .admin-page .inventory-product-group,
-.admin-page .schedule-week-card {
+.admin-page .schedule-week-card,
+.admin-page .minutes-card {
   border-radius: 12px;
 }
 
@@ -4347,6 +4476,7 @@ select:focus {
 .admin-page .inventory-product-group,
 .admin-page .schedule-saved-card,
 .admin-page .schedule-week-card,
+.admin-page .minutes-card,
 .admin-page .executive-department,
 .admin-page .executive-day,
 .admin-page .executive-event {
@@ -4365,6 +4495,7 @@ select:focus {
 .admin-page .inventory-form,
 .admin-page .schedule-saved-card,
 .admin-page .schedule-week-card,
+.admin-page .minutes-card,
 .admin-page .executive-department,
 .admin-page .executive-day,
 .admin-page .executive-event {
@@ -4635,6 +4766,7 @@ select:focus {
 .admin-page .inventory-product-group,
 .admin-page .schedule-saved-card,
 .admin-page .schedule-week-card,
+.admin-page .minutes-card,
 .admin-page .schedule-cocktail,
 .admin-page .schedule-ingredient-row,
 .admin-page .executive-department,
@@ -4674,6 +4806,7 @@ select:focus {
 .admin-page .inventory-product-group,
 .admin-page .schedule-saved-card,
 .admin-page .schedule-week-card,
+.admin-page .minutes-card,
 .admin-page .executive-department,
 .admin-page .executive-day,
 .admin-page .executive-event {

@@ -17,6 +17,7 @@
     <script defer src="./assets/js/admin-private-class.js"></script>
     <script defer src="./assets/js/admin-inventory.js"></script>
     <script defer src="./assets/js/admin-schedule.js"></script>
+    <script defer src="./assets/js/admin-minutes.js"></script>
     <script defer src="./assets/js/admin-vote.js"></script>
   </head>
   <body class="admin-page">
@@ -92,6 +93,15 @@
               data-admin-tab="schedule"
             >
               교육 일정
+            </button>
+            <button
+              class="admin-tab"
+              type="button"
+              role="tab"
+              aria-selected="false"
+              data-admin-tab="minutes"
+            >
+              회의록
             </button>
           </nav>
         </aside>
@@ -528,6 +538,58 @@
                   </button>
                 </div>
               </form>
+            </article>
+          </section>
+
+          <section class="admin-view" data-admin-panel="minutes" role="tabpanel" hidden>
+            <article class="admin-panel admin-panel--wide minutes-panel">
+              <div class="minutes-heading">
+                <div>
+                  <p class="gateway-card__label">Meeting Minutes</p>
+                  <h2>회의록 관리</h2>
+                </div>
+                <p data-minutes-status>회의록 파일을 불러오고 있습니다.</p>
+              </div>
+
+              <div class="minutes-grid">
+                <section class="minutes-card" data-minutes-card="template">
+                  <div>
+                    <p class="gateway-card__label">Template</p>
+                    <h3>회의록 양식</h3>
+                    <span data-minutes-file-name="template">등록된 양식이 없습니다.</span>
+                  </div>
+                  <label class="auth-field minutes-file-picker" data-minutes-picker="template" hidden>
+                    <span>양식 업로드</span>
+                    <input type="file" data-minutes-file-input="template" />
+                  </label>
+                  <div class="minutes-actions">
+                    <button class="auth-button auth-button--primary" type="button" data-minutes-upload="template">
+                      양식 업로드
+                    </button>
+                    <a class="auth-button auth-button--ghost is-disabled" data-minutes-download="template" href="#" target="_blank" rel="noopener">
+                      양식 다운로드
+                    </a>
+                  </div>
+                </section>
+
+                <section class="minutes-card" data-minutes-card="completed">
+                  <div>
+                    <p class="gateway-card__label">Completed</p>
+                    <h3>작성된 회의록 목록</h3>
+                    <span data-minutes-file-name="completed">등록된 회의록이 없습니다.</span>
+                  </div>
+                  <div class="minutes-file-list" data-minutes-file-list="completed"></div>
+                  <label class="auth-field minutes-file-picker" data-minutes-picker="completed" hidden>
+                    <span>회의록 업로드</span>
+                    <input type="file" data-minutes-file-input="completed" />
+                  </label>
+                  <div class="minutes-actions">
+                    <button class="auth-button auth-button--primary" type="button" data-minutes-upload="completed">
+                      회의록 업로드
+                    </button>
+                  </div>
+                </section>
+              </div>
             </article>
           </section>
         </section>
