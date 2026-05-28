@@ -417,4 +417,9 @@ document.addEventListener("DOMContentLoaded", () => {
   voteResetButton?.addEventListener("click", handleVoteReset);
   applyToggleButton?.addEventListener("click", handleApplyToggle);
   applyScheduleClearButton?.addEventListener("click", handleApplyScheduleClear);
+  window.setInterval(() => {
+    renderPrivateClasses();
+    renderPrivateClassDetail();
+    renderDashboardStats();
+  }, 60000);
 });

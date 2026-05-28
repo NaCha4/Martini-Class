@@ -483,6 +483,32 @@
     });
   }
 
+  function normalizeClassDate(value) {
+    if (!value) return null;
+
+    if (typeof value.toDate === "function") return value.toDate();
+
+    const date = value instanceof Date ? value : new Date(value);
+
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+
+  function getPrivateClassAutoStatus(privateClass, now = new Date()) {
+    const eventAt = normalizeClassDate(privateClass?.eventAt);
+    const recruitOpenAt = normalizeClassDate(privateClass?.recruitOpenAt);
+    const recruitCloseAt = normalizeClassDate(privateClass?.recruitCloseAt);
+    const capacity = Number(privateClass?.capacity || 0);
+    const applicationCount = Number(privateClass?.applicationCount || 0);
+
+    if (eventAt && eventAt <= now) return "done";
+    if (capacity > 0 && applicationCount >= capacity) return "closed";
+    if (recruitCloseAt && recruitCloseAt <= now) return "closed";
+    if (recruitOpenAt && recruitOpenAt > now) return "upcoming";
+    if (recruitOpenAt || recruitCloseAt) return "open";
+
+    return privateClass?.status || "closed";
+  }
+
   async function submitPrivateClassApplication(classData, applicant) {
     if (!db) {
       throw new Error("Firestore SDK가 로드되지 않았습니다.");
@@ -497,19 +523,24 @@
       const applicationSnapshot = await transaction.get(applicationRef);
 
       if (!classSnapshot.exists) {
-        throw new Error("클래스를 찾을 수 없습니다.");
+        throw new Error("게시글을 찾을 수 없습니다.");
       }
 
       if (applicationSnapshot.exists) {
-        throw new Error("이미 신청한 클래스입니다.");
+        throw new Error("이미 신청한 게시글입니다.");
       }
 
       const privateClass = classSnapshot.data();
       const capacity = Number(privateClass.capacity || 0);
       const applicationCount = Number(privateClass.applicationCount || 0);
 
-      if (privateClass.status !== "open") {
-        throw new Error("모집 중인 클래스가 아닙니다.");
+      const applicationStatus = getPrivateClassAutoStatus({
+        ...privateClass,
+        applicationCount,
+      });
+
+      if (applicationStatus !== "open") {
+        throw new Error("현재 신청할 수 있는 게시글이 아닙니다.");
       }
 
       if (capacity > 0 && applicationCount >= capacity) {

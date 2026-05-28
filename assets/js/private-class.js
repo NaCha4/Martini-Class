@@ -4,6 +4,7 @@ const { bindRouteNavigation, escapeHtml, moveToPage, normalizeDate } = window.Ma
 
 let privateClasses = [];
 let selectedPrivateClassId = "";
+let privateFeedbackTimer = null;
 
 function bindNavigation() {
   bindRouteNavigation();
@@ -13,6 +14,31 @@ function setPrivateMessage(message) {
   if (!privateMessage) return;
 
   privateMessage.textContent = message;
+}
+
+function showPrivateFeedback(message, type = "info") {
+  setPrivateMessage(message);
+
+  let feedback = document.querySelector("[data-private-feedback]");
+
+  if (!feedback) {
+    feedback = document.createElement("div");
+    feedback.className = "private-feedback";
+    feedback.dataset.privateFeedback = "";
+    feedback.setAttribute("role", "status");
+    feedback.setAttribute("aria-live", "polite");
+    document.body.appendChild(feedback);
+  }
+
+  feedback.textContent = message;
+  feedback.classList.toggle("is-success", type === "success");
+  feedback.classList.toggle("is-error", type === "error");
+  feedback.classList.add("is-visible");
+
+  window.clearTimeout(privateFeedbackTimer);
+  privateFeedbackTimer = window.setTimeout(() => {
+    feedback.classList.remove("is-visible");
+  }, 4200);
 }
 
 function formatClassDate(value) {
@@ -33,24 +59,37 @@ function getStatusLabel(status) {
   return {
     upcoming: "모집예정",
     open: "모집중",
-    closed: "마감",
-    done: "종료된 클래스",
-  }[status] || "마감";
+    closed: "모집마감",
+    done: "종료",
+  }[status] || "모집마감";
 }
 
 function getClosedMessage(status) {
   return {
     upcoming: "아직 모집 전입니다.",
-    closed: "마감된 클래스입니다.",
-    done: "종료된 클래스입니다.",
-  }[status] || "신청할 수 없는 클래스입니다.";
+    closed: "모집이 마감되었습니다.",
+    done: "종료된 게시글입니다.",
+  }[status] || "신청할 수 없는 게시글입니다.";
+}
+
+function getPrivateClassAutoStatus(privateClass, now = new Date()) {
+  const eventAt = normalizeDate(privateClass?.eventAt);
+  const recruitOpenAt = normalizeDate(privateClass?.recruitOpenAt);
+  const recruitCloseAt = normalizeDate(privateClass?.recruitCloseAt);
+  const capacity = Number(privateClass?.capacity || 0);
+  const applicationCount = Number(privateClass?.applicationCount || 0);
+
+  if (eventAt && eventAt <= now) return "done";
+  if (capacity > 0 && applicationCount >= capacity) return "closed";
+  if (recruitCloseAt && recruitCloseAt <= now) return "closed";
+  if (recruitOpenAt && recruitOpenAt > now) return "upcoming";
+  if (recruitOpenAt || recruitCloseAt) return "open";
+
+  return privateClass?.status || "closed";
 }
 
 function canApply(privateClass) {
-  const capacity = Number(privateClass.capacity || 0);
-  const applicationCount = Number(privateClass.applicationCount || 0);
-
-  return privateClass.status === "open" && (!capacity || applicationCount < capacity);
+  return getPrivateClassAutoStatus(privateClass) === "open";
 }
 
 function getSelectedPrivateClass() {
@@ -74,7 +113,7 @@ function renderPrivateClasses() {
 
 function renderPrivateClassList() {
   if (!privateClasses.length) {
-    privateGallery.innerHTML = `<p class="empty-state">아직 등록된 개인 클래스가 없습니다.</p>`;
+    privateGallery.innerHTML = `<p class="empty-state">아직 등록된 신청 게시글이 없습니다.</p>`;
     setPrivateMessage("");
     return;
   }
@@ -83,6 +122,7 @@ function renderPrivateClassList() {
     const capacity = Number(privateClass.capacity || 0);
     const applicationCount = Number(privateClass.applicationCount || 0);
     const thumbnailUrl = privateClass.thumbnailDataUrl || privateClass.thumbnailUrl || "./assets/images/Logo.png";
+    const status = getPrivateClassAutoStatus(privateClass);
 
     return `
       <article
@@ -93,8 +133,8 @@ function renderPrivateClassList() {
       >
         <div class="private-class-card__visual">
           <img src="${escapeHtml(thumbnailUrl)}" alt="" />
-          <span class="private-class-status private-class-status--${privateClass.status}">
-            ${getStatusLabel(privateClass.status)}
+          <span class="private-class-status private-class-status--${status}">
+            ${getStatusLabel(status)}
           </span>
         </div>
         <div class="private-class-card__body">
@@ -122,13 +162,14 @@ function renderPrivateClassDetail(privateClass) {
   const applicationCount = Number(privateClass.applicationCount || 0);
   const applyEnabled = canApply(privateClass);
   const thumbnailUrl = privateClass.thumbnailDataUrl || privateClass.thumbnailUrl || "./assets/images/Logo.png";
+  const status = getPrivateClassAutoStatus(privateClass);
 
   privateGallery.innerHTML = `
     <article class="private-class-detail-post">
       <div class="private-class-detail-post__visual">
         <img src="${escapeHtml(thumbnailUrl)}" alt="" />
-        <span class="private-class-status private-class-status--${privateClass.status}">
-          ${getStatusLabel(privateClass.status)}
+        <span class="private-class-status private-class-status--${status}">
+          ${getStatusLabel(status)}
         </span>
       </div>
 
@@ -157,7 +198,7 @@ function renderPrivateClassDetail(privateClass) {
         </dl>
 
         ${applyEnabled ? renderApplyForm(privateClass.id) : `
-          <p class="private-class-closed">${getClosedMessage(privateClass.status)}</p>
+          <p class="private-class-closed">${getClosedMessage(status)}</p>
         `}
       </div>
     </article>
@@ -230,15 +271,15 @@ function bindPrivateClassInteractions() {
 
     try {
       submitButton.disabled = true;
-      setPrivateMessage("클래스에 신청하고 있습니다.");
+      setPrivateMessage("신청을 저장하고 있습니다.");
       await window.MartiniFirebase.submitPrivateClassApplication(privateClass, {
         name: String(formData.get("name") || "").trim(),
         studentId: String(formData.get("studentId") || "").trim(),
       });
       form.reset();
-      setPrivateMessage("해당 클래스 신청이 완료되었습니다.");
+      showPrivateFeedback("신청이 완료되었습니다.", "success");
     } catch (error) {
-      setPrivateMessage(error.message || "해당 클래스 신청에 실패했습니다.");
+      showPrivateFeedback(error.message || "신청에 실패했습니다.", "error");
     } finally {
       submitButton.disabled = false;
     }
@@ -268,4 +309,5 @@ document.addEventListener("DOMContentLoaded", () => {
   bindNavigation();
   bindPrivateClassInteractions();
   subscribePrivateClasses();
+  window.setInterval(renderPrivateClasses, 60000);
 });

@@ -1441,7 +1441,7 @@ button {
 
 .private-class-form__footer {
   display: grid;
-  grid-template-columns: minmax(180px, 0.36fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: 12px;
   align-items: end;
 }
@@ -1857,6 +1857,44 @@ button {
   margin: 0;
   color: var(--muted);
   font-weight: 800;
+}
+
+.private-feedback {
+  position: fixed;
+  top: 18px;
+  left: 50%;
+  z-index: 1000;
+  width: min(420px, calc(100vw - 32px));
+  padding: 12px 16px;
+  border: 1px solid rgba(47, 93, 80, 0.22);
+  border-radius: 8px;
+  background: rgba(255, 253, 248, 0.96);
+  box-shadow: 0 14px 36px rgba(29, 38, 34, 0.16);
+  color: var(--point-ink);
+  font-size: 0.95rem;
+  font-weight: 900;
+  line-height: 1.45;
+  text-align: center;
+  transform: translate(-50%, -130%);
+  opacity: 0;
+  pointer-events: none;
+  transition: transform 180ms ease, opacity 180ms ease;
+}
+
+.private-feedback.is-visible {
+  transform: translate(-50%, 0);
+  opacity: 1;
+}
+
+.private-feedback.is-success {
+  border-color: rgba(47, 93, 80, 0.28);
+  background: rgba(238, 247, 241, 0.98);
+}
+
+.private-feedback.is-error {
+  border-color: rgba(111, 47, 66, 0.28);
+  background: rgba(255, 244, 244, 0.98);
+  color: #653643;
 }
 
 .private-class-gallery {

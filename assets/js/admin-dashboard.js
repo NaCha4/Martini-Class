@@ -10,7 +10,7 @@ function renderDashboardStats() {
     }))
     .filter((weekday) => weekday.enabled || weekday.count > 0);
   const visiblePrivateClasses = privateClasses
-    .filter((privateClass) => ["open", "upcoming", "closed"].includes(privateClass.status))
+    .filter((privateClass) => ["open", "upcoming", "closed"].includes(getPrivateClassAutoStatus(privateClass)))
     .slice(0, 4);
   if (regularApplyCount) regularApplyCount.textContent = String(adminClassVotes.length);
   if (dashboardPrivateApplications) dashboardPrivateApplications.textContent = String(privateApplicationCount);
@@ -38,11 +38,12 @@ function renderDashboardStats() {
         const capacity = Number(privateClass.capacity || 0);
         const applicationCount = Number(privateClass.applicationCount || 0);
         const countText = capacity > 0 ? `${applicationCount}/${capacity}명` : `${applicationCount}명`;
+        const status = getPrivateClassAutoStatus(privateClass);
 
         return `
           <div class="dashboard-row">
             <span>${escapeHtml(privateClass.title || "신청 게시글")}</span>
-            <strong>${escapeHtml(getPrivateClassStatusLabel(privateClass.status))} · ${countText}</strong>
+            <strong>${escapeHtml(getPrivateClassStatusLabel(status))} · ${countText}</strong>
           </div>
         `;
       }).join("")

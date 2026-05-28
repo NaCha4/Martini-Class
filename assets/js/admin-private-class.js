@@ -2,9 +2,25 @@ function getPrivateClassStatusLabel(status) {
   return {
     upcoming: "모집예정",
     open: "모집중",
-    closed: "마감",
+    closed: "모집마감",
     done: "종료",
-  }[status] || "마감";
+  }[status] || "모집마감";
+}
+
+function getPrivateClassAutoStatus(privateClass, now = new Date()) {
+  const eventAt = normalizeConfigDate(privateClass?.eventAt);
+  const recruitOpenAt = normalizeConfigDate(privateClass?.recruitOpenAt);
+  const recruitCloseAt = normalizeConfigDate(privateClass?.recruitCloseAt);
+  const capacity = Number(privateClass?.capacity || 0);
+  const applicationCount = Number(privateClass?.applicationCount || 0);
+
+  if (eventAt && eventAt <= now) return "done";
+  if (capacity > 0 && applicationCount >= capacity) return "closed";
+  if (recruitCloseAt && recruitCloseAt <= now) return "closed";
+  if (recruitOpenAt && recruitOpenAt > now) return "upcoming";
+  if (recruitOpenAt || recruitCloseAt) return "open";
+
+  return privateClass?.status || "closed";
 }
 
 function renderPrivateClasses() {
@@ -20,12 +36,13 @@ function renderPrivateClasses() {
     const eventText = eventDate ? formatScheduleDate(eventDate) : "일정 미정";
     const capacity = Number(privateClass.capacity || 0);
     const applicationCount = Number(privateClass.applicationCount || 0);
+    const status = getPrivateClassAutoStatus(privateClass);
 
     return `
       <article class="private-admin-item">
         <div>
-          <span class="private-class-status private-class-status--${privateClass.status}">
-            ${getPrivateClassStatusLabel(privateClass.status)}
+          <span class="private-class-status private-class-status--${status}">
+            ${getPrivateClassStatusLabel(status)}
           </span>
           <h3>${escapeHtml(privateClass.title)}</h3>
           <p>${escapeHtml(privateClass.summary)}</p>
@@ -83,9 +100,13 @@ function renderPrivateClassDetail() {
   const eventDate = normalizeConfigDate(privateClass.eventAt);
   const eventText = eventDate ? formatScheduleDate(eventDate) : "일정 미정";
   const applicants = getPrivateClassApplications(privateClass.id);
+  const status = getPrivateClassAutoStatus({
+    ...privateClass,
+    applicationCount: applicants.length || privateClass.applicationCount,
+  });
 
   privateDetailTitle.textContent = privateClass.title;
-  privateDetailMeta.textContent = `${getPrivateClassStatusLabel(privateClass.status)} · ${privateClass.category} · ${eventText} · 신청 ${applicants.length}명`;
+  privateDetailMeta.textContent = `${getPrivateClassStatusLabel(status)} · ${privateClass.category} · ${eventText} · 신청 ${applicants.length}명`;
   privateApplicantList.innerHTML = applicants.length
     ? applicants.map((applicant) => `
       <li class="private-applicant">
@@ -109,10 +130,11 @@ function fillPrivateClassForm(privateClass) {
   privateClassForm.elements.category.value = privateClass.category || "";
   privateClassForm.elements.fee.value = privateClass.fee || "";
   privateClassForm.elements.eventAt.value = toDatetimeLocalValue(normalizeConfigDate(privateClass.eventAt));
+  privateClassForm.elements.recruitOpenAt.value = toDatetimeLocalValue(normalizeConfigDate(privateClass.recruitOpenAt));
+  privateClassForm.elements.recruitCloseAt.value = toDatetimeLocalValue(normalizeConfigDate(privateClass.recruitCloseAt));
   privateClassForm.elements.capacity.value = privateClass.capacity || 8;
   privateClassForm.elements.summary.value = privateClass.summary || "";
   privateClassForm.elements.description.value = privateClass.description || "";
-  privateClassForm.elements.status.value = privateClass.status || "upcoming";
   renderPrivateThumbnailPreview(privateClass.thumbnailDataUrl || privateClass.thumbnailUrl);
   privateClassSaveButton.textContent = "수정 저장";
   setPrivateClassStatus("선택한 게시글 내용을 수정하고 있습니다.");
@@ -124,7 +146,6 @@ function resetPrivateClassForm() {
   editingPrivateClassId = "";
   privateClassForm.reset();
   privateClassForm.elements.capacity.value = "8";
-  privateClassForm.elements.status.value = "upcoming";
   renderPrivateThumbnailPreview("");
   privateClassSaveButton.textContent = "글 등록";
 }
@@ -213,23 +234,41 @@ function cancelPrivateClassWrite() {
 function collectPrivateClassData() {
   const formData = new FormData(privateClassForm);
   const eventAtValue = formData.get("eventAt");
+  const recruitOpenAtValue = formData.get("recruitOpenAt");
+  const recruitCloseAtValue = formData.get("recruitCloseAt");
   const eventAt = eventAtValue ? new Date(eventAtValue) : null;
+  const recruitOpenAt = recruitOpenAtValue ? new Date(recruitOpenAtValue) : null;
+  const recruitCloseAt = recruitCloseAtValue ? new Date(recruitCloseAtValue) : null;
   const capacity = Number(formData.get("capacity"));
   const editingPrivateClass = getEditingPrivateClass();
-
-  return {
+  const classData = {
     id: editingPrivateClassId || undefined,
     title: String(formData.get("title") || "").trim(),
     category: String(formData.get("category") || "").trim(),
     fee: String(formData.get("fee") || "").trim(),
     eventAt: eventAt && !Number.isNaN(eventAt.getTime()) ? eventAt : null,
+    recruitOpenAt: recruitOpenAt && !Number.isNaN(recruitOpenAt.getTime()) ? recruitOpenAt : null,
+    recruitCloseAt: recruitCloseAt && !Number.isNaN(recruitCloseAt.getTime()) ? recruitCloseAt : null,
     capacity: Number.isFinite(capacity) && capacity > 0 ? capacity : 1,
     summary: String(formData.get("summary") || "").trim(),
     description: String(formData.get("description") || "").trim(),
-    status: String(formData.get("status") || "closed"),
     thumbnailUrl: editingPrivateClass?.thumbnailUrl || "",
     thumbnailDataUrl: editingPrivateClass?.thumbnailDataUrl || "",
   };
+
+  return {
+    ...classData,
+    status: getPrivateClassAutoStatus({
+      ...classData,
+      applicationCount: editingPrivateClass?.applicationCount || 0,
+    }),
+  };
+}
+
+function isValidRecruitSchedule(classData) {
+  if (!classData.recruitOpenAt || !classData.recruitCloseAt) return false;
+
+  return classData.recruitCloseAt > classData.recruitOpenAt;
 }
 
 async function handlePrivateClassSubmit(event) {
@@ -245,6 +284,12 @@ async function handlePrivateClassSubmit(event) {
     const thumbnailFile = privateThumbnailInput?.files?.[0];
     setPrivateClassStatus("신청 게시글을 저장하고 있습니다.");
     const classData = collectPrivateClassData();
+
+    if (!isValidRecruitSchedule(classData)) {
+      setPrivateClassStatus("모집 마감 일시는 모집 시작 일시보다 이후여야 합니다.");
+      return;
+    }
+
     const savedClassId = await martiniFirebase.savePrivateClass(classData);
 
     if (thumbnailFile) {
