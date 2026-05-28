@@ -33,6 +33,8 @@ const dashboardPrivateApplications = document.querySelector("[data-dashboard-pri
 const dashboardApplyStatus = document.querySelector("[data-dashboard-apply-status]");
 const dashboardVoteList = document.querySelector("[data-dashboard-vote-list]");
 const dashboardPrivateList = document.querySelector("[data-dashboard-private-list]");
+const dashboardMemoInput = document.querySelector("[data-dashboard-memo-input]");
+const dashboardMemoStatus = document.querySelector("[data-dashboard-memo-status]");
 const executiveOrg = document.querySelector("[data-executive-org]");
 const executiveDayBoard = document.querySelector("[data-executive-day-board]");
 const executiveEventBoard = document.querySelector("[data-executive-event-board]");
@@ -96,6 +98,8 @@ let editingInventoryItemId = "";
 let editingClassScheduleId = "";
 let currentVoteConfig = null;
 let selectedAdminVoteStudentId = "";
+let currentDashboardMemo = "";
+let dashboardMemoSaveTimer = null;
 const adminDataSubscriptions = {};
 
 function bindNavigation() {
@@ -157,6 +161,7 @@ function ensureAdminTabData(tabName) {
   if (tabName === "dashboard") {
     startAdminDataSubscription("classVotes", subscribeAdminClassVotes);
     startAdminDataSubscription("privateClasses", subscribePrivateClasses);
+    startAdminDataSubscription("adminMemo", subscribeAdminMemo);
     return;
   }
 
@@ -408,6 +413,7 @@ document.addEventListener("DOMContentLoaded", () => {
   bindNavigation();
   bindAuthGuard();
   bindAdminTabs();
+  bindDashboardMemoActions();
   bindVoteCapacityToggles();
   bindVoteMemberActions();
   bindExecutiveActions();

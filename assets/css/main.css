@@ -751,6 +751,52 @@ button {
   color: #a63636;
 }
 
+.dashboard-memo-board {
+  display: grid;
+  gap: 12px;
+  min-height: 300px;
+  padding: 20px;
+  border: 1px solid rgba(69, 84, 80, 0.12);
+  border-radius: 8px;
+  background: rgba(247, 243, 236, 0.34);
+  box-shadow: none;
+}
+
+.dashboard-memo-board__heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.dashboard-memo-board h3 {
+  margin: 0;
+  color: var(--point-ink);
+  font-size: 1.2rem;
+}
+
+.dashboard-memo-board__heading > p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.86rem;
+  font-weight: 800;
+  text-align: right;
+}
+
+.dashboard-memo-board textarea {
+  min-height: 220px;
+  width: 100%;
+  resize: vertical;
+  border: 1px solid rgba(69, 84, 80, 0.14);
+  border-radius: 8px;
+  background: rgba(255, 253, 248, 0.34);
+  color: var(--ink);
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.7;
+}
+
 .executive-panel {
   gap: 18px;
 }
@@ -3227,6 +3273,15 @@ button {
     grid-template-columns: 1fr;
   }
 
+  .dashboard-memo-board__heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .dashboard-memo-board__heading > p {
+    text-align: left;
+  }
+
   .private-class-form__grid,
   .private-class-form__footer,
   .private-thumbnail-preview,
@@ -4270,6 +4325,7 @@ select:focus {
 
 .admin-page .admin-stat,
 .admin-page .dashboard-card,
+.admin-page .dashboard-memo-board,
 .admin-page .apply-status-card,
 .admin-page .apply-schedule-card,
 .admin-page .vote-capacity-card,
@@ -4309,6 +4365,7 @@ select:focus {
 
 .admin-page .admin-stat,
 .admin-page .dashboard-card,
+.admin-page .dashboard-memo-board,
 .admin-page .apply-status-card,
 .admin-page .apply-schedule-card,
 .admin-page .vote-capacity-card,
@@ -4462,6 +4519,7 @@ select:focus {
 
 .admin-page .admin-stat,
 .admin-page .dashboard-card,
+.admin-page .dashboard-memo-board,
 .admin-page .apply-status-card,
 .admin-page .apply-schedule-card,
 .admin-page .vote-capacity-card,
@@ -4488,6 +4546,7 @@ select:focus {
 
 .admin-page .admin-stat,
 .admin-page .dashboard-card,
+.admin-page .dashboard-memo-board,
 .admin-page .private-class-toolbar,
 .admin-page .private-class-form,
 .admin-page .private-class-detail,
@@ -4678,6 +4737,7 @@ select:focus {
 
 .admin-page .schedule-cocktail,
 .admin-page .schedule-ingredient-row,
+.admin-page .dashboard-memo-board textarea,
 .admin-page .schedule-cocktail input,
 .admin-page .schedule-cocktail select,
 .admin-page .schedule-cocktail textarea,
@@ -4752,6 +4812,7 @@ select:focus {
 .admin-page .admin-panel,
 .admin-page .admin-stat,
 .admin-page .dashboard-card,
+.admin-page .dashboard-memo-board,
 .admin-page .apply-status-card,
 .admin-page .apply-schedule-card,
 .admin-page .vote-capacity-card,
@@ -4792,6 +4853,7 @@ select:focus {
 
 .admin-page .admin-stat,
 .admin-page .dashboard-card,
+.admin-page .dashboard-memo-board,
 .admin-page .apply-status-card,
 .admin-page .apply-schedule-card,
 .admin-page .vote-capacity-card,
@@ -5080,6 +5142,22 @@ body {
 
 .admin-page .schedule-saved-weeks > span > strong {
   white-space: nowrap;
+}
+
+.admin-page .dashboard-memo-board {
+  border: 0;
+  border-top: 1px solid rgba(69, 84, 80, 0.14);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.admin-page .dashboard-memo-board textarea {
+  border: 0;
+  border-top: 1px solid rgba(69, 84, 80, 0.14);
+  border-bottom: 1px solid rgba(69, 84, 80, 0.14);
+  border-radius: 0;
+  background: transparent;
 }
 
 .admin-page .schedule-saved-week-detail {

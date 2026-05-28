@@ -115,6 +115,33 @@
     );
   }
 
+  function getAdminMemoRef() {
+    if (!db) {
+      throw new Error("Firestore SDK가 로드되지 않았습니다.");
+    }
+
+    return db.collection("settings").doc("adminMemoBoard");
+  }
+
+  function subscribeAdminMemo(callback) {
+    return getAdminMemoRef().onSnapshot((snapshot) => {
+      callback(snapshot.exists ? snapshot.data() : {});
+    });
+  }
+
+  async function saveAdminMemo(content) {
+    const user = auth.currentUser;
+
+    await getAdminMemoRef().set(
+      {
+        content: String(content || ""),
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        updatedBy: user?.displayName || user?.email || "",
+      },
+      { merge: true },
+    );
+  }
+
   function getExecutiveConfigRef() {
     if (!db) {
       throw new Error("Firestore SDK가 로드되지 않았습니다.");
@@ -953,6 +980,8 @@
     isExecutive,
     getVoteConfig,
     saveVoteConfig,
+    subscribeAdminMemo,
+    saveAdminMemo,
     subscribeExecutiveConfig,
     saveExecutiveConfig,
     resetClassVotes,
