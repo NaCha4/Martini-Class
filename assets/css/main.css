@@ -2835,7 +2835,7 @@ button {
   margin-top: 8px;
 }
 
-.schedule-saved-weeks span {
+.schedule-saved-weeks > span {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -2848,7 +2848,7 @@ button {
   font-weight: 800;
 }
 
-.schedule-saved-weeks strong {
+.schedule-saved-weeks > span > strong {
   color: var(--point-ink);
 }
 
@@ -2892,12 +2892,25 @@ button {
   gap: 8px;
 }
 
+.schedule-week-number-field {
+  flex: 0 0 auto;
+}
+
+.schedule-week-theme-field {
+  flex: 0 1 180px;
+  min-width: 0;
+}
+
 .schedule-week-card__header label {
   display: flex;
   align-items: center;
   gap: 8px;
   color: var(--point-ink);
   font-weight: 900;
+}
+
+.schedule-week-theme-field span {
+  white-space: nowrap;
 }
 
 .schedule-week-card__header input {
@@ -2911,6 +2924,11 @@ button {
   font: inherit;
   font-weight: 900;
   text-align: center;
+}
+
+.schedule-week-theme-field input {
+  width: min(130px, 100%);
+  text-align: left;
 }
 
 .schedule-week-card__header button,
@@ -3888,7 +3906,7 @@ select:focus {
 .schedule-week-card,
 .schedule-cocktail,
 .schedule-ingredient-row,
-.schedule-saved-weeks span,
+.schedule-saved-weeks > span,
 .inventory-usage-panel,
 .inventory-usage-result,
 .usage-result-summary,
@@ -3901,7 +3919,7 @@ select:focus {
 .schedule-week-card,
 .schedule-cocktail,
 .schedule-ingredient-row,
-.schedule-saved-weeks span,
+.schedule-saved-weeks > span,
 .inventory-usage-panel,
 .usage-result-summary,
 .usage-result-row {
@@ -4118,7 +4136,7 @@ select:focus {
 .admin-page .schedule-ingredient-row,
 .admin-page .executive-member,
 .admin-page .executive-assignee-list li:not(.executive-empty),
-.admin-page .schedule-saved-weeks span {
+.admin-page .schedule-saved-weeks > span {
   border: 0;
   background: #f8f3eb;
 }
@@ -4324,7 +4342,7 @@ select:focus {
 .admin-page .schedule-ingredient-row,
 .admin-page .executive-member,
 .admin-page .executive-assignee-list li:not(.executive-empty),
-.admin-page .schedule-saved-weeks span,
+.admin-page .schedule-saved-weeks > span,
 .admin-page .private-thumbnail-preview,
 .admin-page .admin-vote-empty,
 .admin-page .private-applicant-empty,
@@ -4591,7 +4609,7 @@ select:focus {
 .admin-page .usage-result-row,
 .admin-page .executive-member,
 .admin-page .executive-assignee-list li:not(.executive-empty),
-.admin-page .schedule-saved-weeks span,
+.admin-page .schedule-saved-weeks > span,
 .admin-page .private-thumbnail-preview,
 .admin-page .admin-vote-empty,
 .admin-page .private-applicant-empty,
@@ -4633,7 +4651,7 @@ select:focus {
 .admin-page .schedule-ingredient-row,
 .admin-page .executive-member,
 .admin-page .executive-assignee-list li:not(.executive-empty),
-.admin-page .schedule-saved-weeks span {
+.admin-page .schedule-saved-weeks > span {
   border: 0;
   border-bottom: 1px solid rgba(69, 84, 80, 0.14);
   border-radius: 0;
@@ -4875,7 +4893,7 @@ body {
   align-items: stretch;
 }
 
-.admin-page .schedule-saved-weeks span {
+.admin-page .schedule-saved-weeks > span {
   display: grid;
   grid-template-columns: 48px minmax(0, 1fr);
   align-items: center;
@@ -4888,8 +4906,30 @@ body {
   background: transparent;
 }
 
-.admin-page .schedule-saved-weeks strong {
+.admin-page .schedule-saved-weeks > span > strong {
   white-space: nowrap;
+}
+
+.admin-page .schedule-saved-week-detail {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 12px;
+}
+
+.admin-page .schedule-saved-week-detail em {
+  flex: 0 0 72px;
+  min-width: 0;
+  color: var(--point-ink);
+  font-style: normal;
+  font-weight: 900;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-page .schedule-saved-week-detail span {
+  min-width: 0;
 }
 
 .admin-page .auth-button,

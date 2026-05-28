@@ -68,13 +68,18 @@ function createScheduleCocktailBlock(index, cocktail = {}) {
 function createScheduleWeekCard(weekNumber, week = {}) {
   const firstCocktail = week.cocktails?.[0] || {};
   const secondCocktail = week.cocktails?.[1] || {};
+  const weekTheme = week.theme || "";
 
   return `
     <article class="schedule-week-card" data-schedule-week>
       <div class="schedule-week-card__header">
-        <label>
-          <span>주차</span>
+        <label class="schedule-week-number-field">
           <input type="number" min="1" value="${escapeHtml(week.weekNumber || weekNumber)}" readonly data-schedule-week-number />
+          <span>주차</span>
+        </label>
+        <label class="schedule-week-theme-field">
+          <span>테마</span>
+          <input type="text" value="${escapeHtml(weekTheme)}" placeholder="미도리" data-schedule-week-theme />
         </label>
         <button type="button" aria-label="주차 삭제" data-remove-schedule-week>×</button>
       </div>
@@ -132,6 +137,7 @@ function collectScheduleData() {
   const formData = new FormData(scheduleForm);
   const weeks = Array.from(scheduleWeekList.querySelectorAll("[data-schedule-week]")).map((weekElement, index) => {
     const weekNumber = index + 1;
+    const theme = weekElement.querySelector("[data-schedule-week-theme]")?.value.trim() || "";
     const cocktails = Array.from(weekElement.querySelectorAll("[data-schedule-cocktail]")).map((cocktailElement) => {
       const name = cocktailElement.querySelector("[data-schedule-cocktail-name]")?.value.trim() || "";
       const ingredients = Array.from(cocktailElement.querySelectorAll("[data-schedule-ingredient-select]"))
@@ -163,6 +169,7 @@ function collectScheduleData() {
 
     return {
       weekNumber,
+      theme,
       cocktails,
     };
   }).filter((week) => week.weekNumber > 0);
@@ -216,12 +223,21 @@ function renderClassSchedules() {
     const weeks = Array.isArray(schedule.weeks) ? schedule.weeks : [];
     const cocktailCount = weeks.reduce((count, week) => count + (week.cocktails?.filter((cocktail) => cocktail.name)?.length || 0), 0);
     const weekMarkup = weeks.map((week) => {
+      const theme = String(week.theme || "").trim();
       const cocktailNames = (week.cocktails || [])
         .map((cocktail) => cocktail.name)
         .filter(Boolean)
         .join(" / ") || "칵테일 미정";
 
-      return `<span><strong>${escapeHtml(week.weekNumber)}주차</strong>${escapeHtml(cocktailNames)}</span>`;
+      return `
+        <span>
+          <strong>${escapeHtml(week.weekNumber)} 주차</strong>
+          <span class="schedule-saved-week-detail">
+            <em>${theme ? escapeHtml(theme) : ""}</em>
+            <span>${escapeHtml(cocktailNames)}</span>
+          </span>
+        </span>
+      `;
     }).join("");
 
     return `
@@ -278,7 +294,7 @@ function renderUsageControls() {
     ? weeks.map((week) => {
       const selected = String(week.weekNumber) === String(selectedWeek) ? "selected" : "";
 
-      return `<option value="${escapeHtml(week.weekNumber)}" ${selected}>${escapeHtml(week.weekNumber)}주차</option>`;
+      return `<option value="${escapeHtml(week.weekNumber)}" ${selected}>${escapeHtml(week.weekNumber)} 주차</option>`;
     }).join("")
     : `<option value="">주차 없음</option>`;
 }
@@ -413,7 +429,7 @@ function renderUsageCalculation() {
 
   usageResult.innerHTML = `
     <div class="usage-result-summary">
-      <strong>${escapeHtml(schedule.title || "교육일정")} · ${escapeHtml(week.weekNumber)}주차</strong>
+      <strong>${escapeHtml(schedule.title || "교육일정")} · ${escapeHtml(week.weekNumber)} 주차${week.theme ? ` ${escapeHtml(week.theme)}` : ""}</strong>
       <span>인원 ${attendeeCount}명 + 여유분 ${Number(usageBufferInput?.value || 0)}%</span>
     </div>
     <div class="usage-result-list">${rowMarkup}</div>
