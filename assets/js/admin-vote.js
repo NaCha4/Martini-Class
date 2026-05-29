@@ -31,6 +31,40 @@ function isValidApplySchedule(config) {
   return config.reservedCloseAt > config.reservedOpenAt;
 }
 
+async function saveVoteConfigFromForm({ automatic = false } = {}) {
+  const martiniFirebase = window.MartiniFirebase;
+
+  if (!martiniFirebase || !voteConfigForm) return false;
+
+  const nextConfig = collectVoteConfig();
+
+  if (!isValidApplySchedule(nextConfig)) {
+    setVoteConfigStatus("예약 마감 시간은 예약 오픈 시간보다 뒤여야 합니다.");
+    return false;
+  }
+
+  try {
+    setVoteConfigStatus(automatic ? "변경사항을 저장하고 있습니다." : "설정을 저장하고 있습니다.");
+    await martiniFirebase.saveVoteConfig(nextConfig);
+    currentVoteConfig = nextConfig;
+    renderApplyStatus(isEffectivelyOpen(nextConfig));
+    renderApplySchedule(nextConfig);
+    renderExecutiveDayBoard();
+    setVoteConfigStatus(automatic ? "변경사항이 자동 저장되었습니다." : "신청 설정이 저장되었습니다.");
+    return true;
+  } catch {
+    setVoteConfigStatus("설정 저장에 실패했습니다. Firebase 권한을 확인해주세요.");
+    return false;
+  }
+}
+
+function queueVoteConfigAutoSave() {
+  window.clearTimeout(voteConfigAutoSaveTimer);
+  voteConfigAutoSaveTimer = window.setTimeout(() => {
+    saveVoteConfigFromForm({ automatic: true });
+  }, 500);
+}
+
 function clearSelectedAdminVoteMember() {
   selectedAdminVoteStudentId = "";
   voteDayList?.querySelectorAll(".admin-vote-member.is-selected").forEach((member) => {
@@ -62,6 +96,7 @@ function bindVoteCapacityToggles() {
     const toggleButton = event.target.closest("[data-vote-toggle]");
 
     if (!toggleButton) return;
+    if (selectedAdminVoteStudentId) return;
 
     const row = toggleButton.closest("[data-vote-day]");
     const checkbox = row?.querySelector('input[type="checkbox"]');
@@ -70,6 +105,21 @@ function bindVoteCapacityToggles() {
 
     checkbox.checked = !checkbox.checked;
     row.classList.toggle("is-active", checkbox.checked);
+    queueVoteConfigAutoSave();
+  });
+}
+
+function bindVoteConfigAutoSave() {
+  voteConfigForm?.addEventListener("input", (event) => {
+    if (!event.target.closest("[data-vote-capacity]")) return;
+
+    queueVoteConfigAutoSave();
+  });
+
+  voteConfigForm?.addEventListener("change", (event) => {
+    if (!event.target.closest("[data-apply-open-at], [data-apply-close-at], [data-vote-capacity]")) return;
+
+    queueVoteConfigAutoSave();
   });
 }
 
@@ -194,41 +244,11 @@ async function loadVoteConfig() {
     const savedConfig = await martiniFirebase.getVoteConfig();
     renderVoteConfig(normalizeVoteConfig(savedConfig));
     renderDashboardStats();
-    setVoteConfigStatus("설정을 수정한 뒤 저장해주세요.");
+    setVoteConfigStatus("변경하면 자동 저장됩니다.");
   } catch {
     renderVoteConfig(getDefaultVoteConfig());
     renderDashboardStats();
     setVoteConfigStatus("설정을 불러오지 못했습니다. 새 설정을 저장할 수 있습니다.");
-  }
-}
-
-async function handleVoteConfigSubmit(event) {
-  event.preventDefault();
-
-  const martiniFirebase = window.MartiniFirebase;
-
-  if (!martiniFirebase) return;
-
-  try {
-    voteSaveButton.disabled = true;
-    setVoteConfigStatus("설정을 저장하고 있습니다.");
-    const nextConfig = collectVoteConfig();
-
-    if (!isValidApplySchedule(nextConfig)) {
-      setVoteConfigStatus("예약 마감 시간은 예약 오픈 시간보다 뒤여야 합니다.");
-      return;
-    }
-
-    await martiniFirebase.saveVoteConfig(nextConfig);
-    currentVoteConfig = nextConfig;
-    renderApplyStatus(isEffectivelyOpen(nextConfig));
-    renderApplySchedule(nextConfig);
-    renderExecutiveDayBoard();
-    setVoteConfigStatus("신청 설정이 저장되었습니다.");
-  } catch {
-    setVoteConfigStatus("설정 저장에 실패했습니다. Firebase 권한을 확인해주세요.");
-  } finally {
-    voteSaveButton.disabled = false;
   }
 }
 
@@ -303,15 +323,13 @@ async function handleVoteReset() {
   if (!confirmed) return;
 
   try {
-    voteResetButton.disabled = true;
-    voteSaveButton.disabled = true;
+    voteResetButton.disabled = true;
     setVoteConfigStatus("신청 데이터를 초기화하고 있습니다.");
     await martiniFirebase.resetClassVotes(WEEKDAYS.map((weekday) => weekday.key));
     setVoteConfigStatus("신청 데이터가 모두 초기화되었습니다.");
   } catch {
     setVoteConfigStatus("초기화에 실패했습니다. Firebase 권한을 확인해주세요.");
   } finally {
-    voteResetButton.disabled = false;
-    voteSaveButton.disabled = false;
+    voteResetButton.disabled = false;
   }
 }
