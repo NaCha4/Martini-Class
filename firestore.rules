@@ -87,9 +87,13 @@ service cloud.firestore {
           "studentId",
           "createdAt"
         ])
+        && applicationId == request.resource.data.classId + "_" + request.resource.data.studentId
         && isShortText(request.resource.data.classId, 120)
+        && isShortText(request.resource.data.classTitle, 120)
         && isShortText(request.resource.data.name, 80)
-        && isShortText(request.resource.data.studentId, 80);
+        && isShortText(request.resource.data.studentId, 80)
+        && request.resource.data.createdAt is timestamp
+        && isPrivateClassOpen(request.resource.data.classId);
     }
 
     function isValidPrivateClassApplyCountUpdate(classId) {
@@ -97,9 +101,11 @@ service cloud.firestore {
         ? resource.data.applicationCount
         : 0;
 
-      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(["applicationCount", "updatedAt"])
-        && request.resource.data.applicationCount >= previousCount
-        && request.resource.data.applicationCount <= previousCount + 1;
+      return isPrivateClassOpen(classId)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["applicationCount", "updatedAt"])
+        && request.resource.data.applicationCount is int
+        && request.resource.data.applicationCount == previousCount + 1
+        && request.resource.data.updatedAt is timestamp;
     }
 
     match /votes/{day} {
