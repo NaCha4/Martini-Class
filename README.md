@@ -1,78 +1,75 @@
 # Martini Class
 
-마티니 칵테일 동아리의 정규 클래스 신청, 개인 클래스, 출석부, 재고, 교육일정, 임원 배치를 관리하는 Firebase 기반 정적 웹 프로젝트입니다.
+마티니 칵테일 동아리의 정규 클래스 신청, 이벤트 클래스 신청, 출석부, 재고, 교육일정, 회의록, 임원 정보를 관리하는 Firebase 기반 정적 웹 프로젝트입니다.
+
+## Maintainer Contact
+
+홈페이지 유지보수나 인수인계가 필요한 경우 아래로 연락해주세요.
+
+- GitHub Issues: 이 저장소의 Issues 탭
 
 ## 주요 기능
 
-- 메인 페이지에서 정규 클래스 신청, 개인 클래스, 출석부, 관리 페이지로 이동
-- Firebase 이메일/비밀번호 로그인
-- 로그인한 임원만 출석부와 관리 페이지 접근
-- 정규 클래스 신청 요일, 정원, 오픈/마감, 예약 오픈/예약 마감 관리
-- 신청 페이지에서 이름과 학번으로 요일별 선착순 신청
-- 출석부에서 주차별 신청자 불러오기, 출석/결석 체크, 누적 결석 확인
-- 개인 클래스 게시글 작성, 썸네일 등록, 모집 상태 관리, 신청자 확인/삭제
-- 재고를 분류, 품목, 상품 단위로 관리
-- 교육일정에 주차별 칵테일 레시피와 재료 사용량 저장
-- 교육일정과 현재 신청 인원을 기준으로 예상 재고 사용량과 부족 여부 계산
+- 정규 클래스 요일별 선착순 신청
+- 정규 클래스 신청자 이름 목록 공개 표시
+- 이벤트 클래스 게시글 작성, 썸네일 업로드, 신청자 관리
+- 출석부 주차별 관리와 결석 현황 확인
+- 재고 품목/상품 관리와 주차별 예상 사용량 계산
+- 교육일정과 칵테일 레시피 저장
 - 임원 조직도, 요일별 담당 임원, 이벤트 담당 임원 관리
+- 회의록 양식/완료본 업로드 및 다운로드
+- 관리자 전용 대시보드와 메모판
 
 ## 페이지 구성
 
 | 파일 | 역할 |
 | --- | --- |
 | `index.html` | 메인 페이지 |
-| `login.html` | 임원 로그인 페이지 |
-| `vote.html` | 정규 클래스 신청 페이지 |
-| `private-class.html` | 개인 클래스 목록, 상세, 신청 페이지 |
-| `attendance.html` | 주차별 출석부 페이지 |
-| `admin.html` | 관리 페이지 |
+| `login.html` | 관리자 로그인 |
+| `vote.html` | 정규 클래스 신청 |
+| `private-class.html` | 이벤트 클래스 목록, 상세, 신청 |
+| `attendance.html` | 출석부 |
+| `admin.html` | 관리자 페이지 |
 
 ## 폴더 구조
 
 ```text
 .
-├─ assets
-│  ├─ css
-│  │  └─ main.css
-│  ├─ images
-│  └─ js
-│     ├─ utils.js
+├─ assets/
+│  ├─ css/main.css
+│  ├─ images/
+│  └─ js/
 │     ├─ firebase.js
-│     ├─ main.js
-│     ├─ login.js
 │     ├─ vote.js
 │     ├─ private-class.js
 │     ├─ attendance.js
 │     ├─ admin.js
-│     ├─ admin-dashboard.js
-│     ├─ admin-executive.js
-│     ├─ admin-private-class.js
-│     ├─ admin-inventory.js
-│     ├─ admin-schedule.js
-│     └─ admin-vote.js
+│     └─ admin-*.js
 ├─ firestore.rules
 ├─ storage.rules
 ├─ firebase.json
+├─ firestore.indexes.json
+├─ SECURITY.md
 └─ *.html
 ```
 
 ## Firebase 구성
 
-프로젝트는 Firebase Web SDK compat 버전을 사용합니다. Firebase 설정은 [assets/js/firebase.js](assets/js/firebase.js)에 들어 있습니다.
+프로젝트는 Firebase Web SDK compat 버전을 사용합니다. Firebase Web config와 App Check site key는 `assets/js/firebase.js`에 있습니다.
 
 사용 중인 Firebase 서비스:
 
-- Authentication: 이메일/비밀번호 로그인
-- Firestore Database: 신청, 출석, 개인 클래스, 재고, 교육일정, 임원 설정 저장
-- Storage: 개인 클래스 썸네일 이미지 저장
+- Authentication: 관리자 이메일/비밀번호 로그인
+- Firestore: 신청, 출석, 이벤트 클래스, 재고, 교육일정, 임원 설정, 회의록 메타데이터 저장
+- Storage: 이벤트 클래스 썸네일, 회의록 파일 저장
+- App Check: Firestore enforcement 활성화, Storage는 metrics 확인 후 enforcement 예정
 
-Firebase 콘솔에서 필요한 설정:
+Firebase 설정 파일:
 
-1. Authentication에서 이메일/비밀번호 제공업체 활성화
-2. 임원 계정을 Firebase Authentication 사용자로 직접 생성
-3. Firestore Database 생성
-4. Storage 생성
-5. `firestore.rules`, `storage.rules` 배포
+- `firebase.json`: Firestore/Storage rules 연결
+- `.firebaserc`: 기본 Firebase project id
+- `firestore.rules`: Firestore Security Rules
+- `storage.rules`: Storage Security Rules
 
 ## Firestore 컬렉션
 
@@ -80,58 +77,110 @@ Firebase 콘솔에서 필요한 설정:
 | --- | --- |
 | `settings/voteConfig` | 정규 클래스 신청 설정 |
 | `settings/executiveConfig` | 임원 조직도와 담당 배치 |
+| `settings/meetingMinutes` | 회의록 양식 등 기본 메타데이터 |
+| `settings/meetingMinutesCompleted_*` | 완료 회의록 메타데이터 |
+| `settings/adminMemoBoard` | 관리자 메모판 |
 | `classVotes` | 정규 클래스 신청자 |
 | `classVoteState` | 요일별 신청 인원 카운트 |
 | `classAttendance` | 주차별 출석 기록 |
-| `privateClasses` | 개인 클래스 게시글 |
-| `privateClassApplications` | 개인 클래스 신청자 |
-| `inventoryItems` | 재고 품목과 상품 |
+| `privateClasses` | 이벤트 클래스 게시글 |
+| `privateClassApplications` | 이벤트 클래스 신청 내역 |
+| `inventoryItems` | 재고 품목/상품 |
 | `classSchedules` | 교육일정과 주차별 레시피 |
+
+## 보안 정책
+
+자세한 운영/권한 원칙은 `SECURITY.md`를 기준으로 합니다.
+
+핵심 원칙:
+
+- service account JSON, private key, `.env` 실제 값은 Git에 올리지 않습니다.
+- 로컬 관리자 키는 `.secrets/` 아래에 보관하고 `.gitignore`로 제외합니다.
+- Firebase Web config의 `apiKey`와 App Check site key는 클라이언트 공개 config입니다.
+- 공개 config는 비밀 키가 아니지만 Security Rules, App Check, authorized domains, API key 제한으로 보호해야 합니다.
+- Firestore rules 배포, Storage rules 배포, 운영 데이터 수정/삭제는 사용자 승인 후 진행합니다.
+- 정규 클래스 신청 페이지에서는 운영 요구에 따라 신청자 이름 목록을 공개합니다.
+- 이벤트 클래스 신청 내역, 출석부, 재고, 교육일정, 회의록 관리는 관리자만 접근합니다.
+- 공개 write는 필드, 타입, 길이, 문서 ID, 모집 기간, 정원, atomic count 증가 조건을 rules에서 검증합니다.
+
+## 로컬 secret 관리
+
+실제 secret 파일은 커밋하지 않습니다.
+
+예상 로컬 구조:
+
+```text
+.secrets/
+  firebase-service-account.json
+```
+
+환경변수 예시는 `.env.example`을 참고하세요. 실제 `.env` 또는 service account JSON 값은 저장소에 포함하지 않습니다.
 
 ## 로컬 실행
 
-정적 HTML/CSS/JS 프로젝트라서 별도 빌드 과정은 없습니다.
+정적 HTML/CSS/JS 프로젝트라 별도 빌드 과정은 없습니다.
 
-브라우저에서 `index.html`을 열어 확인할 수 있습니다. Firebase SDK와 Firestore/Storage 연동을 안정적으로 확인하려면 로컬 서버로 실행하는 것을 권장합니다.
+간단한 로컬 서버 예시:
 
-예시:
+```powershell
+python -m http.server 8080
+```
 
-```bash
+또는 Node 기반 서버를 사용할 수 있습니다.
+
+```powershell
 npx serve .
 ```
 
-또는 Firebase CLI를 사용한다면:
+Firebase Emulator를 사용할 경우:
 
-```bash
+```powershell
 firebase emulators:start
+```
+
+## 검증 명령
+
+JavaScript 문법 검사:
+
+```powershell
+Get-ChildItem assets/js -Filter *.js | ForEach-Object { node --check $_.FullName }
+```
+
+Git whitespace 검사:
+
+```powershell
+git diff --check
+```
+
+Firestore rules dry-run:
+
+```powershell
+firebase deploy --only firestore:rules --dry-run --project martini-class-d4d69
+```
+
+Storage rules dry-run:
+
+```powershell
+firebase deploy --only storage --dry-run --project martini-class-d4d69
 ```
 
 ## 배포
 
-Firebase CLI를 사용해 규칙을 배포할 수 있습니다.
+운영 배포는 사용자 승인 후 진행합니다.
 
-```bash
-firebase deploy --only firestore:rules,storage
+Rules 배포:
+
+```powershell
+firebase deploy --only firestore:rules,storage --project martini-class-d4d69
 ```
 
-Hosting 설정을 추가한 경우에는 Hosting도 함께 배포할 수 있습니다.
+정적 페이지는 GitHub Pages에서 제공됩니다. 코드 변경 후에는 GitHub 반영과 Pages 배포 상태를 확인해야 합니다.
 
-```bash
-firebase deploy
-```
+## 운영 체크리스트
 
-## 개발 메모
-
-- 공통 유틸은 `assets/js/utils.js`에 있습니다.
-- Firebase 접근 함수는 `assets/js/firebase.js`에서 `window.MartiniFirebase`로 노출됩니다.
-- 관리 페이지 공통 상태와 탭 초기화는 `assets/js/admin.js`에 있습니다.
-- 관리 페이지 기능별 로직은 `admin-*.js` 파일로 분리되어 있습니다.
-- CSS는 `assets/css/main.css` 하나에 통합되어 있습니다.
-
-## 점검 명령
-
-JavaScript 문법 검사는 다음 명령으로 확인할 수 있습니다.
-
-```bash
-Get-ChildItem assets/js -Filter *.js | ForEach-Object { node --check $_.FullName }
-```
+- App Check Firestore enforcement 상태 확인
+- Storage metrics 확인 후 Storage enforcement 적용
+- Google Cloud Console에서 Web API key 제한 확인
+- Billing budget alert 설정
+- service account JSON이 Git에 포함되지 않았는지 확인
+- 정규 신청, 이벤트 신청, 관리자 페이지, 회의록 업로드/다운로드 실제 테스트
