@@ -153,7 +153,7 @@ service cloud.firestore {
     }
 
     match /classVotes/{studentId} {
-      allow read: if isAdmin();
+      allow read: if true;
       allow create: if isAdmin()
         || (isClassApplyOpen() && isValidClassVote(studentId));
       allow update: if isAdmin();

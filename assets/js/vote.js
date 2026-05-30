@@ -12,11 +12,11 @@ const voteBoardElement = document.querySelector("[data-vote-board]");
 const voteForm = document.querySelector("[data-class-vote-form]");
 const voteMessage = document.querySelector("[data-vote-message]");
 const voteSubmitButton = document.querySelector("[data-vote-submit]");
-const { bindRouteNavigation, normalizeDate } = window.MartiniUtils;
+const { bindRouteNavigation, escapeHtml, normalizeDate } = window.MartiniUtils;
 
 let voteConfig = null;
 let selectedDay = "";
-let currentVoteState = {};
+let currentVotes = [];
 let applyScheduleTimer = null;
 
 function bindNavigation() {
@@ -166,16 +166,20 @@ function renderVoteBoard() {
   }
 
   voteBoardElement.innerHTML = enabledDays.map((weekday) => {
-    const count = Number(currentVoteState[weekday.key] || 0);
+    const votes = currentVotes.filter((vote) => vote.day === weekday.key);
 
     return `
       <article class="vote-board-day">
         <div class="vote-board-day__header">
           <h3>${weekday.label}</h3>
-          <span>${count}/${capacity}</span>
+          <span>${votes.length}/${capacity}</span>
         </div>
         <ol class="vote-member-list">
-          <li class="empty-member">${count ? `${count}명이 신청했습니다.` : "아직 신청자가 없습니다."}</li>
+          ${votes.length ? votes.map((vote) => `
+            <li>
+              <strong>${escapeHtml(vote.name)}</strong>
+            </li>
+          `).join("") : `<li class="empty-member">아직 신청자가 없습니다.</li>`}
         </ol>
       </article>
     `;
@@ -221,10 +225,10 @@ async function loadVoteConfig() {
 function subscribeVotes() {
   const martiniFirebase = window.MartiniFirebase;
 
-  if (!martiniFirebase?.subscribeClassVoteState) return;
+  if (!martiniFirebase?.subscribeClassVotes) return;
 
-  martiniFirebase.subscribeClassVoteState((state) => {
-    currentVoteState = state;
+  martiniFirebase.subscribeClassVotes((votes) => {
+    currentVotes = votes;
     renderVoteBoard();
   });
 }
