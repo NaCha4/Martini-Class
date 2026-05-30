@@ -59,7 +59,24 @@ service cloud.firestore {
     }
 
     function isPrivateClassOpen(classId) {
-      return get(/databases/$(database)/documents/privateClasses/$(classId)).data.status == "open";
+      let classData = get(/databases/$(database)/documents/privateClasses/$(classId)).data;
+      let hasRecruitSchedule = classData.recruitOpenAt is timestamp
+        && classData.recruitCloseAt is timestamp;
+      let applicationCount = classData.applicationCount is int
+        ? classData.applicationCount
+        : 0;
+      let isScheduledOpen = hasRecruitSchedule
+        && classData.recruitOpenAt <= request.time
+        && classData.recruitCloseAt > request.time;
+      let isNotFull = !(classData.capacity is int)
+        || classData.capacity <= 0
+        || applicationCount < classData.capacity;
+
+      return isNotFull
+        && (
+          (hasRecruitSchedule && isScheduledOpen)
+          || (!hasRecruitSchedule && classData.status == "open")
+        );
     }
 
     function isValidPrivateClassApplication(applicationId) {
