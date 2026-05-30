@@ -53,24 +53,6 @@
 └─ *.html
 ```
 
-## Firebase 구성
-
-프로젝트는 Firebase Web SDK compat 버전을 사용합니다. Firebase Web config와 App Check site key는 `assets/js/firebase.js`에 있습니다.
-
-사용 중인 Firebase 서비스:
-
-- Authentication: 관리자 이메일/비밀번호 로그인
-- Firestore: 신청, 출석, 이벤트 클래스, 재고, 교육일정, 임원 설정, 회의록 메타데이터 저장
-- Storage: 이벤트 클래스 썸네일, 회의록 파일 저장
-- App Check: Firestore enforcement 활성화, Storage는 metrics 확인 후 enforcement 예정
-
-Firebase 설정 파일:
-
-- `firebase.json`: Firestore/Storage rules 연결
-- `.firebaserc`: 기본 Firebase project id
-- `firestore.rules`: Firestore Security Rules
-- `storage.rules`: Storage Security Rules
-
 ## Firestore 컬렉션
 
 | 컬렉션/문서 | 용도 |
@@ -87,51 +69,3 @@ Firebase 설정 파일:
 | `privateClassApplications` | 이벤트 클래스 신청 내역 |
 | `inventoryItems` | 재고 품목/상품 |
 | `classSchedules` | 교육일정과 주차별 레시피 |
-
-## 로컬 실행
-
-정적 HTML/CSS/JS 프로젝트라 별도 빌드 과정은 없습니다.
-
-간단한 로컬 서버 예시:
-
-```powershell
-python -m http.server 8080
-```
-
-또는 Node 기반 서버를 사용할 수 있습니다.
-
-```powershell
-npx serve .
-```
-
-Firebase Emulator를 사용할 경우:
-
-```powershell
-firebase emulators:start
-```
-
-## 검증 명령
-
-JavaScript 문법 검사:
-
-```powershell
-Get-ChildItem assets/js -Filter *.js | ForEach-Object { node --check $_.FullName }
-```
-
-Git whitespace 검사:
-
-```powershell
-git diff --check
-```
-
-Firestore rules dry-run:
-
-```powershell
-firebase deploy --only firestore:rules --dry-run --project martini-class-d4d69
-```
-
-Storage rules dry-run:
-
-```powershell
-firebase deploy --only storage --dry-run --project martini-class-d4d69
-```
