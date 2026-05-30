@@ -114,7 +114,7 @@ function renderPrivateClassDetail() {
           <strong>${escapeHtml(applicant.name)}</strong>
           <span>${escapeHtml(applicant.studentId)}</span>
         </div>
-        <button class="auth-button auth-button--ghost" type="button" data-delete-private-applicant="${applicant.id}">
+        <button class="auth-button auth-button--ghost" type="button" data-delete-private-applicant="${escapeHtml(applicant.id)}">
           삭제
         </button>
       </li>
@@ -135,7 +135,7 @@ function fillPrivateClassForm(privateClass) {
   privateClassForm.elements.capacity.value = privateClass.capacity || 8;
   privateClassForm.elements.summary.value = privateClass.summary || "";
   privateClassForm.elements.description.value = privateClass.description || "";
-  renderPrivateThumbnailPreview(privateClass.thumbnailDataUrl || privateClass.thumbnailUrl);
+  renderPrivateThumbnailPreview(privateClass.thumbnailUrl || privateClass.thumbnailDataUrl);
   privateClassSaveButton.textContent = "수정 저장";
   setPrivateClassStatus("선택한 게시글 내용을 수정하고 있습니다.");
   setPrivateClassMode("write");
@@ -208,10 +208,12 @@ async function compressPrivateThumbnail(file) {
     canvas.height = height;
     context.drawImage(image, 0, 0, width, height);
 
-    const dataUrl = canvas.toDataURL("image/jpeg", attempt.quality);
+    const blob = await new Promise((resolve) => {
+      canvas.toBlob(resolve, "image/jpeg", attempt.quality);
+    });
 
-    if (dataUrl.length <= 850000) {
-      return { dataUrl };
+    if (blob && blob.size <= 3 * 1024 * 1024) {
+      return { blob };
     }
   }
 
@@ -253,7 +255,7 @@ function collectPrivateClassData() {
     summary: String(formData.get("summary") || "").trim(),
     description: String(formData.get("description") || "").trim(),
     thumbnailUrl: editingPrivateClass?.thumbnailUrl || "",
-    thumbnailDataUrl: editingPrivateClass?.thumbnailDataUrl || "",
+    thumbnailDataUrl: "",
   };
 
   return {
@@ -276,7 +278,7 @@ async function handlePrivateClassSubmit(event) {
 
   const martiniFirebase = window.MartiniFirebase;
 
-  if (!martiniFirebase?.savePrivateClass) return;
+  if (!martiniFirebase?.savePrivateClass || !martiniFirebase?.uploadPrivateClassThumbnail) return;
 
   try {
     privateClassSaveButton.disabled = true;
@@ -299,12 +301,19 @@ async function handlePrivateClassSubmit(event) {
 
       setPrivateClassStatus("썸네일 이미지를 압축하고 있습니다.");
       const thumbnail = await compressPrivateThumbnail(thumbnailFile);
+      const thumbnailUrl = await martiniFirebase.uploadPrivateClassThumbnail(
+        savedClassId,
+        thumbnail.blob,
+        (progress) => {
+          setPrivateClassStatus(`Thumbnail upload ${progress}%`);
+        },
+      );
       setPrivateClassStatus("썸네일을 글에 저장하고 있습니다.");
       await martiniFirebase.savePrivateClass({
         ...classData,
         id: savedClassId,
-        thumbnailDataUrl: thumbnail.dataUrl,
-        thumbnailUrl: "",
+        thumbnailDataUrl: "",
+        thumbnailUrl,
       });
     }
 
@@ -328,7 +337,7 @@ function bindPrivateClassActions() {
     if (!file) {
     const editingPrivateClass = getEditingPrivateClass();
 
-    renderPrivateThumbnailPreview(editingPrivateClass?.thumbnailDataUrl || editingPrivateClass?.thumbnailUrl);
+    renderPrivateThumbnailPreview(editingPrivateClass?.thumbnailUrl || editingPrivateClass?.thumbnailDataUrl);
       return;
     }
 

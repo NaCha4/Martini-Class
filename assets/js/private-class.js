@@ -121,7 +121,7 @@ function renderPrivateClassList() {
   privateGallery.innerHTML = privateClasses.map((privateClass) => {
     const capacity = Number(privateClass.capacity || 0);
     const applicationCount = Number(privateClass.applicationCount || 0);
-    const thumbnailUrl = privateClass.thumbnailDataUrl || privateClass.thumbnailUrl || "./assets/images/Logo.png";
+    const thumbnailUrl = privateClass.thumbnailUrl || privateClass.thumbnailDataUrl || "./assets/images/Logo.png";
     const status = getPrivateClassAutoStatus(privateClass);
 
     return `
@@ -161,7 +161,7 @@ function renderPrivateClassDetail(privateClass) {
   const capacity = Number(privateClass.capacity || 0);
   const applicationCount = Number(privateClass.applicationCount || 0);
   const applyEnabled = canApply(privateClass);
-  const thumbnailUrl = privateClass.thumbnailDataUrl || privateClass.thumbnailUrl || "./assets/images/Logo.png";
+  const thumbnailUrl = privateClass.thumbnailUrl || privateClass.thumbnailDataUrl || "./assets/images/Logo.png";
   const status = getPrivateClassAutoStatus(privateClass);
 
   privateGallery.innerHTML = `

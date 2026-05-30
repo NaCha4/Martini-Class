@@ -371,14 +371,35 @@ function renderAdminVoteMembers() {
 
     if (!list) return;
 
-    list.innerHTML = votes.length
-      ? votes.map((vote) => `
-        <li class="admin-vote-member${selectedAdminVoteStudentId === vote.studentId ? " is-selected" : ""}" draggable="true" data-student-id="${vote.studentId}">
-          <span>${vote.name}</span>
-          <button type="button" aria-label="${vote.name} 신청 삭제" data-delete-vote="${vote.studentId}">×</button>
-        </li>
-      `).join("")
-      : `<li class="admin-vote-empty">신청자 없음</li>`;
+    list.textContent = "";
+
+    if (!votes.length) {
+      const emptyItem = document.createElement("li");
+
+      emptyItem.className = "admin-vote-empty";
+      emptyItem.textContent = "신청자 없음";
+      list.append(emptyItem);
+      return;
+    }
+
+    votes.forEach((vote) => {
+      const memberItem = document.createElement("li");
+      const nameElement = document.createElement("span");
+      const deleteButton = document.createElement("button");
+      const studentId = String(vote.studentId || "");
+      const name = String(vote.name || "");
+
+      memberItem.className = `admin-vote-member${selectedAdminVoteStudentId === studentId ? " is-selected" : ""}`;
+      memberItem.draggable = true;
+      memberItem.dataset.studentId = studentId;
+      nameElement.textContent = name;
+      deleteButton.type = "button";
+      deleteButton.setAttribute("aria-label", `${name} 신청 삭제`);
+      deleteButton.dataset.deleteVote = studentId;
+      deleteButton.textContent = "x";
+      memberItem.append(nameElement, deleteButton);
+      list.append(memberItem);
+    });
   });
 }
 

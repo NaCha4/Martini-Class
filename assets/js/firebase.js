@@ -23,7 +23,6 @@
   const auth = firebase.auth();
   const db = firebase.firestore ? firebase.firestore() : null;
   const storage = firebase.storage ? firebase.storage() : null;
-  const MEETING_MINUTES_EMBED_LIMIT = 350 * 1024;
   auth.languageCode = "ko";
 
   function saveAdminSession(isAdmin, user) {
@@ -420,10 +419,15 @@
       ? db.collection("privateClasses").doc(classData.id)
       : db.collection("privateClasses").doc();
     const snapshot = await privateClassRef.get();
+    const nextClassData = { ...classData };
+
+    if (nextClassData.thumbnailDataUrl === "") {
+      nextClassData.thumbnailDataUrl = firebase.firestore.FieldValue.delete();
+    }
 
     await privateClassRef.set(
       {
-        ...classData,
+        ...nextClassData,
         id: privateClassRef.id,
         applicationCount: snapshot.data()?.applicationCount || 0,
         updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
@@ -555,36 +559,6 @@
     return fileData;
   }
 
-  function readFileAsDataUrl(file) {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-
-      reader.addEventListener("load", () => resolve(reader.result));
-      reader.addEventListener("error", () => reject(reader.error));
-      reader.readAsDataURL(file);
-    });
-  }
-
-  async function saveEmbeddedMeetingMinuteFile(fileType, file, safeName, onProgress) {
-    onProgress?.(100, "encoding");
-
-    const dataUrl = await readFileAsDataUrl(file);
-    const timestamp = Date.now();
-    const fileData = {
-      name: file.name || safeName,
-      path: `firestore:settings/meetingMinutes/${fileType}`,
-      size: file.size || 0,
-      type: file.type || "application/octet-stream",
-      downloadUrl: dataUrl,
-      storageMode: "firestore",
-      createdAtMs: timestamp,
-      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-    };
-
-    onProgress?.(100, "saving");
-    return saveMeetingMinuteFileData(fileType, fileData);
-  }
-
   async function uploadMeetingMinuteFile(fileType, file, onProgress) {
     if (!db) {
       throw new Error("Firestore SDK가 로드되지 않았습니다.");
@@ -602,10 +576,6 @@
     const safeName = String(file.name || "meeting-minutes")
       .replace(/[\\/:*?"<>|#%{}^~\[\]`]/g, "-")
       .slice(0, 120);
-
-    if (file.size <= MEETING_MINUTES_EMBED_LIMIT) {
-      return saveEmbeddedMeetingMinuteFile(fileType, file, safeName, onProgress);
-    }
 
     if (!storage) {
       throw new Error("Firebase Storage SDK가 로드되지 않았습니다.");
@@ -703,7 +673,28 @@
       throw new Error("Firestore SDK가 로드되지 않았습니다.");
     }
 
-    await db.collection("privateClasses").doc(classId).delete();
+    const privateClassRef = db.collection("privateClasses").doc(classId);
+    const applicationsSnapshot = await db
+      .collection("privateClassApplications")
+      .where("classId", "==", classId)
+      .get();
+    const writer = createBatchWriter();
+
+    applicationsSnapshot.docs.forEach((documentSnapshot) => {
+      writer.queue((batch) => batch.delete(documentSnapshot.ref));
+    });
+
+    writer.queue((batch) => batch.delete(privateClassRef));
+
+    await writer.commit();
+
+    if (storage) {
+      try {
+        await storage.ref(`private-class-thumbnails/${classId}/thumbnail.jpg`).delete();
+      } catch (error) {
+        console.warn("Private class thumbnail deletion failed", error);
+      }
+    }
   }
 
   async function deletePrivateClassApplication(application) {

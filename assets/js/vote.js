@@ -12,7 +12,7 @@ const voteBoardElement = document.querySelector("[data-vote-board]");
 const voteForm = document.querySelector("[data-class-vote-form]");
 const voteMessage = document.querySelector("[data-vote-message]");
 const voteSubmitButton = document.querySelector("[data-vote-submit]");
-const { bindRouteNavigation, normalizeDate } = window.MartiniUtils;
+const { bindRouteNavigation, escapeHtml, normalizeDate } = window.MartiniUtils;
 
 let voteConfig = null;
 let selectedDay = "";
@@ -187,7 +187,7 @@ function renderVoteBoard() {
         <ol class="vote-member-list">
           ${votes.length ? votes.map((vote) => `
             <li>
-              <strong>${vote.name}</strong>
+              <strong>${escapeHtml(vote.name)}</strong>
             </li>
           `).join("") : `<li class="empty-member">아직 신청자가 없습니다.</li>`}
         </ol>
