@@ -6,6 +6,7 @@ const MINUTES_LABELS = {
   template: "\uD68C\uC758\uB85D \uC591\uC2DD",
   completed: "\uC791\uC131\uB41C \uD68C\uC758\uB85D",
 };
+const MINUTES_DOWNLOAD_VERSION = "attachment-20260530-2";
 
 let meetingMinuteFiles = {};
 
@@ -71,6 +72,21 @@ function getCompletedMinuteFiles() {
   return meetingMinuteFiles.completed?.downloadUrl ? [meetingMinuteFiles.completed] : [];
 }
 
+function getMeetingMinuteDownloadUrl(file) {
+  if (!file?.downloadUrl) return "#";
+
+  try {
+    const url = new URL(file.downloadUrl, window.location.href);
+
+    url.searchParams.set("download", "1");
+    url.searchParams.set("v", MINUTES_DOWNLOAD_VERSION);
+
+    return url.toString();
+  } catch {
+    return file.downloadUrl;
+  }
+}
+
 function createCompletedMinuteItem(file) {
   const item = document.createElement("div");
   const info = document.createElement("span");
@@ -83,7 +99,7 @@ function createCompletedMinuteItem(file) {
   actions.className = "minutes-file-item__actions";
   info.textContent = `${file.name || "\uD68C\uC758\uB85D"}${sizeText ? ` / ${sizeText}` : ""}`;
   downloadLink.className = "auth-button auth-button--ghost";
-  downloadLink.href = file.downloadUrl;
+  downloadLink.href = getMeetingMinuteDownloadUrl(file);
   downloadLink.download = file.name || "";
   downloadLink.textContent = "\uB2E4\uC6B4\uB85C\uB4DC";
   deleteButton.className = "auth-button auth-button--danger";
@@ -162,7 +178,7 @@ function renderMeetingMinuteFile(fileType) {
   if (!downloadLink) return;
 
   if (file?.downloadUrl) {
-    downloadLink.href = file.downloadUrl;
+    downloadLink.href = getMeetingMinuteDownloadUrl(file);
     downloadLink.classList.remove("is-disabled");
     downloadLink.setAttribute("download", file.name || "");
     downloadLink.setAttribute("aria-disabled", "false");
