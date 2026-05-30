@@ -56,7 +56,7 @@
   }
 
   async function isExecutive(user) {
-    return Boolean(user);
+    return user?.email === "admin@martini.com";
   }
 
   async function signInWithEmail(email, password) {
