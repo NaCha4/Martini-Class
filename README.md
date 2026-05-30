@@ -6,7 +6,7 @@
 
 홈페이지 유지보수나 인수인계가 필요한 경우 아래로 연락해주세요.
 
-- GitHub Issues: 이 저장소의 Issues 탭
+- E-Mail: dnacha4647@gmail.com
 
 ## 주요 기능
 
