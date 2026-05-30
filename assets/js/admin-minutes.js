@@ -71,50 +71,6 @@ function getCompletedMinuteFiles() {
   return meetingMinuteFiles.completed?.downloadUrl ? [meetingMinuteFiles.completed] : [];
 }
 
-function getSafeDownloadName(file) {
-  return String(file?.name || "meeting-minutes.pdf")
-    .replace(/[\\/:*?"<>|]/g, "-")
-    .trim()
-    || "meeting-minutes.pdf";
-}
-
-async function downloadMeetingMinuteFile(file, triggerElement) {
-  if (!file?.downloadUrl) {
-    setMinutesStatus("\uB2E4\uC6B4\uB85C\uB4DC\uD560 \uD30C\uC77C\uC774 \uC544\uC9C1 \uC5C5\uB85C\uB4DC\uB418\uC9C0 \uC54A\uC558\uC2B5\uB2C8\uB2E4.");
-    return;
-  }
-
-  const fileName = getSafeDownloadName(file);
-
-  try {
-    if (triggerElement) triggerElement.setAttribute("aria-busy", "true");
-    setMinutesStatus(`${fileName}\uC744 \uB2E4\uC6B4\uB85C\uB4DC\uD558\uACE0 \uC788\uC2B5\uB2C8\uB2E4.`);
-
-    const response = await fetch(file.downloadUrl);
-    if (!response.ok) {
-      throw new Error(`Download failed: ${response.status}`);
-    }
-
-    const blob = await response.blob();
-    const objectUrl = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-
-    link.href = objectUrl;
-    link.download = fileName;
-    link.style.display = "none";
-    document.body.append(link);
-    link.click();
-    link.remove();
-    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
-    setMinutesStatus(`${fileName}\uC744 \uB2E4\uC6B4\uB85C\uB4DC\uD588\uC2B5\uB2C8\uB2E4.`);
-  } catch (error) {
-    console.error("Meeting minutes download failed", error);
-    setMinutesStatus(`${fileName} \uB2E4\uC6B4\uB85C\uB4DC\uC5D0 \uC2E4\uD328\uD588\uC2B5\uB2C8\uB2E4. \uC7A0\uC2DC \uD6C4 \uB2E4\uC2DC \uC2DC\uB3C4\uD574\uC8FC\uC138\uC694.`);
-  } finally {
-    if (triggerElement) triggerElement.removeAttribute("aria-busy");
-  }
-}
-
 function createCompletedMinuteItem(file) {
   const item = document.createElement("div");
   const info = document.createElement("span");
@@ -130,10 +86,6 @@ function createCompletedMinuteItem(file) {
   downloadLink.href = file.downloadUrl;
   downloadLink.download = file.name || "";
   downloadLink.textContent = "\uB2E4\uC6B4\uB85C\uB4DC";
-  downloadLink.addEventListener("click", (event) => {
-    event.preventDefault();
-    downloadMeetingMinuteFile(file, downloadLink);
-  });
   deleteButton.className = "auth-button auth-button--danger";
   deleteButton.type = "button";
   deleteButton.textContent = "\uC0AD\uC81C";
@@ -311,8 +263,6 @@ function bindMeetingMinutesActions() {
         setMinutesStatus("\uB2E4\uC6B4\uB85C\uB4DC\uD560 \uD30C\uC77C\uC774 \uC544\uC9C1 \uC5C5\uB85C\uB4DC\uB418\uC9C0 \uC54A\uC558\uC2B5\uB2C8\uB2E4.");
         return;
       }
-
-      downloadMeetingMinuteFile(meetingMinuteFiles[link.dataset.minutesDownload], link);
     });
   });
 }

@@ -591,6 +591,13 @@
     const safeName = String(file.name || "meeting-minutes")
       .replace(/[\\/:*?"<>|#%{}^~\[\]`]/g, "-")
       .slice(0, 120);
+    const encodedDownloadName = encodeURIComponent(safeName).replace(
+      /['()]/g,
+      (char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`,
+    );
+    const asciiDownloadName = safeName
+      .replace(/[\x00-\x1F\x7F-\uFFFF]/g, "_")
+      .replace(/["\\]/g, "-");
 
     if (!storage) {
       throw new Error("Firebase Storage SDK가 로드되지 않았습니다.");
@@ -599,6 +606,7 @@
     const fileRef = storage.ref(`meeting-minutes/${fileType}/${timestamp}-${safeName}`);
     const uploadTask = fileRef.put(file, {
       contentType: file.type || "application/octet-stream",
+      contentDisposition: `attachment; filename="${asciiDownloadName}"; filename*=UTF-8''${encodedDownloadName}`,
       cacheControl: fileType === "template" ? "public,max-age=3600" : "private,max-age=0",
     });
 
