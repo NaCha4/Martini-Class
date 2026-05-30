@@ -1,72 +1,87 @@
-# Security And Operations Policy
+Security And Operations Policy
+This repository is a Firebase web app. Treat development changes and production operations as separate responsibilities.
 
-This repository is a static Firebase web app. Treat development changes and production operations as separate responsibilities.
+Key Classification
+Public client configuration may appear in client code:
 
-## Key Classification
+Firebase Web config, including web apiKey, auth domain, project ID, and app ID
+App Check reCAPTCHA site key
+These values do not grant admin access by themselves. Protect Firebase resources with Security Rules, App Check enforcement, authorized domains, Google Cloud API key restrictions, and quota or budget controls.
 
-Public client configuration:
-- Firebase Web config in `assets/js/firebase.js`
-- App Check reCAPTCHA site key in `assets/js/firebase.js`
+Sensitive credentials must never be committed, pasted into chat, printed in logs, or exposed in client-side code:
 
-These values can be present in client code. They do not grant admin access by themselves, but they must be protected with Firebase Security Rules, App Check, authorized domains, and Google Cloud API key restrictions.
+Firebase service account JSON
+Private keys and Admin SDK credentials
+FCM server keys
+OAuth access tokens and refresh tokens
+Real .env files or production credentials
+Store local-only credentials in .secrets/ or local environment variables. Keep .env.example free of real secret values.
 
-Sensitive credentials:
-- Firebase service account JSON
-- Admin SDK private keys
-- FCM server keys
-- OAuth refresh/access tokens
-- Any `.env` file containing real credentials
-
-Sensitive credentials must stay outside Git. Store local service account files under `.secrets/`, keep them ignored, and rotate them immediately if they are exposed.
-
-## Codex Permission Boundary
+Codex Permission Boundary
+Codex acts as a development practitioner, not a production operator.
 
 Codex may:
-- Inspect repository configuration without printing secret values.
-- Edit application code, docs, tests, and local rules files on a feature branch.
-- Run local validation commands.
-- Commit or push feature branches when the changes are non-operational and low risk.
 
+Inspect repository configuration without printing secret values
+Edit application code, docs, tests, and local rules files
+Run local validation, lint, test, and dry-run commands
+Work on feature branches by default
 Codex must not do the following without explicit user approval:
-- Push directly to `main` or `master`.
-- Force push.
-- Deploy production changes.
-- Modify or delete production Firestore, Storage, or Realtime Database data.
-- Change IAM, Owner, Editor, or service account permissions.
-- Create, delete, rotate, or replace API keys or service account keys.
-- Change billing, quota, domain, or production deployment settings.
-- Weaken Security Rules to public write or broad public read access.
 
-## Required Approval Before Execution
+Push directly to main or master
+Force push
+Create pull requests
+Deploy production changes
+Deploy Firebase rules
+Modify, delete, migrate, or bulk-update production data
+Run Admin SDK scripts that write to production
+Change IAM, Owner, Editor, service account, API key, billing, quota, domain, or deployment settings
+Weaken Security Rules to broad public read or write access
+Approval-Required Commands
+Ask for approval before running production-affecting commands, including:
 
-Ask for approval before running commands that affect production state, including:
-
-```powershell
 firebase deploy
 firebase deploy --only firestore:rules
 firebase deploy --only storage
 firebase firestore:delete
 firebase firestore:bulkdelete
-```
 
 Also ask before running any Admin SDK script that writes, deletes, migrates, or bulk-updates production data.
 
-## Local Secrets
+Dry-run and read-only inspection are allowed when they do not expose secret values or modify production state.
 
+Local Secrets
 Expected local-only layout:
 
-```text
 .secrets/
-  firebase-service-account.json
-```
+firebase-service-account.json
 
-The real file name can differ, but it must remain ignored by Git.
+The real file name may differ, but local credential files must remain ignored by Git.
 
-## Review Checklist
+Recommended ignore patterns:
 
-Before merging or deploying:
-- Confirm `git status` has no secret files staged.
-- Confirm Security Rules do not allow broad unauthenticated writes.
-- Confirm App Check is active before enforcing it for Firestore or Storage.
-- Confirm migrations have dry-run output before production writes.
-- Confirm production deploys are approved by the project owner.
+.env
+.env.*
+!.env.example
+.secrets/
+firebase-service-account*.json
+*.service-account.json
+serviceAccount.json
+service-account.json
+firebase-adminsdk.json
+*.pem
+*.key
+*.p12
+*.pfx
+*-private-key.json
+
+Pre-Commit And Deploy Checklist
+Before committing, merging, or deploying:
+
+Confirm no service account JSON, private key, token, or real .env file is staged
+Confirm .gitignore protects local secret paths and credential file patterns
+Confirm Security Rules deny broad unauthenticated writes and unknown document paths
+Confirm public pages do not read private applicant, student, admin-only, or internal collections
+Confirm App Check is active before enforcing it for Firestore or Storage
+Confirm migrations have dry-run output before production writes
+Confirm Firebase rules deploys and production data operations have explicit user approval
