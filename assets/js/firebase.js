@@ -10,6 +10,7 @@
     messagingSenderId: "994424737344",
     appId: "1:994424737344:web:555117a1674e6ba0ae59a5",
   };
+  const APP_CHECK_SITE_KEY = "6LdzAAQtAAAAACxJHF88SGPwbnHKggKE-4cwIVKg";
 
   if (!window.firebase) {
     console.error("Firebase SDK가 로드되지 않았습니다.");
@@ -18,6 +19,20 @@
 
   if (!firebase.apps.length) {
     firebase.initializeApp(firebaseConfig);
+  }
+
+  if (firebase.appCheck) {
+    try {
+      const appCheck = firebase.appCheck();
+      appCheck.activate(
+        new firebase.appCheck.ReCaptchaEnterpriseProvider(APP_CHECK_SITE_KEY),
+        true,
+      );
+    } catch (error) {
+      console.warn("Firebase App Check initialization failed", error);
+    }
+  } else {
+    console.warn("Firebase App Check SDK is not loaded.");
   }
 
   const auth = firebase.auth();
