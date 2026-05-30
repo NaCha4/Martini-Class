@@ -279,7 +279,11 @@ function bindPrivateClassInteractions() {
       form.reset();
       showPrivateFeedback("신청이 완료되었습니다.", "success");
     } catch (error) {
-      showPrivateFeedback(error.message || "신청에 실패했습니다.", "error");
+      const message = error.code === "permission-denied"
+        ? "이미 신청했거나 현재 신청을 처리할 수 없습니다. 변경이 필요하면 관리자에게 문의해주세요."
+        : error.message || "신청에 실패했습니다.";
+
+      showPrivateFeedback(message, "error");
     } finally {
       submitButton.disabled = false;
     }

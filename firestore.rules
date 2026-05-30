@@ -27,6 +27,22 @@ service cloud.firestore {
       return !isReservedClosed && (config.isOpen == true || isReservedOpen);
     }
 
+    function classVoteStateCount(day) {
+      let statePath = /databases/$(database)/documents/classVoteState/$(day);
+      return exists(statePath) && get(statePath).data.count is int
+        ? get(statePath).data.count
+        : 0;
+    }
+
+    function isClassVoteStateIncremented(day) {
+      let statePath = /databases/$(database)/documents/classVoteState/$(day);
+      let afterState = getAfter(statePath).data;
+
+      return afterState.count is int
+        && afterState.count == classVoteStateCount(day) + 1
+        && afterState.count <= 500;
+    }
+
     function isValidClassVote(studentId) {
       return request.resource.data.keys().hasOnly([
           "name",
@@ -42,20 +58,30 @@ service cloud.firestore {
         && isWeekday(request.resource.data.day)
         && isShortText(request.resource.data.dayLabel, 20)
         && request.resource.data.createdAt is timestamp
-        && request.resource.data.updatedAt is timestamp;
+        && request.resource.data.updatedAt is timestamp
+        && isClassVoteStateIncremented(request.resource.data.day);
     }
 
-    function isValidClassVoteUpdate(studentId) {
-      return isValidClassVote(studentId)
-        && request.resource.data.createdAt == resource.data.createdAt;
-    }
-
-    function isValidClassVoteState(day) {
+    function isValidClassVoteStateBase(day) {
       return isWeekday(day)
         && request.resource.data.keys().hasOnly(["count"])
         && request.resource.data.count is int
-        && request.resource.data.count >= 0
+        && request.resource.data.count > 0
         && request.resource.data.count <= 500;
+    }
+
+    function isValidClassVoteStateCreate(day) {
+      return isValidClassVoteStateBase(day)
+        && request.resource.data.count == 1;
+    }
+
+    function isValidClassVoteStateUpdate(day) {
+      let previousCount = resource.data.count is int
+        ? resource.data.count
+        : 0;
+
+      return isValidClassVoteStateBase(day)
+        && request.resource.data.count == previousCount + 1;
     }
 
     function isPrivateClassOpen(classId) {
@@ -79,6 +105,18 @@ service cloud.firestore {
         );
     }
 
+    function isPrivateClassApplicationCountIncremented(classId) {
+      let classPath = /databases/$(database)/documents/privateClasses/$(classId);
+      let previousCount = get(classPath).data.applicationCount is int
+        ? get(classPath).data.applicationCount
+        : 0;
+      let afterClass = getAfter(classPath).data;
+
+      return afterClass.applicationCount is int
+        && afterClass.applicationCount == previousCount + 1
+        && afterClass.updatedAt is timestamp;
+    }
+
     function isValidPrivateClassApplication(applicationId) {
       return request.resource.data.keys().hasOnly([
           "classId",
@@ -93,7 +131,8 @@ service cloud.firestore {
         && isShortText(request.resource.data.name, 80)
         && isShortText(request.resource.data.studentId, 80)
         && request.resource.data.createdAt is timestamp
-        && isPrivateClassOpen(request.resource.data.classId);
+        && isPrivateClassOpen(request.resource.data.classId)
+        && isPrivateClassApplicationCountIncremented(request.resource.data.classId);
     }
 
     function isValidPrivateClassApplyCountUpdate(classId) {
@@ -114,18 +153,19 @@ service cloud.firestore {
     }
 
     match /classVotes/{studentId} {
-      allow read: if true;
+      allow read: if isAdmin();
       allow create: if isAdmin()
         || (isClassApplyOpen() && isValidClassVote(studentId));
-      allow update: if isAdmin()
-        || (isClassApplyOpen() && isValidClassVoteUpdate(studentId));
+      allow update: if isAdmin();
       allow delete: if isAdmin();
     }
 
     match /classVoteState/{day} {
       allow read: if true;
-      allow create, update: if isAdmin()
-        || (isClassApplyOpen() && isValidClassVoteState(day));
+      allow create: if isAdmin()
+        || (isClassApplyOpen() && isValidClassVoteStateCreate(day));
+      allow update: if isAdmin()
+        || (isClassApplyOpen() && isValidClassVoteStateUpdate(day));
       allow delete: if isAdmin();
     }
 
@@ -149,8 +189,7 @@ service cloud.firestore {
     }
 
     match /privateClassApplications/{applicationId} {
-      allow get: if true;
-      allow list: if isAdmin();
+      allow read: if isAdmin();
       allow create: if isValidPrivateClassApplication(applicationId);
       allow update, delete: if isAdmin();
     }

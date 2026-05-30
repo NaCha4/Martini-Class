@@ -251,6 +251,21 @@
     });
   }
 
+  function subscribeClassVoteState(callback) {
+    if (!db) {
+      throw new Error("Firestore SDK가 로드되지 않았습니다.");
+    }
+
+    return db.collection("classVoteState").onSnapshot((snapshot) => {
+      const state = snapshot.docs.reduce((items, documentSnapshot) => {
+        items[documentSnapshot.id] = Number(documentSnapshot.data()?.count || 0);
+        return items;
+      }, {});
+
+      callback(state);
+    });
+  }
+
   function subscribeClassAttendance(callback) {
     if (!db) {
       throw new Error("Firestore SDK가 로드되지 않았습니다.");
@@ -784,14 +799,9 @@
 
     await db.runTransaction(async (transaction) => {
       const classSnapshot = await transaction.get(classRef);
-      const applicationSnapshot = await transaction.get(applicationRef);
 
       if (!classSnapshot.exists) {
         throw new Error("게시글을 찾을 수 없습니다.");
-      }
-
-      if (applicationSnapshot.exists) {
-        throw new Error("이미 신청한 게시글입니다.");
       }
 
       const privateClass = classSnapshot.data();
@@ -1000,6 +1010,7 @@
     saveExecutiveConfig,
     resetClassVotes,
     subscribeClassVotes,
+    subscribeClassVoteState,
     subscribeClassAttendance,
     saveClassAttendance,
     replaceWeekClassAttendance,

@@ -12,11 +12,11 @@ const voteBoardElement = document.querySelector("[data-vote-board]");
 const voteForm = document.querySelector("[data-class-vote-form]");
 const voteMessage = document.querySelector("[data-vote-message]");
 const voteSubmitButton = document.querySelector("[data-vote-submit]");
-const { bindRouteNavigation, escapeHtml, normalizeDate } = window.MartiniUtils;
+const { bindRouteNavigation, normalizeDate } = window.MartiniUtils;
 
 let voteConfig = null;
 let selectedDay = "";
-let currentVotes = [];
+let currentVoteState = {};
 let applyScheduleTimer = null;
 
 function bindNavigation() {
@@ -156,18 +156,8 @@ function updateDayPickerSelection() {
   indicator.style.transform = `translate(${activeButton.offsetLeft}px, ${activeButton.offsetTop}px)`;
 }
 
-function groupVotesByDay() {
-  return currentVotes.reduce((groups, vote) => {
-    if (!groups[vote.day]) groups[vote.day] = [];
-    groups[vote.day].push(vote);
-
-    return groups;
-  }, {});
-}
-
 function renderVoteBoard() {
   const enabledDays = getEnabledDays();
-  const groupedVotes = groupVotesByDay();
   const capacity = getCapacity();
 
   if (!enabledDays.length) {
@@ -176,20 +166,16 @@ function renderVoteBoard() {
   }
 
   voteBoardElement.innerHTML = enabledDays.map((weekday) => {
-    const votes = groupedVotes[weekday.key] || [];
+    const count = Number(currentVoteState[weekday.key] || 0);
 
     return `
       <article class="vote-board-day">
         <div class="vote-board-day__header">
           <h3>${weekday.label}</h3>
-          <span>${votes.length}/${capacity}</span>
+          <span>${count}/${capacity}</span>
         </div>
         <ol class="vote-member-list">
-          ${votes.length ? votes.map((vote) => `
-            <li>
-              <strong>${escapeHtml(vote.name)}</strong>
-            </li>
-          `).join("") : `<li class="empty-member">아직 신청자가 없습니다.</li>`}
+          <li class="empty-member">${count ? `${count}명이 신청했습니다.` : "아직 신청자가 없습니다."}</li>
         </ol>
       </article>
     `;
@@ -235,10 +221,10 @@ async function loadVoteConfig() {
 function subscribeVotes() {
   const martiniFirebase = window.MartiniFirebase;
 
-  if (!martiniFirebase?.subscribeClassVotes) return;
+  if (!martiniFirebase?.subscribeClassVoteState) return;
 
-  martiniFirebase.subscribeClassVotes((votes) => {
-    currentVotes = votes;
+  martiniFirebase.subscribeClassVoteState((state) => {
+    currentVoteState = state;
     renderVoteBoard();
   });
 }
@@ -255,43 +241,13 @@ async function submitVote({ name, studentId, day }) {
 
   const voteRef = db.collection("classVotes").doc(studentId);
   const targetStateRef = db.collection("classVoteState").doc(day);
-  const existingVoteSnapshot = await voteRef.get();
-  const existingVote = existingVoteSnapshot.exists ? existingVoteSnapshot.data() : null;
-
-  if (existingVote?.day === day) {
-    throw new Error("ALREADY_SAME_DAY");
-  }
-
-  if (existingVote?.day && existingVote.day !== day) {
-    const confirmed = window.confirm(
-      `이미 ${existingVote.dayLabel}에 신청했습니다. ${getDayLabel(day)}로 이동할까요?`,
-    );
-
-    if (!confirmed) {
-      throw new Error("MOVE_CANCELLED");
-    }
-  }
 
   await db.runTransaction(async (transaction) => {
-    const latestVoteSnapshot = await transaction.get(voteRef);
     const targetStateSnapshot = await transaction.get(targetStateRef);
-    const latestVote = latestVoteSnapshot.exists ? latestVoteSnapshot.data() : null;
     const targetCount = Number(targetStateSnapshot.data()?.count || 0);
-
-    if (latestVote?.day === day) {
-      throw new Error("ALREADY_SAME_DAY");
-    }
 
     if (!shouldOverrideApplyRules && targetCount >= capacity) {
       throw new Error("DAY_FULL");
-    }
-
-    if (latestVote?.day && latestVote.day !== day) {
-      const oldStateRef = db.collection("classVoteState").doc(latestVote.day);
-      const oldStateSnapshot = await transaction.get(oldStateRef);
-      const oldCount = Number(oldStateSnapshot.data()?.count || 0);
-
-      transaction.set(oldStateRef, { count: Math.max(oldCount - 1, 0) }, { merge: true });
     }
 
     transaction.set(
@@ -306,7 +262,7 @@ async function submitVote({ name, studentId, day }) {
       day,
       dayLabel: getDayLabel(day),
       updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-      createdAt: latestVote?.createdAt || firebase.firestore.FieldValue.serverTimestamp(),
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
     });
   });
 }
@@ -320,12 +276,12 @@ function getSubmitErrorMessage(error) {
     return "이미 같은 요일에 신청했습니다.";
   }
 
-  if (error.message === "MOVE_CANCELLED") {
-    return "요일 이동을 취소했습니다.";
-  }
-
   if (error.message === "DAY_FULL") {
     return "선택한 요일의 정원이 마감되었습니다.";
+  }
+
+  if (error.code === "permission-denied") {
+    return "이미 신청했거나 현재 신청을 처리할 수 없습니다. 요일 변경이 필요하면 관리자에게 문의해주세요.";
   }
 
   return "신청 중 문제가 발생했습니다. 잠시 후 다시 시도해주세요.";
