@@ -1727,6 +1727,10 @@ button {
   grid-template-columns: 1fr;
 }
 
+.public-day-list.is-two-day-layout {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .public-day-indicator {
   position: absolute;
   inset: 0 auto auto 0;
@@ -1833,6 +1837,10 @@ button {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 14px;
+}
+
+.vote-board.is-two-day-layout {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .vote-board-day {

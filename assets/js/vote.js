@@ -96,6 +96,7 @@ function renderDayPicker() {
 
   dayListElement.classList.toggle("is-closed", !applyOpen);
   dayListElement.classList.toggle("is-empty", applyOpen && !enabledDays.length);
+  dayListElement.classList.toggle("is-two-day-layout", applyOpen && enabledDays.length === 2);
 
   if (!applyOpen) {
     dayListElement.innerHTML = `
@@ -159,6 +160,8 @@ function updateDayPickerSelection() {
 function renderVoteBoard() {
   const enabledDays = getEnabledDays();
   const capacity = getCapacity();
+
+  voteBoardElement.classList.toggle("is-two-day-layout", enabledDays.length === 2);
 
   if (!enabledDays.length) {
     voteBoardElement.innerHTML = `<p class="empty-state">관리 페이지에서 신청 요일을 먼저 설정해주세요.</p>`;
