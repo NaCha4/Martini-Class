@@ -88,6 +88,70 @@ function getPrivateClassApplications(classId = selectedPrivateClassId) {
   return privateClassApplications.filter((application) => application.classId === classId);
 }
 
+function formatApplicantExportDate(value) {
+  const date = normalizeConfigDate(value);
+
+  if (!date) return "";
+
+  return new Intl.DateTimeFormat("ko-KR", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(date);
+}
+
+function escapeCsvCell(value) {
+  const text = String(value ?? "");
+  const safeText = /^[=+\-@\t\r]/.test(text) ? `'${text}` : text;
+
+  return `"${safeText.replace(/"/g, '""')}"`;
+}
+
+function getApplicantExportFileName(privateClass) {
+  const title = String(privateClass?.title || "신청자목록")
+    .replace(/[\\/:*?"<>|#%{}^~\[\]`]/g, "-")
+    .slice(0, 80)
+    .trim() || "신청자목록";
+
+  return `${title}_신청자목록.csv`;
+}
+
+function buildApplicantExportCsv(privateClass, applicants) {
+  const eventText = formatApplicantExportDate(privateClass?.eventAt);
+  const rows = [
+    ["번호", "이름", "학번", "신청일시", "게시글 제목", "분류", "행사일시"],
+    ...applicants.map((applicant, index) => [
+      index + 1,
+      applicant.name || "",
+      applicant.studentId || "",
+      formatApplicantExportDate(applicant.createdAt),
+      privateClass?.title || "",
+      privateClass?.category || "",
+      eventText,
+    ]),
+  ];
+
+  return rows.map((row) => row.map(escapeCsvCell).join(",")).join("\r\n");
+}
+
+function downloadApplicantExport(privateClass, applicants) {
+  const csv = buildApplicantExportCsv(privateClass, applicants);
+  const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+
+  link.href = url;
+  link.download = getApplicantExportFileName(privateClass);
+  link.style.display = "none";
+  document.body.append(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 function renderPrivateClassDetail() {
   if (!privateClassDetail || !privateApplicantList) return;
 
@@ -95,7 +159,10 @@ function renderPrivateClassDetail() {
 
   privateClassDetail.classList.toggle("is-hidden", !privateClass || privateClassMode === "write");
 
-  if (!privateClass) return;
+  if (!privateClass) {
+    if (privateApplicantExportButton) privateApplicantExportButton.disabled = true;
+    return;
+  }
 
   const eventDate = normalizeConfigDate(privateClass.eventAt);
   const eventText = eventDate ? formatScheduleDate(eventDate) : "일정 미정";
@@ -107,6 +174,9 @@ function renderPrivateClassDetail() {
 
   privateDetailTitle.textContent = privateClass.title;
   privateDetailMeta.textContent = `${getPrivateClassStatusLabel(status)} · ${privateClass.category} · ${eventText} · 신청 ${applicants.length}명`;
+  if (privateApplicantExportButton) {
+    privateApplicantExportButton.disabled = !applicants.length;
+  }
   privateApplicantList.innerHTML = applicants.length
     ? applicants.map((applicant) => `
       <li class="private-applicant">
@@ -381,6 +451,19 @@ function bindPrivateClassActions() {
 
   privateClassEditButton?.addEventListener("click", () => {
     fillPrivateClassForm(getSelectedPrivateClass());
+  });
+
+  privateApplicantExportButton?.addEventListener("click", () => {
+    const privateClass = getSelectedPrivateClass();
+    const applicants = getPrivateClassApplications(privateClass?.id);
+
+    if (!privateClass || !applicants.length) {
+      setPrivateClassStatus("다운로드할 신청자가 없습니다.");
+      return;
+    }
+
+    downloadApplicantExport(privateClass, applicants);
+    setPrivateClassStatus(`${privateClass.title} 신청자 목록을 엑셀 파일로 다운로드했습니다.`);
   });
 
   privateApplicantList?.addEventListener("click", async (event) => {

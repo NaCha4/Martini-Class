@@ -17,7 +17,7 @@
     <script defer src="./assets/js/admin.js?v=memo-board-20260528"></script>
     <script defer src="./assets/js/admin-dashboard.js?v=memo-board-20260528"></script>
     <script defer src="./assets/js/admin-executive.js?v=memo-board-20260528"></script>
-    <script defer src="./assets/js/admin-private-class.js?v=memo-board-20260528"></script>
+    <script defer src="./assets/js/admin-private-class.js?v=applicant-export-20260601"></script>
     <script defer src="./assets/js/admin-inventory.js?v=memo-board-20260528"></script>
     <script defer src="./assets/js/admin-schedule.js?v=memo-board-20260528"></script>
     <script defer src="./assets/js/admin-minutes.js?v=minutes-attachment-20260530-2"></script>
@@ -394,9 +394,14 @@
                     <h3 data-private-detail-title>게시글 상세</h3>
                     <p data-private-detail-meta>상세보기할 게시글을 선택해주세요.</p>
                   </div>
-                  <button class="auth-button auth-button--ghost" type="button" data-private-class-edit>
-                    내용 수정
-                  </button>
+                  <div class="private-class-detail__actions">
+                    <button class="auth-button auth-button--ghost" type="button" data-private-applicant-export>
+                      엑셀 다운로드
+                    </button>
+                    <button class="auth-button auth-button--ghost" type="button" data-private-class-edit>
+                      내용 수정
+                    </button>
+                  </div>
                 </div>
 
                 <div>

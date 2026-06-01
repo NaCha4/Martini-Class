@@ -1604,6 +1604,13 @@ button {
   gap: 14px;
 }
 
+.private-class-detail__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 .private-class-detail h3,
 .private-class-detail h4 {
   margin: 0;

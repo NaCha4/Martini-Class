@@ -55,6 +55,7 @@ const privateClassDetail = document.querySelector("[data-private-class-detail]")
 const privateDetailTitle = document.querySelector("[data-private-detail-title]");
 const privateDetailMeta = document.querySelector("[data-private-detail-meta]");
 const privateClassEditButton = document.querySelector("[data-private-class-edit]");
+const privateApplicantExportButton = document.querySelector("[data-private-applicant-export]");
 const privateApplicantList = document.querySelector("[data-private-applicant-list]");
 const inventoryForm = document.querySelector("[data-inventory-form]");
 const inventoryList = document.querySelector("[data-inventory-list]");
