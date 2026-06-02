@@ -6,7 +6,7 @@ const MINUTES_LABELS = {
   template: "\uD68C\uC758\uB85D \uC591\uC2DD",
   completed: "\uC791\uC131\uB41C \uD68C\uC758\uB85D",
 };
-const MINUTES_DOWNLOAD_VERSION = "attachment-20260530-2";
+const MINUTES_DOWNLOAD_VERSION = "template-download-20260602";
 
 let meetingMinuteFiles = {};
 
@@ -273,9 +273,8 @@ function bindMeetingMinutesActions() {
 
   document.querySelectorAll("[data-minutes-download]").forEach((link) => {
     link.addEventListener("click", (event) => {
-      event.preventDefault();
-
       if (link.classList.contains("is-disabled")) {
+        event.preventDefault();
         setMinutesStatus("\uB2E4\uC6B4\uB85C\uB4DC\uD560 \uD30C\uC77C\uC774 \uC544\uC9C1 \uC5C5\uB85C\uB4DC\uB418\uC9C0 \uC54A\uC558\uC2B5\uB2C8\uB2E4.");
         return;
       }
