@@ -17,6 +17,38 @@ service cloud.firestore {
         && value.size() <= maxLength;
     }
 
+    function isText(value, maxLength) {
+      return value is string
+        && value.size() <= maxLength;
+    }
+
+    function isCodeHash(value) {
+      return value is string
+        && value.matches("^[a-f0-9]{64}$");
+    }
+
+    function isActiveMemberAccessCode(codeHash) {
+      let codePath = /databases/$(database)/documents/memberAccessCodes/$(codeHash);
+
+      return isCodeHash(codeHash)
+        && exists(codePath)
+        && get(codePath).data.enabled == true
+        && get(codePath).data.expiresAt is timestamp
+        && get(codePath).data.expiresAt > request.time;
+    }
+
+    function hasActiveMemberSession() {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/memberAccessSessions/$(request.auth.uid))
+        && get(/databases/$(database)/documents/memberAccessSessions/$(request.auth.uid)).data.expiresAt is timestamp
+        && get(/databases/$(database)/documents/memberAccessSessions/$(request.auth.uid)).data.expiresAt > request.time
+        && isActiveMemberAccessCode(get(/databases/$(database)/documents/memberAccessSessions/$(request.auth.uid)).data.codeHash);
+    }
+
+    function isAdminOrMember() {
+      return isAdmin() || hasActiveMemberSession();
+    }
+
     function isClassApplyOpen() {
       let config = get(/databases/$(database)/documents/settings/voteConfig).data;
       let isReservedClosed = config.reservedCloseAt is timestamp
@@ -147,25 +179,69 @@ service cloud.firestore {
         && request.resource.data.updatedAt is timestamp;
     }
 
+    function isValidMembershipApplication() {
+      return request.resource.data.keys().hasOnly([
+          "name",
+          "studentId",
+          "department",
+          "contact",
+          "email",
+          "motivation",
+          "note",
+          "privacyAgreed",
+          "status",
+          "createdAt",
+          "updatedAt"
+        ])
+        && isShortText(request.resource.data.name, 40)
+        && isShortText(request.resource.data.studentId, 40)
+        && isShortText(request.resource.data.department, 80)
+        && isShortText(request.resource.data.contact, 40)
+        && isShortText(request.resource.data.email, 120)
+        && isShortText(request.resource.data.motivation, 1200)
+        && isText(request.resource.data.note, 1200)
+        && request.resource.data.privacyAgreed == true
+        && request.resource.data.status == "pending"
+        && request.resource.data.createdAt is timestamp
+        && request.resource.data.updatedAt is timestamp;
+    }
+
+    function isValidMemberAccessSession(sessionId) {
+      return request.auth != null
+        && request.auth.uid == sessionId
+        && request.resource.data.keys().hasOnly([
+          "codeHash",
+          "expiresAt",
+          "createdAt",
+          "updatedAt"
+        ])
+        && isCodeHash(request.resource.data.codeHash)
+        && isActiveMemberAccessCode(request.resource.data.codeHash)
+        && request.resource.data.expiresAt is timestamp
+        && request.resource.data.expiresAt > request.time
+        && request.resource.data.createdAt is timestamp
+        && request.resource.data.updatedAt is timestamp;
+    }
+
     match /votes/{day} {
       allow read: if true;
       allow write: if isAdmin();
     }
 
     match /classVotes/{studentId} {
-      allow read: if true;
+      allow read: if isAdminOrMember();
       allow create: if isAdmin()
-        || (isClassApplyOpen() && isValidClassVote(studentId));
+        || (hasActiveMemberSession() && isClassApplyOpen() && isValidClassVote(studentId));
       allow update: if isAdmin();
       allow delete: if isAdmin();
     }
 
     match /classVoteState/{day} {
-      allow read: if true;
+      allow read: if isAdminOrMember();
       allow create: if isAdmin()
-        || (isClassApplyOpen() && isValidClassVoteStateCreate(day));
+        || (hasActiveMemberSession() && isClassApplyOpen() && isValidClassVoteStateCreate(day));
       allow update: if isAdmin()
-        || (isClassApplyOpen() && isValidClassVoteStateUpdate(day));
+        || (hasActiveMemberSession() && isClassApplyOpen() && isValidClassVoteStateUpdate(day));
       allow delete: if isAdmin();
     }
 
@@ -182,21 +258,48 @@ service cloud.firestore {
     }
 
     match /privateClasses/{classId} {
-      allow read: if true;
+      allow read: if isAdminOrMember();
       allow create, delete: if isAdmin();
       allow update: if isAdmin()
-        || isValidPrivateClassApplyCountUpdate(classId);
+        || (hasActiveMemberSession() && isValidPrivateClassApplyCountUpdate(classId));
     }
 
     match /privateClassApplications/{applicationId} {
       allow read: if isAdmin();
-      allow create: if isValidPrivateClassApplication(applicationId);
+      allow create: if hasActiveMemberSession()
+        && isValidPrivateClassApplication(applicationId);
       allow update, delete: if isAdmin();
     }
 
     match /settings/voteConfig {
-      allow read: if true;
+      allow read: if isAdminOrMember();
       allow write: if isAdmin();
+    }
+
+    match /membershipApplications/{applicationId} {
+      allow create: if isValidMembershipApplication();
+      allow read, update, delete: if isAdmin();
+    }
+
+    match /members/{memberId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /memberAccessCodes/{codeHash} {
+      allow get: if isAdmin() || (
+        isCodeHash(codeHash)
+        && resource.data.enabled == true
+        && resource.data.expiresAt is timestamp
+        && resource.data.expiresAt > request.time
+      );
+      allow list, create, update, delete: if isAdmin();
+    }
+
+    match /memberAccessSessions/{sessionId} {
+      allow get: if isAdmin() || (request.auth != null && request.auth.uid == sessionId);
+      allow list: if isAdmin();
+      allow create, update: if isValidMemberAccessSession(sessionId);
+      allow delete: if isAdmin() || (request.auth != null && request.auth.uid == sessionId);
     }
 
     match /settings/{document} {
