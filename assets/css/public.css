@@ -1984,18 +1984,21 @@ body.member-page::after {
 
 [data-admin-panel="executives"] .admin-page-title {
   align-items: flex-start;
+  flex-wrap: wrap;
 }
 
 [data-admin-panel="executives"] .admin-page-title > div:first-child {
-  flex: 0 0 auto;
+  flex: 1 1 420px;
+  min-width: 0;
 }
 
 [data-admin-panel="executives"] .admin-page-title h1 {
-  white-space: nowrap;
+  max-width: 100%;
+  white-space: normal;
 }
 
 [data-admin-panel="executives"] .admin-page-actions {
-  flex: 1 1 auto;
+  flex: 0 1 330px;
   justify-content: flex-end;
   min-width: 0;
   margin-right: 0;
@@ -2003,6 +2006,7 @@ body.member-page::after {
 
 [data-admin-panel="executives"] {
   gap: 18px;
+  overflow-x: hidden;
 }
 
 [data-admin-panel="classes"] {
@@ -2037,7 +2041,9 @@ body.member-page::after {
 }
 
 [data-admin-panel="executives"] .admin-department-quick-form {
-  grid-template-columns: minmax(120px, 180px) auto;
+  flex: 1 1 220px;
+  max-width: 260px;
+  grid-template-columns: minmax(0, 1fr) auto;
   margin-right: 0;
 }
 
