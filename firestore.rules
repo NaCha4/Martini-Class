@@ -32,9 +32,7 @@ service cloud.firestore {
 
       return isCodeHash(codeHash)
         && exists(codePath)
-        && get(codePath).data.enabled == true
-        && get(codePath).data.expiresAt is timestamp
-        && get(codePath).data.expiresAt > request.time;
+        && get(codePath).data.enabled == true;
     }
 
     function hasActiveMemberSession() {
@@ -254,7 +252,8 @@ service cloud.firestore {
     }
 
     match /classSchedules/{scheduleId} {
-      allow read, write: if isAdmin();
+      allow read: if isAdminOrMember();
+      allow write: if isAdminOrMember();
     }
 
     match /privateClasses/{classId} {
@@ -282,15 +281,41 @@ service cloud.firestore {
     }
 
     match /members/{memberId} {
+      allow read: if isAdminOrMember();
+      allow write: if isAdmin();
+    }
+
+    match /officerDepartments/{departmentId} {
       allow read, write: if isAdmin();
+    }
+
+    match /meetingMinuteTemplates/{templateId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /meetingMinutes/{minuteId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /eventPosts/{eventId} {
+      allow read: if isAdminOrMember();
+      allow write: if isAdminOrMember();
+    }
+
+    match /historyEntries/{entryId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /faqEntries/{faqId} {
+      allow read: if true;
+      allow write: if isAdmin();
     }
 
     match /memberAccessCodes/{codeHash} {
       allow get: if isAdmin() || (
         isCodeHash(codeHash)
         && resource.data.enabled == true
-        && resource.data.expiresAt is timestamp
-        && resource.data.expiresAt > request.time
       );
       allow list, create, update, delete: if isAdmin();
     }

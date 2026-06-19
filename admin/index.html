@@ -1,0 +1,455 @@
+﻿<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Martini Admin</title>
+    <link rel="icon" type="image/png" href="../assets/images/Logo.png" />
+    <link rel="apple-touch-icon" href="../assets/images/Logo.png" />
+    <link rel="stylesheet" href="../assets/css/public.css?v=mobile-topbar-20260620" />
+    <script src="../assets/js/firebase-config.js?v=firebase-config-20260619"></script>
+  </head>
+  <body class="admin-page">
+    <header class="admin-header" aria-label="Martini admin navigation">
+      <a class="admin-header__brand" href="../index.html" aria-label="Martini home">
+        <img src="../assets/images/Name.png" alt="Martini" />
+      </a>
+    </header>
+
+    <main class="admin-shell">
+      <section class="admin-workspace" aria-label="관리 메뉴">
+        <aside class="admin-sidebar" aria-label="관리 항목">
+          <button class="admin-menu-button is-active" type="button" data-admin-menu="executives" aria-pressed="true">임원 관리</button>
+          <button class="admin-menu-button" type="button" data-admin-menu="members" aria-pressed="false">부원 관리</button>
+          <button class="admin-menu-button" type="button" data-admin-menu="classes" aria-pressed="false">정기 교육</button>
+          <button class="admin-menu-button" type="button" data-admin-menu="events" aria-pressed="false">이벤트</button>
+          <button class="admin-menu-button" type="button" data-admin-menu="inventory" aria-pressed="false">재고 관리</button>
+          <button class="admin-menu-button" type="button" data-admin-menu="curriculum" aria-pressed="false">커리큘럼</button>
+          <button class="admin-menu-button" type="button" data-admin-menu="minutes" aria-pressed="false">회의록</button>
+          <button class="admin-menu-button" type="button" data-admin-menu="settings" aria-pressed="false">로그인 코드</button>
+          <button class="admin-menu-button" type="button" data-admin-menu="history" aria-pressed="false">연혁 관리</button>
+          <button class="admin-menu-button" type="button" data-admin-menu="faq" aria-pressed="false">자주 묻는 질문</button>
+        </aside>
+
+        <section class="admin-content" aria-live="polite">
+          <article class="admin-section-panel is-active" data-admin-panel="executives">
+            <header class="admin-page-title">
+              <div>
+                <span>Executives</span>
+                <h1>Officer Management</h1>
+              </div>
+              <div class="admin-page-actions">
+                <form class="admin-department-quick-form admin-executive-edit-control" data-department-form>
+                  <input type="text" name="departmentName" placeholder="부서 이름" aria-label="부서 이름" required />
+                  <button type="submit">Add</button>
+                </form>
+                <button class="admin-manage-button" type="button" data-executives-edit aria-pressed="false">수정</button>
+              </div>
+            </header>
+            <p class="admin-status" data-executives-status aria-live="polite"></p>
+            <div class="admin-management-board" data-executives-app>
+              <section class="admin-list-card">
+                <div class="admin-card-title">
+                  <span>Placement</span>
+                  <h2>임원 배치</h2>
+                </div>
+                <div class="admin-department-list" data-department-list></div>
+              </section>
+            </div>
+          </article>
+          <article class="admin-section-panel" data-admin-panel="members" hidden>
+            <header class="admin-page-title">
+              <div>
+                <span>Members</span>
+                <h1>Member Management</h1>
+              </div>
+              <div class="admin-page-actions">
+                <button class="admin-manage-button" type="button" data-members-export>Excel Export</button>
+                <button class="admin-manage-button" type="button" data-members-edit aria-pressed="false">Edit</button>
+                <button class="admin-manage-button" type="button" data-members-delete aria-pressed="false">Delete</button>
+              </div>
+            </header>
+            <p class="admin-status" data-members-status aria-live="polite"></p>
+            <div class="admin-management-board" data-members-app>
+              <section class="admin-upload-card">
+                <div class="admin-card-title">
+                  <span>Profile</span>
+                  <h2>부원 정보</h2>
+                </div>
+                <form class="admin-upload-form" data-member-form>
+                  <input type="hidden" name="memberId" />
+                  <label>
+                    <span>이름</span>
+                    <input type="text" name="name" placeholder="예: 김마티니" required />
+                  </label>
+                  <label>
+                    <span>학번</span>
+                    <input type="text" name="studentId" placeholder="예: 2026000000" required />
+                  </label>
+                  <label>
+                    <span>학과</span>
+                    <input type="text" name="department" placeholder="예: 소프트웨어학부" required />
+                  </label>
+                  <label>
+                    <span>재학상태</span>
+                    <select name="enrollmentStatus" required>
+                      <option value="">선택</option>
+                      <option value="재학">재학</option>
+                      <option value="휴학">휴학</option>
+                    </select>
+                  </label>
+                  <div class="admin-form-actions">
+                    <button type="button" data-member-cancel hidden>Cancel</button>
+                    <button type="submit" data-member-submit>Upload</button>
+                  </div>
+                </form>
+              </section>
+
+              <section class="admin-list-card">
+                <div class="admin-card-title admin-card-title--inline">
+                  <div>
+                    <span>List</span>
+                    <h2>부원 목록</h2>
+                  </div>
+                  <label class="admin-member-sort">
+                    <span>Sort</span>
+                    <select data-members-sort>
+                      <option value="name">가나다</option>
+                      <option value="studentId">학번</option>
+                      <option value="department">학과</option>
+                      <option value="status">상태</option>
+                    </select>
+                  </label>
+                </div>
+                <div class="admin-member-table" data-members-list></div>
+              </section>
+            </div>
+          </article>
+          <article class="admin-section-panel" data-admin-panel="classes" hidden>
+            <header class="admin-page-title">
+              <div>
+                <span>Classes</span>
+                <h1>Regular Class</h1>
+              </div>
+              <div class="admin-page-actions">
+                <button class="admin-manage-button" type="button" data-classes-edit aria-pressed="false">수정</button>
+                <button class="admin-manage-button" type="button" data-classes-reset>전체 초기화</button>
+              </div>
+            </header>
+            <div class="admin-class-controls">
+              <button class="admin-class-application-toggle" type="button" data-classes-app-toggle aria-pressed="false">
+                <strong>신청 닫힘</strong>
+                <span>신청을 받지 않습니다.</span>
+              </button>
+              <label class="admin-class-global-capacity">
+                <span>Max</span>
+                <input type="number" min="0" step="1" value="10" data-classes-capacity aria-label="정기 교육 최대 인원" />
+              </label>
+            </div>
+            <div class="admin-class-schedule-head">
+              <span class="admin-class-schedule-label">신청 예약</span>
+              <button class="admin-manage-button" type="button" data-classes-clear-reservation>예약 해제</button>
+            </div>
+            <div class="admin-class-schedule-row">
+              <label class="admin-class-schedule-time">
+                <span>Open</span>
+                <input type="datetime-local" data-classes-open-at aria-label="예약 오픈 시간" />
+              </label>
+              <label class="admin-class-schedule-time">
+                <span>Close</span>
+                <input type="datetime-local" data-classes-close-at aria-label="예약 마감 시간" />
+              </label>
+            </div>
+            <p class="admin-status" data-classes-status aria-live="polite"></p>
+            <div class="admin-class-board" data-classes-app></div>
+          </article>
+          <article class="admin-section-panel" data-admin-panel="events" hidden>
+            <header class="admin-page-title">
+              <div>
+                <span>Events</span>
+                <h1>Event Management</h1>
+              </div>
+              <div class="admin-page-actions">
+                <button class="admin-manage-button" type="button" data-events-write>글쓰기</button>
+              </div>
+            </header>
+            <p class="admin-status" data-events-status aria-live="polite"></p>
+            <div class="admin-event-board" data-events-app>
+              <section class="admin-event-list-view" data-events-view="list">
+                <div class="admin-event-list" data-events-list></div>
+              </section>
+
+              <section class="admin-event-editor" data-events-view="editor" hidden>
+                <form class="admin-event-form" data-event-form>
+                  <input type="hidden" name="eventId" />
+                  <div class="admin-upload-field">
+                    <span>썸네일</span>
+                    <input class="admin-file-input" id="event-thumbnail-file" type="file" name="thumbnailFile" accept="image/*" />
+                    <label class="admin-file-picker" for="event-thumbnail-file">
+                      <span>Choose File</span>
+                      <strong data-event-thumbnail-name>선택된 파일 없음</strong>
+                    </label>
+                  </div>
+                  <label>
+                    <span>제목</span>
+                    <input type="text" name="title" required />
+                  </label>
+                  <label>
+                    <span>분류</span>
+                    <input type="text" name="category" placeholder="예: MT, 개강총회, 클래스" required />
+                  </label>
+                  <label>
+                    <span>참여비</span>
+                    <input type="text" name="fee" placeholder="예: 10,000원" />
+                  </label>
+                  <label>
+                    <span>진행 일시</span>
+                    <input type="datetime-local" name="eventAt" required />
+                  </label>
+                  <label>
+                    <span>모집 시작</span>
+                    <input type="datetime-local" name="recruitOpenAt" required />
+                  </label>
+                  <label>
+                    <span>모집 마감</span>
+                    <input type="datetime-local" name="recruitCloseAt" required />
+                  </label>
+                  <label>
+                    <span>모집 인원</span>
+                    <input type="number" name="capacity" min="0" step="1" required />
+                  </label>
+                  <label class="admin-event-form__wide">
+                    <span>상세 설명</span>
+                    <textarea name="description" rows="8" required></textarea>
+                  </label>
+                  <div class="admin-form-actions admin-event-form__wide">
+                    <button type="button" data-events-cancel>Cancel</button>
+                    <button type="submit" data-events-submit>Upload</button>
+                  </div>
+                </form>
+              </section>
+            </div>
+          </article>
+          <article class="admin-section-panel" data-admin-panel="inventory" hidden>
+            <header class="admin-page-title">
+              <span>Inventory</span>
+              <h1>Inventory Management</h1>
+            </header>
+            <div class="admin-toolbar">
+              <button type="button" disabled>Add Item</button>
+              <button type="button" disabled>Update Stock</button>
+            </div>
+            <div class="admin-data-grid">
+              <div>Item</div>
+              <div>Category</div>
+              <div>Stock</div>
+              <div>Status</div>
+              <div>-</div>
+              <div>-</div>
+              <div>-</div>
+              <div>Empty</div>
+              <div>-</div>
+              <div>-</div>
+              <div>-</div>
+              <div>Empty</div>
+            </div>
+          </article>
+          <article class="admin-section-panel" data-admin-panel="curriculum" hidden>
+            <header class="admin-page-title">
+              <span>Curriculum</span>
+              <h1>Curriculum</h1>
+            </header>
+            <div class="admin-toolbar">
+              <button type="button" disabled>Add Lesson</button>
+              <button type="button" disabled>Reorder</button>
+            </div>
+            <div class="admin-data-grid">
+              <div>Lesson</div>
+              <div>Topic</div>
+              <div>Material</div>
+              <div>Status</div>
+              <div>01</div>
+              <div>-</div>
+              <div>-</div>
+              <div>Draft</div>
+              <div>02</div>
+              <div>-</div>
+              <div>-</div>
+              <div>Draft</div>
+            </div>
+          </article>
+          <article class="admin-section-panel" data-admin-panel="minutes" hidden>
+            <header class="admin-page-title">
+              <div>
+                <span>Minutes</span>
+                <h1>Meeting Minutes</h1>
+              </div>
+              <button class="admin-manage-button" type="button" data-minutes-manage aria-pressed="false">관리</button>
+            </header>
+            <p class="admin-status" data-minutes-status aria-live="polite"></p>
+            <div class="admin-minutes-board" data-minutes-app>
+              <section class="admin-upload-card">
+                <div class="admin-card-title">
+                  <span>Template</span>
+                  <h2>양식</h2>
+                </div>
+                <form class="admin-upload-form" data-minutes-form="template">
+                  <label>
+                    <span>양식 이름</span>
+                    <input type="text" name="title" placeholder="예: 정기 회의록 양식" required />
+                  </label>
+                  <div class="admin-upload-field">
+                    <span>파일</span>
+                    <input class="admin-file-input" id="template-file" type="file" name="file" accept=".pdf,.doc,.docx,.hwp,.hwpx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" required />
+                    <label class="admin-file-picker" for="template-file">
+                      <span>Choose File</span>
+                      <strong data-file-name>선택된 파일 없음</strong>
+                    </label>
+                  </div>
+                  <button type="submit">Upload</button>
+                </form>
+                <div class="admin-file-list" data-minutes-list="template"></div>
+              </section>
+
+              <section class="admin-upload-card">
+                <div class="admin-card-title">
+                  <span>Completed</span>
+                  <h2>회의록</h2>
+                </div>
+                <form class="admin-upload-form" data-minutes-form="completed">
+                  <label>
+                    <span>회의 제목</span>
+                    <input type="text" name="title" placeholder="예: 2026년 1학기 운영 회의" required />
+                  </label>
+                  <div class="admin-upload-field">
+                    <span>파일</span>
+                    <input class="admin-file-input" id="minutes-file" type="file" name="file" accept=".pdf,.doc,.docx,.hwp,.hwpx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" required />
+                    <label class="admin-file-picker" for="minutes-file">
+                      <span>Choose File</span>
+                      <strong data-file-name>선택된 파일 없음</strong>
+                    </label>
+                  </div>
+                  <button type="submit">Upload</button>
+                </form>
+                <div class="admin-file-list" data-minutes-list="completed"></div>
+              </section>
+            </div>
+          </article>
+          <article class="admin-section-panel" data-admin-panel="settings" hidden>
+            <header class="admin-page-title">
+              <div>
+                <span>Login Code</span>
+                <h1>Login Code</h1>
+              </div>
+            </header>
+            <p class="admin-status" data-settings-status aria-live="polite"></p>
+            <div class="admin-management-board" data-settings-app>
+              <section class="admin-upload-card">
+                <div class="admin-card-title">
+                  <span>Member Login</span>
+                  <h2>부원 로그인 코드</h2>
+                </div>
+                <form class="admin-upload-form admin-settings-form" data-member-code-form>
+                  <label>
+                    <span>코드</span>
+                    <input type="text" name="accessCode" autocomplete="off" autocapitalize="none" spellcheck="false" required />
+                  </label>
+                  <button type="submit">활성화</button>
+                  <p class="admin-current-code" data-current-member-code></p>
+                </form>
+              </section>
+            </div>
+          </article>
+          <article class="admin-section-panel" data-admin-panel="history" hidden>
+            <header class="admin-page-title">
+              <div>
+                <span>History</span>
+                <h1>History Management</h1>
+              </div>
+            </header>
+            <p class="admin-status" data-history-status aria-live="polite"></p>
+            <div class="admin-management-board" data-history-app>
+              <section class="admin-upload-card">
+                <div class="admin-card-title">
+                  <span>Entry</span>
+                  <h2>연혁 추가</h2>
+                </div>
+                <form class="admin-upload-form admin-history-form" data-history-form>
+                  <label>
+                    <span>연도</span>
+                    <input type="text" name="year" placeholder="예: 2026" required />
+                  </label>
+                  <label>
+                    <span>제목</span>
+                    <input type="text" name="title" required />
+                  </label>
+                  <label class="admin-history-form__wide">
+                    <span>내용</span>
+                    <textarea name="description" rows="4" required></textarea>
+                  </label>
+                  <button type="submit">Upload</button>
+                </form>
+              </section>
+
+              <section class="admin-list-card">
+                <div class="admin-card-title">
+                  <span>Timeline</span>
+                  <h2>연혁 목록</h2>
+                </div>
+                <div class="admin-history-list" data-history-list></div>
+              </section>
+            </div>
+          </article>
+          <article class="admin-section-panel" data-admin-panel="faq" hidden>
+            <header class="admin-page-title">
+              <div>
+                <span>FAQ</span>
+                <h1>FAQ Management</h1>
+              </div>
+            </header>
+            <p class="admin-status" data-faq-status aria-live="polite"></p>
+            <div class="admin-management-board" data-faq-app>
+              <section class="admin-upload-card">
+                <div class="admin-card-title">
+                  <span>Question</span>
+                  <h2>자주 묻는 질문 추가</h2>
+                </div>
+                <form class="admin-upload-form admin-history-form" data-faq-form>
+                  <label>
+                    <span>제목</span>
+                    <input type="text" name="title" required />
+                  </label>
+                  <label class="admin-history-form__wide">
+                    <span>내용</span>
+                    <textarea name="description" rows="4" required></textarea>
+                  </label>
+                  <button type="submit">Upload</button>
+                </form>
+              </section>
+
+              <section class="admin-list-card">
+                <div class="admin-card-title">
+                  <span>List</span>
+                  <h2>자주 묻는 질문 목록</h2>
+                </div>
+                <div class="admin-history-list" data-faq-list></div>
+              </section>
+            </div>
+          </article>
+        </section>
+      </section>
+    </main>
+
+    <script src="../assets/js/admin/admin-shell.js"></script>
+    <script type="module" src="../assets/js/admin/executive-management.js"></script>
+    <script type="module" src="../assets/js/admin/member-management.js"></script>
+    <script type="module" src="../assets/js/admin/class-management.js"></script>
+    <script type="module" src="../assets/js/admin/event-management.js"></script>
+    <script type="module" src="../assets/js/admin/meeting-minutes.js"></script>
+    <script type="module" src="../assets/js/admin/settings-management.js"></script>
+    <script type="module" src="../assets/js/admin/history-management.js"></script>
+    <script type="module" src="../assets/js/admin/faq-management.js"></script>
+  </body>
+</html>
+
+

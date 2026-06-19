@@ -1,0 +1,54 @@
+﻿<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Member | Martini</title>
+    <link rel="icon" type="image/png" href="../assets/images/Logo.png" />
+    <link rel="apple-touch-icon" href="../assets/images/Logo.png" />
+    <link rel="stylesheet" href="../assets/css/public.css?v=mobile-topbar-20260620" />
+    <script src="../assets/js/firebase-config.js?v=firebase-config-20260619"></script>
+  </head>
+  <body class="member-page">
+    <header class="member-header" aria-label="Martini member navigation">
+      <a class="member-header__brand" href="../index.html" aria-label="Martini home">
+        <img src="../assets/images/Name.png" alt="Martini" />
+      </a>
+    </header>
+
+    <main class="member-main">
+      <div class="member-dashboard" data-member-app>
+        <section class="member-card">
+          <div class="member-card__title">
+            <span>Regular Class</span>
+            <h2>정기 클래스 신청</h2>
+          </div>
+          <div class="member-class-list" data-member-class-list></div>
+          <form class="member-apply-form" data-member-class-form>
+            <label>
+              <span>이름</span>
+              <input type="text" name="name" required />
+            </label>
+            <label>
+              <span>학번</span>
+              <input type="text" name="studentId" inputmode="numeric" required />
+            </label>
+            <input type="hidden" name="dayId" data-member-selected-day required />
+            <button type="submit">신청</button>
+          </form>
+          <p class="member-class-state" data-member-class-state></p>
+        </section>
+
+        <section class="member-card">
+          <div class="member-card__title">
+            <span>Events</span>
+            <h2>이벤트 신청</h2>
+          </div>
+          <div class="member-event-list" data-member-event-list></div>
+        </section>
+      </div>
+    </main>
+    <script type="module" src="../assets/js/member/member-page.js"></script>
+  </body>
+</html>
+

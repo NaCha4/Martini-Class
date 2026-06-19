@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ko">
   <head>
     <meta charset="UTF-8" />
@@ -6,8 +6,9 @@
     <title>Martini</title>
     <link rel="icon" type="image/png" href="./assets/images/Logo.png" />
     <link rel="apple-touch-icon" href="./assets/images/Logo.png" />
-    <link rel="stylesheet" href="./assets/css/public.css?v=homepage-rebuild-20260617" />
-    <script defer src="./assets/js/public/topbar.js?v=shared-topbar-20260617"></script>
+    <link rel="stylesheet" href="./assets/css/public.css?v=mobile-topbar-20260620" />
+    <script src="./assets/js/firebase-config.js?v=firebase-config-20260619"></script>
+    <script defer src="./assets/js/public/topbar.js?v=mobile-topbar-20260620" data-root="./"></script>
     <script defer src="./assets/js/public/login-modal.js?v=login-modal-20260617"></script>
   </head>
   <body>
@@ -34,25 +35,24 @@
         <div class="section-heading">
           <h2 id="intro-title">잔 안에서 배우는 취향과 사람</h2>
           <p>
-            Martini는 칵테일을 매개로 레시피, 재료, 도구, 서비스 문화를 함께 익히는
-            한양대학교 ERICA 중앙동아리입니다.
+            Martini는 칵테일을 통해 재료, 도구, 레시피, 서비스 문화를 함께 배우고 나누는 한양대학교 ERICA 중앙동아리입니다.
           </p>
         </div>
-        <div class="feature-grid">
+        <div class="feature-grid feature-grid--about">
           <article class="feature-card">
             <span>01</span>
-            <h3>기초부터 차근히</h3>
-            <p>셰이킹, 스터링, 빌드처럼 기본이 되는 조주 방식을 부담 없이 익힙니다.</p>
+            <h3>기초부터 차근차근</h3>
+            <p>쉐이킹, 스터링, 빌드처럼 칵테일의 기본이 되는 조주 방식을 부담 없이 익힙니다.</p>
           </article>
           <article class="feature-card">
             <span>02</span>
-            <h3>함께 만드는 분위기</h3>
-            <p>혼자 외우는 수업보다 직접 만들고 맛보며 자연스럽게 이야기를 나눕니다.</p>
+            <h3>함께 만들어가는 분위기</h3>
+            <p>혼자 배우는 수업이 아니라, 직접 만들고 맛보며 자연스럽게 이야기를 나누는 시간을 만듭니다.</p>
           </article>
           <article class="feature-card">
             <span>03</span>
-            <h3>기록으로 남기는 경험</h3>
-            <p>클래스와 이벤트에서 만든 칵테일을 사진과 노트로 남겨 다음 활동으로 이어갑니다.</p>
+            <h3>취향을 넓히는 경험</h3>
+            <p>클래스와 행사를 통해 다양한 칵테일을 접하고, 각자의 취향을 조금씩 발견해갑니다.</p>
           </article>
         </div>
       </section>
@@ -60,24 +60,23 @@
       <section class="home-section home-section--split" id="regular-class" aria-labelledby="class-title">
         <div class="section-heading">
           <p class="section-kicker">Classes</p>
-          <h2 id="class-title">정기 클래스와 개인 클래스</h2>
+          <h2 id="class-title">클래스 활동</h2>
           <p>
-            정기 클래스는 기본기를 다지고, 개인 클래스는 임원이 준비한 특별한 주제로 더 자유로운
-            칵테일 경험을 만듭니다.
+            정기 클래스에서는 칵테일의 기본기를 함께 익히고, 개인 클래스에서는 임원이 준비한 주제로 더 자유롭고 다양한 경험을 나눕니다.
           </p>
         </div>
-        <div class="timeline-list">
+        <div class="timeline-list timeline-list--classes">
           <article>
             <strong>정기 클래스</strong>
-            <p>매주 칵테일의 기초와 대표 레시피를 배우는 교육 활동입니다.</p>
+            <p>매주 칵테일의 기초와 대표 레시피를 배우는 마티니의 기본 활동입니다.</p>
           </article>
           <article id="event-class">
             <strong>개인 클래스</strong>
-            <p>임원이 특별한 주제를 정해 비정기적으로 진행하는 소규모 클래스입니다.</p>
+            <p>임원이 직접 정한 주제로 비정기적으로 진행하는 소규모 클래스입니다.</p>
           </article>
           <article>
-            <strong>행사</strong>
-            <p>MT, 개강총회, 종강총회처럼 부원들이 함께 교류하는 활동을 이어갑니다.</p>
+            <strong>공식 행사</strong>
+            <p>MT, 개강총회, 종강총회처럼 부원들이 함께 모여 교류하는 공식 활동입니다.</p>
           </article>
         </div>
       </section>
@@ -87,21 +86,21 @@
         <div class="section-heading">
           <h2 id="guide-title">가볍게 시작하고, 꾸준히 함께합니다</h2>
           <p>
-            처음 칵테일을 접하는 사람도 자연스럽게 따라올 수 있도록 실습과 교류 중심으로 활동합니다.
+            처음 칵테일을 접하는 사람도 자연스럽게 참여할 수 있도록 실습과 교류 중심으로 활동합니다.
           </p>
         </div>
-        <div class="feature-grid">
+        <div class="feature-grid feature-grid--meet">
           <article id="cocktail">
             <h3>준비된 재료와 도구</h3>
-            <p>기본 도구와 주요 재료를 함께 다루며, 한 잔이 만들어지는 흐름을 익힙니다.</p>
+            <p>기본 도구와 주요 재료를 함께 다루며, 한 잔이 만들어지는 과정을 직접 경험합니다.</p>
           </article>
           <article id="gallery">
             <h3>부담 없는 참여</h3>
-            <p>전문 지식보다 호기심을 우선합니다. 처음이어도 편하게 참여할 수 있습니다.</p>
+            <p>전문 지식보다 호기심을 먼저 봅니다. 처음이어도 편하게 배우고 참여할 수 있습니다.</p>
           </article>
           <article>
-            <h3>함께 나누는 피드백</h3>
-            <p>맛과 향, 균형에 대한 감상을 나누며 각자의 취향을 조금씩 발견합니다.</p>
+            <h3>함께 나누는 감상</h3>
+            <p>맛과 향, 분위기에 대한 감상을 나누며 각자의 취향을 조금씩 발견합니다.</p>
           </article>
         </div>
       </section>
@@ -115,28 +114,30 @@
           <article class="login-panel">
             <p class="intro__eyebrow">Member Code</p>
             <h3>부원 로그인</h3>
-            <form class="auth-form">
+            <form class="auth-form" data-member-login-form action="./member/index.html">
               <label class="auth-field">
                 <span>입장 코드</span>
-                <input type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*" />
+                <input type="text" name="accessCode" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*" required />
               </label>
               <div class="auth-field login-form-spacer" aria-hidden="true"></div>
-              <button class="auth-button auth-button--primary" type="button">로그인</button>
+              <p class="auth-status" data-member-login-status aria-live="polite"></p>
+              <button class="auth-button auth-button--primary" type="submit">로그인</button>
             </form>
           </article>
           <article class="login-panel">
             <p class="intro__eyebrow">Officer Login</p>
             <h3>임원 로그인</h3>
-            <form class="auth-form">
+            <form class="auth-form" data-admin-login-form action="./admin/index.html">
               <label class="auth-field">
                 <span>이메일</span>
-                <input type="email" autocomplete="email" />
+                <input type="email" autocomplete="email" required />
               </label>
               <label class="auth-field">
                 <span>비밀번호</span>
-                <input type="password" autocomplete="current-password" />
+                <input type="password" autocomplete="current-password" required />
               </label>
-              <button class="auth-button auth-button--primary" type="button">로그인</button>
+              <p class="auth-status" data-admin-login-status aria-live="polite"></p>
+              <button class="auth-button auth-button--primary" type="submit">로그인</button>
             </form>
           </article>
         </div>
@@ -158,7 +159,7 @@
         </a>
         <p>&copy; 2026 Martini. Central Club of Hanyang University ERICA.</p>
         <p class="footer__links">
-          <a href="./privacy.html">Privacy Policy</a>
+          <a href="./legal/privacy.html">Privacy Policy</a>
           <span>|</span>
           <span>All Rights Reserved.</span>
         </p>

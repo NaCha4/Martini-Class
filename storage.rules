@@ -14,13 +14,25 @@ service firebase.storage {
         && request.resource.contentType.matches('image/.*');
     }
 
+    match /event-thumbnails/{eventId}/{fileName} {
+      allow read: if true;
+      allow delete: if isAdmin();
+      allow write: if isAdmin()
+        && request.resource.size < 5 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+    }
+
     match /meeting-minutes/{fileType}/{fileName} {
       allow read, delete: if isAdmin()
         && fileType in ['template', 'completed'];
       allow write: if isAdmin()
         && fileType in ['template', 'completed']
         && request.resource.size < 20 * 1024 * 1024
-        && request.resource.contentType.matches('application/(pdf|msword|vnd.openxmlformats-officedocument.wordprocessingml.document|x-hwp|haansofthwp|vnd.hancom.hwp|octet-stream)');
+        && (
+          request.resource.contentType.matches('application/(pdf|msword|vnd.openxmlformats-officedocument.wordprocessingml.document|x-hwp|haansofthwp|vnd.hancom.hwp|vnd.hancom.hwpx|octet-stream)')
+          || request.resource.contentType.matches('application/.*word.*')
+          || request.resource.contentType.matches('application/.*hwp.*')
+        );
     }
   }
 }
