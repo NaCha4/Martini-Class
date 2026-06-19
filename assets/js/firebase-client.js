@@ -1,5 +1,6 @@
 import { getApp, getApps, initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
 import {
+  ReCaptchaEnterpriseProvider,
   ReCaptchaV3Provider,
   getToken,
   initializeAppCheck,
@@ -11,10 +12,19 @@ import { getStorage } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-
 const ADMIN_EMAIL = "admin@martini.com";
 const MEMBER_ACCESS_CODE_COLLECTION = "memberAccessCodes";
 const MEMBER_ACCESS_SESSION_COLLECTION = "memberAccessSessions";
+const FIREBASE_CONFIG_REQUIRED_MESSAGE = "Firebase Web config is required. Fill apiKey and appId in assets/js/firebase-config.js.";
+const INVALID_CREDENTIAL_MESSAGE = "\uC774\uBA54\uC77C \uB610\uB294 \uBE44\uBC00\uBC88\uD638\uAC00 \uC62C\uBC14\uB974\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.";
+const EMAIL_AUTH_DISABLED_MESSAGE = "Firebase Authentication\uC5D0\uC11C \uC774\uBA54\uC77C/\uBE44\uBC00\uBC88\uD638 \uB85C\uADF8\uC778\uC744 \uD65C\uC131\uD654\uD574\uC57C \uD569\uB2C8\uB2E4.";
+const TOO_MANY_REQUESTS_MESSAGE = "\uB85C\uADF8\uC778 \uC2DC\uB3C4\uAC00 \uB108\uBB34 \uB9CE\uC2B5\uB2C8\uB2E4. \uC7A0\uC2DC \uD6C4 \uB2E4\uC2DC \uC2DC\uB3C4\uD574\uC8FC\uC138\uC694.";
+const LOGIN_FAILED_MESSAGE = "\uB85C\uADF8\uC778\uC5D0 \uC2E4\uD328\uD588\uC2B5\uB2C8\uB2E4.";
+const ADMIN_ONLY_MESSAGE = "\uAD00\uB9AC\uC790 \uACC4\uC815\uB9CC \uC811\uADFC\uD560 \uC218 \uC788\uC2B5\uB2C8\uB2E4.";
+const ACCESS_CODE_REQUIRED_MESSAGE = "\uC785\uC7A5 \uCF54\uB4DC\uB97C \uC785\uB825\uD574\uC8FC\uC138\uC694.";
+const INVALID_ACCESS_CODE_MESSAGE = "\uC785\uC7A5 \uCF54\uB4DC\uAC00 \uC62C\uBC14\uB974\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.";
+const ANONYMOUS_AUTH_DISABLED_MESSAGE = "\uBD80\uC6D0 \uB85C\uADF8\uC778\uC744 \uC704\uD574 Firebase Authentication\uC758 \uC775\uBA85 \uB85C\uADF8\uC778\uC744 \uD65C\uC131\uD654\uD574\uC8FC\uC138\uC694.";
+const APPCHECK_SETUP_MESSAGE = "App Check \uD1A0\uD070\uC744 \uBC1B\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4. Firebase Console\uC758 App Check \uC81C\uACF5\uC790, reCAPTCHA \uC0AC\uC774\uD2B8 \uD0A4, \uD5C8\uC6A9 \uB3C4\uBA54\uC778\uC744 \uD655\uC778\uD574\uC8FC\uC138\uC694.";
 
 let servicesPromise;
 let appCheckInstance;
-
 
 async function loadFirebaseConfig() {
   const explicitConfig = window.MARTINI_FIREBASE_CONFIG;
@@ -33,7 +43,7 @@ async function loadFirebaseConfig() {
     // Firebase Hosting auto config is optional; non-Firebase hosting uses firebase-config.js.
   }
 
-  throw new Error("Firebase Web config가 필요합니다. assets/js/firebase-config.js의 apiKey, appId 값을 채워주세요.");
+  throw new Error(FIREBASE_CONFIG_REQUIRED_MESSAGE);
 }
 
 export function isAllowedAdminUser(user) {
@@ -45,13 +55,45 @@ function getAuthErrorMessage(error) {
     case "auth/invalid-credential":
     case "auth/user-not-found":
     case "auth/wrong-password":
-      return "이메일 또는 비밀번호가 올바르지 않습니다.";
+      return INVALID_CREDENTIAL_MESSAGE;
     case "auth/operation-not-allowed":
-      return "Firebase Authentication에서 이메일/비밀번호 로그인을 활성화해야 합니다.";
+      return EMAIL_AUTH_DISABLED_MESSAGE;
     case "auth/too-many-requests":
-      return "로그인 시도가 너무 많습니다. 잠시 후 다시 시도해주세요.";
+      return TOO_MANY_REQUESTS_MESSAGE;
     default:
-      return error?.message || "로그인에 실패했습니다.";
+      return error?.message || LOGIN_FAILED_MESSAGE;
+  }
+}
+
+function getAppCheckErrorMessage(error) {
+  switch (error?.code) {
+    case "appCheck/throttled":
+    case "appCheck/recaptcha-error":
+    case "appCheck/fetch-status-error":
+    case "auth/firebase-app-check-token-is-invalid":
+      return APPCHECK_SETUP_MESSAGE;
+    default:
+      return error?.message || APPCHECK_SETUP_MESSAGE;
+  }
+}
+
+function createAppCheckProvider(siteKey, providerType) {
+  if (providerType === "recaptcha-v3") {
+    return new ReCaptchaV3Provider(siteKey);
+  }
+
+  return new ReCaptchaEnterpriseProvider(siteKey);
+}
+
+async function verifyAppCheck(appCheck) {
+  if (!appCheck) {
+    return;
+  }
+
+  try {
+    await getToken(appCheck);
+  } catch (error) {
+    throw new Error(getAppCheckErrorMessage(error));
   }
 }
 
@@ -69,11 +111,11 @@ export async function getFirebaseServices() {
     servicesPromise = loadFirebaseConfig().then((config) => {
       const app = getApps().length ? getApp() : initializeApp(config);
       const appCheckSiteKey = config.appCheckSiteKey || window.MARTINI_APPCHECK_SITE_KEY;
+      const appCheckProviderType = config.appCheckProvider || window.MARTINI_APPCHECK_PROVIDER || "recaptcha-enterprise";
 
       if (appCheckSiteKey && !appCheckInstance) {
-
         appCheckInstance = initializeAppCheck(app, {
-          provider: new ReCaptchaV3Provider(appCheckSiteKey),
+          provider: createAppCheckProvider(appCheckSiteKey, appCheckProviderType),
           isTokenAutoRefreshEnabled: true,
         });
       }
@@ -94,9 +136,7 @@ export async function getFirebaseServices() {
 export async function signInAdmin(email, password) {
   const { appCheck, auth } = await getFirebaseServices();
 
-  if (appCheck) {
-    await getToken(appCheck);
-  }
+  await verifyAppCheck(appCheck);
 
   let credential;
 
@@ -108,7 +148,7 @@ export async function signInAdmin(email, password) {
 
   if (!isAllowedAdminUser(credential.user)) {
     await signOut(auth);
-    throw new Error("관리자 계정만 접근할 수 있습니다.");
+    throw new Error(ADMIN_ONLY_MESSAGE);
   }
 
   return credential.user;
@@ -118,20 +158,18 @@ export async function signInMemberWithCode(accessCode) {
   const normalizedCode = String(accessCode || "").trim();
 
   if (!normalizedCode) {
-    throw new Error("입장 코드를 입력해주세요.");
+    throw new Error(ACCESS_CODE_REQUIRED_MESSAGE);
   }
 
   const { appCheck, auth, db } = await getFirebaseServices();
 
-  if (appCheck) {
-    await getToken(appCheck);
-  }
+  await verifyAppCheck(appCheck);
 
   const codeHash = await hashAccessCode(normalizedCode);
   const codeSnapshot = await getDoc(doc(db, MEMBER_ACCESS_CODE_COLLECTION, codeHash));
 
   if (!codeSnapshot.exists() || codeSnapshot.data()?.enabled !== true) {
-    throw new Error("입장 코드가 올바르지 않습니다.");
+    throw new Error(INVALID_ACCESS_CODE_MESSAGE);
   }
 
   let credential;
@@ -139,7 +177,7 @@ export async function signInMemberWithCode(accessCode) {
   try {
     credential = await signInAnonymously(auth);
   } catch (error) {
-    throw new Error("부원 로그인을 위해 Firebase Authentication의 익명 로그인을 활성화해주세요.");
+    throw new Error(ANONYMOUS_AUTH_DISABLED_MESSAGE);
   }
 
   const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);

@@ -9,5 +9,6 @@
     messagingSenderId: "994424737344",
     appId: "1:994424737344:web:555117a1674e6ba0ae59a5",
     appCheckSiteKey: "6LdzAAQtAAAAACxJHF88SGPwbnHKggKE-4cwIVKg",
+    appCheckProvider: "recaptcha-enterprise",
   };
 })();
