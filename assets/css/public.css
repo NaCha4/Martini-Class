@@ -1088,36 +1088,6 @@ body.is-modal-open {
   text-align: center;
 }
 
-.history-timeline section {
-  position: relative;
-  padding-left: 28px;
-}
-
-.history-timeline section::before {
-  content: "";
-  position: absolute;
-  top: 6px;
-  bottom: -24px;
-  left: 5px;
-  width: 1px;
-  background: rgba(244, 205, 142, 0.2);
-}
-
-.history-timeline section:last-child::before {
-  bottom: 6px;
-}
-
-.history-timeline section::after {
-  content: "";
-  position: absolute;
-  top: 7px;
-  left: 0;
-  width: 11px;
-  height: 11px;
-  border-radius: 999px;
-  background: var(--gold-bright);
-}
-
 .faq-list {
   display: grid;
   gap: 10px;
@@ -2023,7 +1993,6 @@ body.member-page::after {
 [data-classes-status],
 [data-events-status],
 [data-settings-status],
-[data-history-status],
 [data-faq-status] {
   display: none;
 }

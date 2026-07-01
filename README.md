@@ -7,7 +7,7 @@
 | 경로 | 설명 |
 | --- | --- |
 | `index.html` | 공개 메인 페이지 |
-| `about/` | 연혁, 파트너, 시설 소개 페이지 |
+| `about/` | 파트너, 시설 소개 페이지 |
 | `activities/` | 클래스, 행사 소개 페이지 |
 | `records/` | 칵테일, 갤러리 페이지 |
 | `join/` | 가입 안내 페이지 |
@@ -36,7 +36,6 @@
   - `eventPosts`: 이벤트 게시글과 신청자
   - `meetingMinuteTemplates`: 회의록 양식
   - `meetingMinutes`: 작성된 회의록
-  - `historyEntries`: 연혁
   - `faqEntries`: 자주 묻는 질문
   - `memberAccessCodes`: 부원 로그인 코드 해시
   - `memberAccessSessions`: 부원 코드 로그인 세션

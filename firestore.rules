@@ -302,11 +302,6 @@ service cloud.firestore {
       allow write: if isAdminOrMember();
     }
 
-    match /historyEntries/{entryId} {
-      allow read: if true;
-      allow write: if isAdmin();
-    }
-
     match /faqEntries/{faqId} {
       allow read: if true;
       allow write: if isAdmin();

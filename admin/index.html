@@ -27,7 +27,6 @@
           <button class="admin-menu-button" type="button" data-admin-menu="curriculum" aria-pressed="false">커리큘럼</button>
           <button class="admin-menu-button" type="button" data-admin-menu="minutes" aria-pressed="false">회의록</button>
           <button class="admin-menu-button" type="button" data-admin-menu="settings" aria-pressed="false">로그인 코드</button>
-          <button class="admin-menu-button" type="button" data-admin-menu="history" aria-pressed="false">연혁 관리</button>
           <button class="admin-menu-button" type="button" data-admin-menu="faq" aria-pressed="false">자주 묻는 질문</button>
         </aside>
 
@@ -360,46 +359,6 @@
               </section>
             </div>
           </article>
-          <article class="admin-section-panel" data-admin-panel="history" hidden>
-            <header class="admin-page-title">
-              <div>
-                <span>History</span>
-                <h1>History Management</h1>
-              </div>
-            </header>
-            <p class="admin-status" data-history-status aria-live="polite"></p>
-            <div class="admin-management-board" data-history-app>
-              <section class="admin-upload-card">
-                <div class="admin-card-title">
-                  <span>Entry</span>
-                  <h2>연혁 추가</h2>
-                </div>
-                <form class="admin-upload-form admin-history-form" data-history-form>
-                  <label>
-                    <span>연도</span>
-                    <input type="text" name="year" placeholder="예: 2026" required />
-                  </label>
-                  <label>
-                    <span>제목</span>
-                    <input type="text" name="title" required />
-                  </label>
-                  <label class="admin-history-form__wide">
-                    <span>내용</span>
-                    <textarea name="description" rows="4" required></textarea>
-                  </label>
-                  <button type="submit">Upload</button>
-                </form>
-              </section>
-
-              <section class="admin-list-card">
-                <div class="admin-card-title">
-                  <span>Timeline</span>
-                  <h2>연혁 목록</h2>
-                </div>
-                <div class="admin-history-list" data-history-list></div>
-              </section>
-            </div>
-          </article>
           <article class="admin-section-panel" data-admin-panel="faq" hidden>
             <header class="admin-page-title">
               <div>
@@ -447,7 +406,6 @@
     <script type="module" src="../assets/js/admin/event-management.js"></script>
     <script type="module" src="../assets/js/admin/meeting-minutes.js"></script>
     <script type="module" src="../assets/js/admin/settings-management.js"></script>
-    <script type="module" src="../assets/js/admin/history-management.js"></script>
     <script type="module" src="../assets/js/admin/faq-management.js"></script>
   </body>
 </html>

@@ -4,7 +4,6 @@
     {
       label: "소개",
       links: [
-        { label: "연혁", href: "about/history.html" },
         { label: "시설", href: "about/facilities.html" },
         { label: "파트너", href: "about/partners.html" },
       ],
