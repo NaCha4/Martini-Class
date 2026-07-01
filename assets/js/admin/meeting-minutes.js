@@ -11,7 +11,6 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js";
 import {
   deleteObject,
-  getBlob,
   getDownloadURL,
   ref,
   uploadBytes,
@@ -255,9 +254,17 @@ async function downloadStorageFile(storage, storagePath, originalName) {
 
   const downloadName = normalizeDownloadName(originalName);
   const storageRef = ref(storage, storagePath);
+  const url = await getDownloadURL(storageRef);
+  const attachmentUrl = getAttachmentDownloadUrl(url, downloadName);
 
   try {
-    const blob = await getBlob(storageRef);
+    const response = await fetch(url);
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+
+    const blob = await response.blob();
     const objectUrl = URL.createObjectURL(blob);
 
     try {
@@ -266,10 +273,7 @@ async function downloadStorageFile(storage, storagePath, originalName) {
       window.setTimeout(() => URL.revokeObjectURL(objectUrl), 30_000);
     }
   } catch (error) {
-    console.warn("Meeting minutes SDK download failed; using attachment URL fallback.", error);
-    const url = await getDownloadURL(storageRef);
-    const attachmentUrl = getAttachmentDownloadUrl(url, downloadName);
-
+    console.warn("Meeting minutes blob download failed; using attachment URL fallback.", error);
     triggerDownload(attachmentUrl, downloadName);
   }
 }
@@ -326,9 +330,14 @@ function renderList(type, docs, storage) {
       return createFileRow(
         data,
         () => {
-          downloadStorageFile(storage, data.storagePath, data.originalName).catch((error) => {
-            setStatus(getFirebaseErrorMessage(error, "다운로드에 실패했습니다."), true);
-          });
+          setStatus("다운로드를 준비 중입니다.");
+          downloadStorageFile(storage, data.storagePath, data.originalName)
+            .then(() => {
+              setStatus("");
+            })
+            .catch((error) => {
+              setStatus(getFirebaseErrorMessage(error, "다운로드에 실패했습니다."), true);
+            });
         },
         () => {
           deleteRemoteMinutes(type, snapshot.id, data);
