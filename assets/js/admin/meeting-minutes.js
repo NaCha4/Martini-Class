@@ -11,6 +11,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js";
 import {
   deleteObject,
+  getBlob,
   getDownloadURL,
   ref,
   uploadBytes,
@@ -76,13 +77,47 @@ function normalizeDownloadName(fileName, fallback = "meeting-minutes") {
   return normalized || fallback;
 }
 
-function getAttachmentDownloadUrl(url, fileName) {
+function getFileExtension(fileName) {
+  const normalized = normalizeDownloadName(fileName, "");
+  const dotIndex = normalized.lastIndexOf(".");
+
+  if (dotIndex <= 0 || dotIndex === normalized.length - 1) {
+    return "";
+  }
+
+  return normalized.slice(dotIndex).replace(/[^a-zA-Z0-9.]/g, "").slice(0, 16);
+}
+
+function getAsciiDownloadName(fileName, fallback = "meeting-minutes") {
+  const downloadName = normalizeDownloadName(fileName, fallback);
+  const extension = getFileExtension(downloadName);
+  const baseName = extension ? downloadName.slice(0, -extension.length) : downloadName;
+  const asciiBase = baseName
+    .normalize("NFKD")
+    .replace(/[^\x20-\x7E]+/g, "_")
+    .replace(/[^a-zA-Z0-9._-]+/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^[._-]+|[._-]+$/g, "");
+
+  return `${asciiBase || fallback}${extension}`;
+}
+
+function encodeContentDispositionFileName(fileName) {
+  return encodeURIComponent(normalizeDownloadName(fileName))
+    .replace(/['()*]/g, (character) => `%${character.charCodeAt(0).toString(16).toUpperCase()}`);
+}
+
+function getAttachmentDisposition(fileName) {
   const downloadName = normalizeDownloadName(fileName);
-  const safeAsciiName = downloadName.replace(/["\\]/g, "_");
-  const disposition = `attachment; filename="${safeAsciiName}"; filename*=UTF-8''${encodeURIComponent(downloadName)}`;
+  const asciiName = getAsciiDownloadName(downloadName).replace(/["\\]/g, "_");
+
+  return `attachment; filename="${asciiName}"; filename*=UTF-8''${encodeContentDispositionFileName(downloadName)}`;
+}
+
+function getAttachmentDownloadUrl(url, fileName) {
   const separator = url.includes("?") ? "&" : "?";
 
-  return `${url}${separator}response-content-disposition=${encodeURIComponent(disposition)}`;
+  return `${url}${separator}response-content-disposition=${encodeURIComponent(getAttachmentDisposition(fileName))}`;
 }
 
 function triggerDownload(url, fileName) {
@@ -219,26 +254,22 @@ async function downloadStorageFile(storage, storagePath, originalName) {
   }
 
   const downloadName = normalizeDownloadName(originalName);
-  const url = await getDownloadURL(ref(storage, storagePath));
-  const attachmentUrl = getAttachmentDownloadUrl(url, downloadName);
+  const storageRef = ref(storage, storagePath);
 
   try {
-    const response = await fetch(attachmentUrl);
-
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
-    }
-
-    const blob = await response.blob();
+    const blob = await getBlob(storageRef);
     const objectUrl = URL.createObjectURL(blob);
 
     try {
       triggerDownload(objectUrl, downloadName);
     } finally {
-      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 30_000);
     }
   } catch (error) {
-    console.warn("Meeting minutes blob download failed; using attachment URL fallback.", error);
+    console.warn("Meeting minutes SDK download failed; using attachment URL fallback.", error);
+    const url = await getDownloadURL(storageRef);
+    const attachmentUrl = getAttachmentDownloadUrl(url, downloadName);
+
     triggerDownload(attachmentUrl, downloadName);
   }
 }
@@ -360,6 +391,7 @@ async function uploadMinutes(type, form, user, db, storage) {
 
   await uploadBytes(storageRef, file, {
     contentType: file.type || "application/octet-stream",
+    contentDisposition: getAttachmentDisposition(originalName),
     customMetadata: {
       originalName,
       type,
