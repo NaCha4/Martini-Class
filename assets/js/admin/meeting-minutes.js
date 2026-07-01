@@ -119,17 +119,6 @@ function getAttachmentDownloadUrl(url, fileName) {
   return `${url}${separator}response-content-disposition=${encodeURIComponent(getAttachmentDisposition(fileName))}`;
 }
 
-function triggerDownload(url, fileName) {
-  const link = document.createElement("a");
-
-  link.href = url;
-  link.download = normalizeDownloadName(fileName);
-  link.rel = "noopener";
-  document.body.append(link);
-  link.click();
-  link.remove();
-}
-
 function formatBytes(bytes) {
   if (!Number.isFinite(bytes) || bytes <= 0) {
     return "-";
@@ -167,39 +156,52 @@ function setDeleteMode(isEnabled) {
   setStatus(isEnabled ? "삭제할 파일을 선택해주세요." : "");
 }
 
-function createFileRow(data, onDownload, onDelete) {
-  const row = document.createElement("article");
+function createFileRow(data, downloadUrl, onDelete) {
+  const row = document.createElement(downloadUrl ? "a" : "button");
   const info = document.createElement("div");
   const title = document.createElement("strong");
   const meta = document.createElement("span");
+  const downloadName = normalizeDownloadName(data.originalName || data.title);
 
   row.className = "admin-file-row";
-  row.tabIndex = 0;
-  row.setAttribute("role", "button");
   row.setAttribute("aria-label", `${data.title || data.originalName || "파일"} ${isDeleteMode ? "삭제" : "다운로드"}`);
+
+  if (downloadUrl) {
+    row.href = downloadUrl;
+    row.download = downloadName;
+    row.rel = "noopener";
+  } else {
+    row.type = "button";
+  }
+
   title.textContent = data.title || data.originalName || "Untitled";
   meta.textContent = [
     data.originalName,
     formatBytes(data.size),
   ].filter(Boolean).join(" · ");
-  row.addEventListener("click", () => {
+
+  row.addEventListener("click", (event) => {
     if (isDeleteMode) {
+      event.preventDefault();
       onDelete();
       return;
     }
 
-    onDownload();
+    if (!downloadUrl) {
+      setStatus("다운로드 URL을 만들 수 없습니다. 파일을 다시 업로드해주세요.", true);
+      return;
+    }
+
+    setStatus("다운로드를 시작합니다.");
+    window.setTimeout(() => setStatus(""), 1200);
   });
+
   row.addEventListener("keydown", (event) => {
     if (event.key === "Enter" || event.key === " ") {
-      event.preventDefault();
-
       if (isDeleteMode) {
+        event.preventDefault();
         onDelete();
-        return;
       }
-
-      onDownload();
     }
   });
 
@@ -247,7 +249,7 @@ function bindFilePickers() {
   });
 }
 
-async function downloadStorageFile(storage, storagePath, originalName) {
+async function getStorageDownloadUrl(storage, storagePath, originalName) {
   if (!storagePath) {
     throw new Error("다운로드할 Storage 경로가 없습니다.");
   }
@@ -255,27 +257,8 @@ async function downloadStorageFile(storage, storagePath, originalName) {
   const downloadName = normalizeDownloadName(originalName);
   const storageRef = ref(storage, storagePath);
   const url = await getDownloadURL(storageRef);
-  const attachmentUrl = getAttachmentDownloadUrl(url, downloadName);
 
-  try {
-    const response = await fetch(url);
-
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
-    }
-
-    const blob = await response.blob();
-    const objectUrl = URL.createObjectURL(blob);
-
-    try {
-      triggerDownload(objectUrl, downloadName);
-    } finally {
-      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 30_000);
-    }
-  } catch (error) {
-    console.warn("Meeting minutes blob download failed; using attachment URL fallback.", error);
-    triggerDownload(attachmentUrl, downloadName);
-  }
+  return getAttachmentDownloadUrl(url, downloadName);
 }
 
 async function deleteStorageFile(storage, storagePath) {
@@ -311,7 +294,7 @@ async function deleteRemoteMinutes(type, id, data) {
   }
 }
 
-function renderList(type, docs, storage) {
+async function renderList(type, docs, storage) {
   const list = document.querySelector(`[data-minutes-list="${type}"]`);
 
   if (!list) {
@@ -323,28 +306,28 @@ function renderList(type, docs, storage) {
     return;
   }
 
-  list.replaceChildren(
-    ...docs.map((snapshot) => {
+  const rows = await Promise.all(
+    docs.map(async (snapshot) => {
       const data = snapshot.data();
+      let downloadUrl = "";
+
+      try {
+        downloadUrl = await getStorageDownloadUrl(storage, data.storagePath, data.originalName);
+      } catch (error) {
+        console.warn("Meeting minutes download URL creation failed.", error);
+      }
 
       return createFileRow(
         data,
-        () => {
-          setStatus("다운로드를 준비 중입니다.");
-          downloadStorageFile(storage, data.storagePath, data.originalName)
-            .then(() => {
-              setStatus("");
-            })
-            .catch((error) => {
-              setStatus(getFirebaseErrorMessage(error, "다운로드에 실패했습니다."), true);
-            });
-        },
+        downloadUrl,
         () => {
           deleteRemoteMinutes(type, snapshot.id, data);
         }
       );
     })
   );
+
+  list.replaceChildren(...rows);
 }
 
 async function loadMinutes(type, db, storage) {
@@ -357,7 +340,7 @@ async function loadMinutes(type, db, storage) {
   const minutesQuery = query(collection(db, COLLECTIONS[type]), orderBy("createdAt", "desc"));
   const snapshots = await getDocs(minutesQuery);
 
-  renderList(type, snapshots.docs, storage);
+  await renderList(type, snapshots.docs, storage);
 }
 
 async function refreshMinutes() {

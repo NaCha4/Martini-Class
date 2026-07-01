@@ -2977,11 +2977,16 @@ body.member-page::after {
   grid-template-columns: minmax(0, 1fr);
   gap: 8px;
   align-items: center;
+  width: 100%;
   padding: 14px;
   border: 1px solid rgba(148, 163, 184, 0.14);
   border-radius: 8px;
   background: rgba(13, 17, 22, 0.34);
+  color: inherit;
   cursor: pointer;
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
   transition:
     background-color 160ms ease,
     border-color 160ms ease,
