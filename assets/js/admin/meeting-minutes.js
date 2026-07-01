@@ -70,6 +70,32 @@ function safeFileName(fileName) {
     .slice(0, 120) || "meeting-minutes";
 }
 
+function normalizeDownloadName(fileName, fallback = "meeting-minutes") {
+  const normalized = String(fileName || "").trim().normalize("NFC");
+
+  return normalized || fallback;
+}
+
+function getAttachmentDownloadUrl(url, fileName) {
+  const downloadName = normalizeDownloadName(fileName);
+  const safeAsciiName = downloadName.replace(/["\\]/g, "_");
+  const disposition = `attachment; filename="${safeAsciiName}"; filename*=UTF-8''${encodeURIComponent(downloadName)}`;
+  const separator = url.includes("?") ? "&" : "?";
+
+  return `${url}${separator}response-content-disposition=${encodeURIComponent(disposition)}`;
+}
+
+function triggerDownload(url, fileName) {
+  const link = document.createElement("a");
+
+  link.href = url;
+  link.download = normalizeDownloadName(fileName);
+  link.rel = "noopener";
+  document.body.append(link);
+  link.click();
+  link.remove();
+}
+
 function formatBytes(bytes) {
   if (!Number.isFinite(bytes) || bytes <= 0) {
     return "-";
@@ -192,15 +218,29 @@ async function downloadStorageFile(storage, storagePath, originalName) {
     throw new Error("다운로드할 Storage 경로가 없습니다.");
   }
 
+  const downloadName = normalizeDownloadName(originalName);
   const url = await getDownloadURL(ref(storage, storagePath));
-  const link = document.createElement("a");
+  const attachmentUrl = getAttachmentDownloadUrl(url, downloadName);
 
-  link.href = url;
-  link.download = originalName || "";
-  link.rel = "noopener";
-  document.body.append(link);
-  link.click();
-  link.remove();
+  try {
+    const response = await fetch(attachmentUrl);
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+
+    const blob = await response.blob();
+    const objectUrl = URL.createObjectURL(blob);
+
+    try {
+      triggerDownload(objectUrl, downloadName);
+    } finally {
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
+    }
+  } catch (error) {
+    console.warn("Meeting minutes blob download failed; using attachment URL fallback.", error);
+    triggerDownload(attachmentUrl, downloadName);
+  }
 }
 
 async function deleteStorageFile(storage, storagePath) {
@@ -313,6 +353,7 @@ async function uploadMinutes(type, form, user, db, storage) {
   }
 
   const docRef = doc(collection(db, COLLECTIONS[type]));
+  const originalName = normalizeDownloadName(file.name);
   const storedName = `${docRef.id}-${safeFileName(file.name)}`;
   const storagePath = `${STORAGE_FOLDERS[type]}/${storedName}`;
   const storageRef = ref(storage, storagePath);
@@ -320,7 +361,7 @@ async function uploadMinutes(type, form, user, db, storage) {
   await uploadBytes(storageRef, file, {
     contentType: file.type || "application/octet-stream",
     customMetadata: {
-      originalName: file.name,
+      originalName,
       type,
     },
   });
@@ -328,7 +369,7 @@ async function uploadMinutes(type, form, user, db, storage) {
   await setDoc(docRef, {
     title,
     type,
-    originalName: file.name,
+    originalName,
     storedName,
     storagePath,
     contentType: file.type || "application/octet-stream",
