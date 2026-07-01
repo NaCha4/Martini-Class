@@ -119,6 +119,34 @@ function getAttachmentDownloadUrl(url, fileName) {
   return `${url}${separator}response-content-disposition=${encodeURIComponent(getAttachmentDisposition(fileName))}`;
 }
 
+function triggerDownload(url, fileName) {
+  const link = document.createElement("a");
+
+  link.href = url;
+  link.download = normalizeDownloadName(fileName);
+  link.rel = "noopener";
+  document.body.append(link);
+  link.click();
+  link.remove();
+}
+
+async function downloadWithOriginalName(url, fileName) {
+  const response = await fetch(url);
+
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}`);
+  }
+
+  const blob = await response.blob();
+  const objectUrl = URL.createObjectURL(blob);
+
+  try {
+    triggerDownload(objectUrl, fileName);
+  } finally {
+    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 30_000);
+  }
+}
+
 function formatBytes(bytes) {
   if (!Number.isFinite(bytes) || bytes <= 0) {
     return "-";
@@ -180,7 +208,7 @@ function createFileRow(data, downloadUrl, onDelete) {
     formatBytes(data.size),
   ].filter(Boolean).join(" · ");
 
-  row.addEventListener("click", (event) => {
+  row.addEventListener("click", async (event) => {
     if (isDeleteMode) {
       event.preventDefault();
       onDelete();
@@ -192,8 +220,18 @@ function createFileRow(data, downloadUrl, onDelete) {
       return;
     }
 
-    setStatus("다운로드를 시작합니다.");
-    window.setTimeout(() => setStatus(""), 1200);
+    event.preventDefault();
+    setStatus("다운로드를 준비 중입니다.");
+
+    try {
+      await downloadWithOriginalName(downloadUrl, downloadName);
+      setStatus("");
+    } catch (error) {
+      console.warn("Meeting minutes named download failed; using direct URL fallback.", error);
+      setStatus("기본 다운로드로 전환합니다.");
+      window.location.href = downloadUrl;
+      window.setTimeout(() => setStatus(""), 1200);
+    }
   });
 
   row.addEventListener("keydown", (event) => {
