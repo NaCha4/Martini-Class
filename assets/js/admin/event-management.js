@@ -1,5 +1,4 @@
-﻿import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js";
-import {
+﻿import {
   collection,
   deleteDoc,
   doc,
@@ -15,114 +14,32 @@ import {
   ref,
   uploadBytes,
 } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-storage.js";
-import { getFirebaseServices, isAllowedAdminUser } from "../firebase-client.js";
+import { watchAdminAuth } from "../firebase-client.js";
+import {
+  createFirebaseErrorFormatter,
+  createStatusSetter,
+  formatDateTime,
+  fromDateTimeLocalValue,
+  normalizeDateTimeValue,
+  toDateTimeLocalValue,
+} from "../shared/common.js";
 
 const COLLECTION_NAME = "eventPosts";
 const STORAGE_FOLDER = "event-thumbnails";
 const MAX_THUMBNAIL_SIZE = 5 * 1024 * 1024;
 
+const PERMISSION_MESSAGE = "권한이 없습니다. 관리자 로그인 상태와 Firebase Rules 배포 여부를 확인해주세요.";
+
 let eventContext;
 let eventPosts = [];
 
-function setStatus(message, isError = false) {
-  const status = document.querySelector("[data-events-status]");
-
-  if (!status) {
-    return;
-  }
-
-  status.textContent = message;
-  status.classList.toggle("is-error", isError);
-}
-
-function getFirebaseErrorMessage(error, fallback) {
-  switch (error?.code) {
-    case "permission-denied":
-    case "storage/unauthorized":
-      return "권한이 없습니다. 관리자 로그인 상태와 Firebase Rules 배포 여부를 확인해주세요.";
-    case "failed-precondition":
-      return "Firestore 인덱스 또는 쿼리 조건 확인이 필요합니다.";
-    case "appCheck/recaptcha-error":
-    case "appCheck/fetch-status-error":
-    case "auth/firebase-app-check-token-is-invalid":
-      return "App Check 확인에 실패했습니다. reCAPTCHA 허용 도메인과 App Check 설정을 확인해주세요.";
-    case "storage/quota-exceeded":
-      return "Storage 사용량 한도를 초과했습니다.";
-    case "storage/object-not-found":
-      return "Storage에서 썸네일 파일을 찾을 수 없습니다.";
-    default:
-      return error?.message || fallback;
-  }
-}
-
-function normalizeDateTimeValue(value) {
-  if (!value) {
-    return "";
-  }
-
-  if (typeof value === "string") {
-    return value;
-  }
-
-  if (typeof value.toDate === "function") {
-    return value.toDate().toISOString();
-  }
-
-  if (typeof value.seconds === "number") {
-    return new Date(value.seconds * 1000).toISOString();
-  }
-
-  if (typeof value === "number") {
-    return new Date(value).toISOString();
-  }
-
-  return "";
-}
-
-function toDateTimeLocalValue(value) {
-  if (!value) {
-    return "";
-  }
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return "";
-  }
-
-  const offsetDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
-
-  return offsetDate.toISOString().slice(0, 16);
-}
-
-function fromDateTimeLocalValue(value) {
-  if (!value) {
-    return "";
-  }
-
-  const date = new Date(value);
-
-  return Number.isNaN(date.getTime()) ? "" : date.toISOString();
-}
-
-function formatDateTime(value) {
-  if (!value) {
-    return "-";
-  }
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return "-";
-  }
-
-  return new Intl.DateTimeFormat("ko-KR", {
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(date);
-}
+const setStatus = createStatusSetter("[data-events-status]");
+const getFirebaseErrorMessage = createFirebaseErrorFormatter({
+  "permission-denied": PERMISSION_MESSAGE,
+  "storage/unauthorized": PERMISSION_MESSAGE,
+  "storage/quota-exceeded": "Storage 사용량 한도를 초과했습니다.",
+  "storage/object-not-found": "Storage에서 썸네일 파일을 찾을 수 없습니다.",
+});
 
 function normalizePost(post = {}) {
   return {
@@ -542,21 +459,18 @@ async function initEventManagement() {
   bindEventControls();
   setControlsEnabled(false);
 
-
   try {
-    const { auth, db, storage } = await getFirebaseServices();
-
-    onAuthStateChanged(auth, async (user) => {
-      if (!isAllowedAdminUser(user)) {
+    await watchAdminAuth({
+      onDenied: () => {
         eventContext = null;
         setControlsEnabled(false);
         setStatus("관리자 로그인 후 이벤트를 관리할 수 있습니다.", true);
-        return;
-      }
-
-      eventContext = { user, db, storage };
-      setControlsEnabled(true);
-      await refreshPosts();
+      },
+      onAdmin: async (user, { db, storage }) => {
+        eventContext = { user, db, storage };
+        setControlsEnabled(true);
+        await refreshPosts();
+      },
     });
   } catch (error) {
     setControlsEnabled(false);
@@ -565,6 +479,3 @@ async function initEventManagement() {
 }
 
 document.addEventListener("DOMContentLoaded", initEventManagement);
-
-
-

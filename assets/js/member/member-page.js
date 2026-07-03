@@ -11,6 +11,7 @@ import {
   where,
 } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js";
 import { getFirebaseServices } from "../firebase-client.js";
+import { formatDateTime, normalizeDateTimeValue } from "../shared/common.js";
 
 const CLASS_COLLECTION = "classSchedules";
 const CLASS_DOC_ID = "weekly";
@@ -40,26 +41,6 @@ function createDefaultSchedule() {
       { id: "fri", label: "금", applicants: [], capacity: 10, isOpen: false, order: 4 },
     ],
   };
-}
-
-function normalizeDateTimeValue(value) {
-  if (!value) {
-    return "";
-  }
-
-  if (typeof value === "string") {
-    return value;
-  }
-
-  if (typeof value.toDate === "function") {
-    return value.toDate().toISOString();
-  }
-
-  if (typeof value.seconds === "number") {
-    return new Date(value.seconds * 1000).toISOString();
-  }
-
-  return "";
 }
 
 function normalizeSchedule(data = {}) {
@@ -160,25 +141,6 @@ function getEventStatusLabel(eventPost) {
   return "모집 중";
 }
 
-function formatDateTime(value) {
-  if (!value) {
-    return "-";
-  }
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return "-";
-  }
-
-  return new Intl.DateTimeFormat("ko-KR", {
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(date);
-}
-
 function sortEventsByRecentDate(posts) {
   return [...posts].sort((first, second) => {
     const firstTime = new Date(first.eventAt || first.createdAt || 0).getTime();
@@ -188,7 +150,7 @@ function sortEventsByRecentDate(posts) {
   });
 }
 
-async function isRegisteredRemoteMember(name, studentId) {
+async function isRegisteredMember(name, studentId) {
   const snapshots = await getDocs(query(
     collection(memberContext.db, MEMBERS_COLLECTION),
     where("studentId", "==", studentId),
@@ -197,10 +159,6 @@ async function isRegisteredRemoteMember(name, studentId) {
   ));
 
   return !snapshots.empty;
-}
-
-async function isRegisteredMember(name, studentId) {
-  return isRegisteredRemoteMember(name, studentId);
 }
 
 async function assertRegisteredMember(name, studentId, setFeedback) {

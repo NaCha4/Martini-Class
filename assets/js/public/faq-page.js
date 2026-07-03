@@ -1,26 +1,11 @@
 import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js";
 import { getFirebaseServices } from "../firebase-client.js";
+import { getTimestampMillis } from "../shared/common.js";
 
 const COLLECTION_NAME = "faqEntries";
 
-function getCreatedAtMillis(value) {
-  if (!value) {
-    return 0;
-  }
-
-  if (typeof value.toMillis === "function") {
-    return value.toMillis();
-  }
-
-  if (typeof value.seconds === "number") {
-    return value.seconds * 1000;
-  }
-
-  return new Date(value).getTime() || 0;
-}
-
 function sortFaq(records) {
-  return [...records].sort((first, second) => getCreatedAtMillis(second.createdAt) - getCreatedAtMillis(first.createdAt));
+  return [...records].sort((first, second) => getTimestampMillis(second.createdAt) - getTimestampMillis(first.createdAt));
 }
 
 function createEmptyMessage() {
@@ -28,6 +13,17 @@ function createEmptyMessage() {
   empty.className = "static-empty";
   empty.textContent = "등록된 자주 묻는 질문이 없습니다.";
   return empty;
+}
+
+function bindFaqToggle(item, button, answer) {
+  button.dataset.faqBound = "true";
+  button.addEventListener("click", () => {
+    const isOpen = button.getAttribute("aria-expanded") === "true";
+
+    button.setAttribute("aria-expanded", String(!isOpen));
+    answer.setAttribute("aria-hidden", String(isOpen));
+    item.classList.toggle("is-open", !isOpen);
+  });
 }
 
 function createFaqItem(entry, index) {
@@ -50,13 +46,7 @@ function createFaqItem(entry, index) {
   answerText.textContent = entry.description;
   answer.append(answerText);
 
-  button.addEventListener("click", () => {
-    const isOpen = button.getAttribute("aria-expanded") === "true";
-
-    button.setAttribute("aria-expanded", String(!isOpen));
-    answer.setAttribute("aria-hidden", String(isOpen));
-    item.classList.toggle("is-open", !isOpen);
-  });
+  bindFaqToggle(item, button, answer);
 
   item.append(button, answer);
   return item;
@@ -76,14 +66,7 @@ function bindFaqInteractions(root) {
       return;
     }
 
-    button.dataset.faqBound = "true";
-    button.addEventListener("click", () => {
-      const isOpen = button.getAttribute("aria-expanded") === "true";
-
-      button.setAttribute("aria-expanded", String(!isOpen));
-      answer.setAttribute("aria-hidden", String(isOpen));
-      item.classList.toggle("is-open", !isOpen);
-    });
+    bindFaqToggle(item, button, answer);
   });
 }
 

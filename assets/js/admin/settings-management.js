@@ -1,5 +1,4 @@
-﻿import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js";
-import {
+﻿import {
   collection,
   deleteDoc,
   doc,
@@ -7,38 +6,16 @@ import {
   serverTimestamp,
   setDoc,
 } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js";
-import { getFirebaseServices, isAllowedAdminUser } from "../firebase-client.js";
+import { hashAccessCode, watchAdminAuth } from "../firebase-client.js";
+import { createFirebaseErrorFormatter, createStatusSetter } from "../shared/common.js";
 
 const CODE_COLLECTION = "memberAccessCodes";
 
 let settingsContext;
 let currentCodePrefix = "";
 
-function setStatus(message, isError = false) {
-  const status = document.querySelector("[data-settings-status]");
-
-  if (!status) {
-    return;
-  }
-
-  status.textContent = message;
-  status.classList.toggle("is-error", isError);
-}
-
-function getFirebaseErrorMessage(error, fallback) {
-  switch (error?.code) {
-    case "permission-denied":
-      return "권한이 없습니다. 관리자 로그인 상태와 Firestore Rules 배포 여부를 확인해주세요.";
-    case "failed-precondition":
-      return "Firestore 인덱스 또는 쿼리 조건 확인이 필요합니다.";
-    case "appCheck/recaptcha-error":
-    case "appCheck/fetch-status-error":
-    case "auth/firebase-app-check-token-is-invalid":
-      return "App Check 확인에 실패했습니다. reCAPTCHA 허용 도메인과 App Check 설정을 확인해주세요.";
-    default:
-      return error?.message || fallback;
-  }
-}
+const setStatus = createStatusSetter("[data-settings-status]");
+const getFirebaseErrorMessage = createFirebaseErrorFormatter();
 
 function setControlsEnabled(isEnabled) {
   document.querySelectorAll("[data-member-code-form] input, [data-member-code-form] button").forEach((field) => {
@@ -56,15 +33,6 @@ function renderCurrentCode() {
   currentCode.textContent = currentCodePrefix
     ? `${currentCodePrefix}*** 코드가 활성화 되어있습니다.`
     : "";
-}
-
-async function hashAccessCode(value) {
-  const encoded = new TextEncoder().encode(value);
-  const digest = await crypto.subtle.digest("SHA-256", encoded);
-
-  return Array.from(new Uint8Array(digest))
-    .map((byte) => byte.toString(16).padStart(2, "0"))
-    .join("");
 }
 
 async function refreshCodes() {
@@ -132,19 +100,17 @@ async function initSettingsManagement() {
   setControlsEnabled(false);
 
   try {
-    const { auth, db } = await getFirebaseServices();
-
-    onAuthStateChanged(auth, async (user) => {
-      if (!isAllowedAdminUser(user)) {
+    await watchAdminAuth({
+      onDenied: () => {
         settingsContext = null;
         setControlsEnabled(false);
         setStatus("관리자 로그인 후 설정을 관리할 수 있습니다.", true);
-        return;
-      }
-
-      settingsContext = { user, db };
-      setControlsEnabled(true);
-      await refreshCodes();
+      },
+      onAdmin: async (user, { db }) => {
+        settingsContext = { user, db };
+        setControlsEnabled(true);
+        await refreshCodes();
+      },
     });
   } catch (error) {
     setControlsEnabled(false);
@@ -153,5 +119,3 @@ async function initSettingsManagement() {
 }
 
 document.addEventListener("DOMContentLoaded", initSettingsManagement);
-
-

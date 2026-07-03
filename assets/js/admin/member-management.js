@@ -1,5 +1,4 @@
-﻿import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js";
-import {
+﻿import {
   collection,
   deleteDoc,
   doc,
@@ -9,7 +8,8 @@ import {
   serverTimestamp,
   setDoc,
 } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js";
-import { getFirebaseServices, isAllowedAdminUser } from "../firebase-client.js";
+import { watchAdminAuth } from "../firebase-client.js";
+import { createFirebaseErrorFormatter, createStatusSetter } from "../shared/common.js";
 
 const COLLECTION_NAME = "members";
 
@@ -18,32 +18,8 @@ let memberRecords = [];
 let memberMode = null;
 let memberSortMode = "name";
 
-
-function setStatus(message, isError = false) {
-  const status = document.querySelector("[data-members-status]");
-
-  if (!status) {
-    return;
-  }
-
-  status.textContent = message;
-  status.classList.toggle("is-error", isError);
-}
-
-function getFirebaseErrorMessage(error, fallback) {
-  switch (error?.code) {
-    case "permission-denied":
-      return "권한이 없습니다. 관리자 로그인 상태와 Firestore Rules 배포 여부를 확인해주세요.";
-    case "failed-precondition":
-      return "Firestore 인덱스 또는 쿼리 조건 확인이 필요합니다.";
-    case "appCheck/recaptcha-error":
-    case "appCheck/fetch-status-error":
-    case "auth/firebase-app-check-token-is-invalid":
-      return "App Check 확인에 실패했습니다. reCAPTCHA 허용 도메인과 App Check 설정을 확인해주세요.";
-    default:
-      return error?.message || fallback;
-  }
-}
+const setStatus = createStatusSetter("[data-members-status]");
+const getFirebaseErrorMessage = createFirebaseErrorFormatter();
 
 function setFormEnabled(isEnabled) {
   document.querySelectorAll("[data-member-form] input, [data-member-form] select, [data-member-form] button, [data-members-export], [data-members-edit], [data-members-delete], [data-members-sort]").forEach((field) => {
@@ -383,19 +359,17 @@ async function initMemberManagement() {
   setFormEnabled(false);
 
   try {
-    const { auth, db } = await getFirebaseServices();
-
-    onAuthStateChanged(auth, async (user) => {
-      if (!isAllowedAdminUser(user)) {
+    await watchAdminAuth({
+      onDenied: () => {
         memberContext = null;
         setFormEnabled(false);
         setStatus("관리자 로그인 후 부원을 관리할 수 있습니다.", true);
-        return;
-      }
-
-      memberContext = { user, db };
-      setFormEnabled(true);
-      await refreshMembers();
+      },
+      onAdmin: async (user, { db }) => {
+        memberContext = { user, db };
+        setFormEnabled(true);
+        await refreshMembers();
+      },
     });
   } catch (error) {
     setFormEnabled(false);
@@ -404,5 +378,3 @@ async function initMemberManagement() {
 }
 
 document.addEventListener("DOMContentLoaded", initMemberManagement);
-
-

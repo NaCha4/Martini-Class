@@ -5,7 +5,7 @@ import {
   getToken,
   initializeAppCheck,
 } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app-check.js";
-import { getAuth, signInAnonymously, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js";
+import { getAuth, onAuthStateChanged, signInAnonymously, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js";
 import { Timestamp, doc, getDoc, getFirestore, serverTimestamp, setDoc } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js";
 import { getStorage } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-storage.js";
 
@@ -23,8 +23,46 @@ const INVALID_ACCESS_CODE_MESSAGE = "\uC785\uC7A5 \uCF54\uB4DC\uAC00 \uC62C\uBC1
 const ANONYMOUS_AUTH_DISABLED_MESSAGE = "\uBD80\uC6D0 \uB85C\uADF8\uC778\uC744 \uC704\uD574 Firebase Authentication\uC758 \uC775\uBA85 \uB85C\uADF8\uC778\uC744 \uD65C\uC131\uD654\uD574\uC8FC\uC138\uC694.";
 const APPCHECK_SETUP_MESSAGE = "App Check \uD1A0\uD070\uC744 \uBC1B\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4. Firebase Console\uC758 App Check \uC81C\uACF5\uC790, reCAPTCHA \uC0AC\uC774\uD2B8 \uD0A4, \uD5C8\uC6A9 \uB3C4\uBA54\uC778\uC744 \uD655\uC778\uD574\uC8FC\uC138\uC694.";
 
+const APPCHECK_DEBUG_TOKEN_STORAGE_KEY = "MARTINI_APPCHECK_DEBUG_TOKEN";
+const LOCAL_HOSTNAMES = new Set(["localhost", "127.0.0.1", "0.0.0.0", "::1", "[::1]"]);
+
 let servicesPromise;
 let appCheckInstance;
+
+function isLocalEnvironment() {
+  const { hostname, protocol } = window.location;
+
+  return protocol === "file:"
+    || LOCAL_HOSTNAMES.has(hostname)
+    || hostname.endsWith(".local");
+}
+
+function readStoredAppCheckDebugToken() {
+  try {
+    return window.localStorage?.getItem(APPCHECK_DEBUG_TOKEN_STORAGE_KEY) || "";
+  } catch {
+    // Storage access can fail in privacy modes or sandboxed frames.
+    return "";
+  }
+}
+
+// Resolves the App Check debug token for non-production environments
+// (local servers, VMs, sandboxes) where reCAPTCHA attestation cannot pass.
+// Priority: explicit token (config / window / localStorage) > auto debug
+// mode (`true`) on local hosts > disabled ("") on real domains.
+// The token printed to the browser console must be registered once in
+// Firebase Console > App Check > 앱 > 디버그 토큰 관리.
+function resolveAppCheckDebugToken(config) {
+  const explicitToken = config.appCheckDebugToken
+    || window.MARTINI_APPCHECK_DEBUG_TOKEN
+    || readStoredAppCheckDebugToken();
+
+  if (explicitToken) {
+    return explicitToken;
+  }
+
+  return isLocalEnvironment() ? true : "";
+}
 
 async function loadFirebaseConfig() {
   const explicitConfig = window.MARTINI_FIREBASE_CONFIG;
@@ -114,6 +152,16 @@ export async function getFirebaseServices() {
       const appCheckProviderType = config.appCheckProvider || window.MARTINI_APPCHECK_PROVIDER || "recaptcha-enterprise";
 
       if (appCheckSiteKey && !appCheckInstance) {
+        const debugToken = resolveAppCheckDebugToken(config);
+
+        if (debugToken) {
+          self.FIREBASE_APPCHECK_DEBUG_TOKEN = debugToken;
+          console.info(
+            "[Martini] App Check debug mode. 콘솔에 출력되는 디버그 토큰을 "
+            + "Firebase Console > App Check > 앱 > 디버그 토큰 관리에 등록해야 요청이 허용됩니다.",
+          );
+        }
+
         appCheckInstance = initializeAppCheck(app, {
           provider: createAppCheckProvider(appCheckSiteKey, appCheckProviderType),
           isTokenAutoRefreshEnabled: true,
@@ -131,6 +179,25 @@ export async function getFirebaseServices() {
   }
 
   return servicesPromise;
+}
+
+/**
+ * Watches auth state and routes to `onAdmin(user, services)` for the admin
+ * account or `onDenied(user)` otherwise. Rejects if Firebase init fails.
+ */
+export async function watchAdminAuth({ onAdmin, onDenied }) {
+  const services = await getFirebaseServices();
+
+  onAuthStateChanged(services.auth, (user) => {
+    if (!isAllowedAdminUser(user)) {
+      onDenied?.(user);
+      return;
+    }
+
+    onAdmin(user, services);
+  });
+
+  return services;
 }
 
 export async function signInAdmin(email, password) {

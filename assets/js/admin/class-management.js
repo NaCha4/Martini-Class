@@ -1,11 +1,15 @@
-﻿import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js";
-import {
+﻿import {
   doc,
   getDoc,
   serverTimestamp,
   setDoc,
 } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js";
-import { getFirebaseServices, isAllowedAdminUser } from "../firebase-client.js";
+import { watchAdminAuth } from "../firebase-client.js";
+import {
+  fromDateTimeLocalValue,
+  normalizeDateTimeValue,
+  toDateTimeLocalValue,
+} from "../shared/common.js";
 
 const COLLECTION_NAME = "classSchedules";
 const SCHEDULE_ID = "weekly";
@@ -75,52 +79,6 @@ function normalizeSchedule(data = {}) {
       };
     }).sort((first, second) => first.order - second.order),
   };
-}
-
-function normalizeDateTimeValue(value) {
-  if (!value) {
-    return "";
-  }
-
-  if (typeof value === "string") {
-    return value;
-  }
-
-  if (typeof value.toDate === "function") {
-    return value.toDate().toISOString();
-  }
-
-  if (typeof value.seconds === "number") {
-    return new Date(value.seconds * 1000).toISOString();
-  }
-
-  return "";
-}
-
-function toDateTimeLocalValue(value) {
-  if (!value) {
-    return "";
-  }
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return "";
-  }
-
-  const offsetDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
-
-  return offsetDate.toISOString().slice(0, 16);
-}
-
-function fromDateTimeLocalValue(value) {
-  if (!value) {
-    return "";
-  }
-
-  const date = new Date(value);
-
-  return Number.isNaN(date.getTime()) ? "" : date.toISOString();
 }
 
 function getCurrentApplicationOpenState() {
@@ -544,19 +502,17 @@ async function initClassManagement() {
   setClassControlsEnabled(false);
 
   try {
-    const { auth, db } = await getFirebaseServices();
-
-    onAuthStateChanged(auth, async (user) => {
-      if (!isAllowedAdminUser(user)) {
+    await watchAdminAuth({
+      onDenied: () => {
         classContext = null;
         setClassControlsEnabled(false);
         setStatus();
-        return;
-      }
-
-      classContext = { user, db };
-      setClassControlsEnabled(true);
-      await refreshClasses();
+      },
+      onAdmin: async (user, { db }) => {
+        classContext = { user, db };
+        setClassControlsEnabled(true);
+        await refreshClasses();
+      },
     });
   } catch {
     setClassControlsEnabled(false);
@@ -565,6 +521,3 @@ async function initClassManagement() {
 }
 
 document.addEventListener("DOMContentLoaded", initClassManagement);
-
-
-

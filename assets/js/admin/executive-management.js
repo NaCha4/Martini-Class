@@ -1,5 +1,4 @@
-﻿import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js";
-import {
+﻿import {
   collection,
   deleteDoc,
   doc,
@@ -9,7 +8,8 @@ import {
   serverTimestamp,
   setDoc,
 } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js";
-import { getFirebaseServices, isAllowedAdminUser } from "../firebase-client.js";
+import { watchAdminAuth } from "../firebase-client.js";
+import { createFirebaseErrorFormatter, getTimestampMillis } from "../shared/common.js";
 
 const MEMBERS_COLLECTION = "members";
 const DEPARTMENTS_COLLECTION = "officerDepartments";
@@ -23,6 +23,8 @@ let activeDepartmentDrag = null;
 let activeMemberDrag = null;
 
 
+// Intentionally silent: this panel does not surface status text,
+// but call sites keep messages for future use.
 function setStatus(message, isError = false) {
   const status = document.querySelector("[data-executives-status]");
 
@@ -34,20 +36,7 @@ function setStatus(message, isError = false) {
   status.classList.toggle("is-error", false);
 }
 
-function getFirebaseErrorMessage(error, fallback) {
-  switch (error?.code) {
-    case "permission-denied":
-      return "권한이 없습니다. 관리자 로그인 상태와 Firestore Rules 배포 여부를 확인해주세요.";
-    case "failed-precondition":
-      return "Firestore 인덱스 또는 쿼리 조건 확인이 필요합니다.";
-    case "appCheck/recaptcha-error":
-    case "appCheck/fetch-status-error":
-    case "auth/firebase-app-check-token-is-invalid":
-      return "App Check 확인에 실패했습니다. reCAPTCHA 허용 도메인과 App Check 설정을 확인해주세요.";
-    default:
-      return error?.message || fallback;
-  }
-}
+const getFirebaseErrorMessage = createFirebaseErrorFormatter();
 
 function sortByName(records) {
   return [...records].sort((first, second) => {
@@ -96,23 +85,7 @@ function getNextDepartmentOrder() {
 }
 
 function getCreatedAtMillis(value) {
-  if (!value) {
-    return Number.MAX_SAFE_INTEGER;
-  }
-
-  if (typeof value === "number") {
-    return value;
-  }
-
-  if (typeof value.toMillis === "function") {
-    return value.toMillis();
-  }
-
-  if (typeof value.seconds === "number") {
-    return value.seconds * 1000;
-  }
-
-  return Number.MAX_SAFE_INTEGER;
+  return getTimestampMillis(value, Number.MAX_SAFE_INTEGER);
 }
 
 function setControlsEnabled(isEnabled) {
@@ -362,10 +335,6 @@ function createAdminDragImage(name) {
   return dragImage;
 }
 
-function createDepartmentDragImage(name) {
-  return createAdminDragImage(name);
-}
-
 function updateMemberPointerDrag(event) {
   if (!activeMemberDrag) {
     return;
@@ -453,7 +422,7 @@ function updateDepartmentPointerDrag(event) {
 
   if (!activeDepartmentDrag.dragImage) {
     const department = departments.find((item) => item.id === activeDepartmentDrag.departmentId);
-    activeDepartmentDrag.dragImage = createDepartmentDragImage(department?.name || "Section");
+    activeDepartmentDrag.dragImage = createAdminDragImage(department?.name || "Section");
   }
 
   activeDepartmentDrag.dragImage.style.transform = `translate(${event.clientX + 12}px, ${event.clientY + 12}px)`;
@@ -569,15 +538,6 @@ async function addDepartment(name) {
     throw new Error("이미 등록된 부서입니다.");
   }
 
-  const now = Date.now();
-  const department = {
-    id: `department-${now}-${crypto.randomUUID?.() || Math.random().toString(36).slice(2)}`,
-    name: trimmedName,
-    memberIds: [],
-    order: getNextDepartmentOrder(),
-    createdAt: now,
-    updatedAt: now,
-  };
   const docRef = doc(collection(executiveContext.db, DEPARTMENTS_COLLECTION));
 
   await setDoc(docRef, {
@@ -780,19 +740,17 @@ async function initExecutiveManagement() {
   setControlsEnabled(false);
 
   try {
-    const { auth, db } = await getFirebaseServices();
-
-    onAuthStateChanged(auth, async (user) => {
-      if (!isAllowedAdminUser(user)) {
+    await watchAdminAuth({
+      onDenied: () => {
         executiveContext = null;
         setControlsEnabled(false);
         setStatus("관리자 로그인 후 임원을 관리할 수 있습니다.", true);
-        return;
-      }
-
-      executiveContext = { user, db };
-      setControlsEnabled(true);
-      await refreshExecutives();
+      },
+      onAdmin: async (user, { db }) => {
+        executiveContext = { user, db };
+        setControlsEnabled(true);
+        await refreshExecutives();
+      },
     });
   } catch (error) {
     setControlsEnabled(false);
@@ -801,5 +759,3 @@ async function initExecutiveManagement() {
 }
 
 document.addEventListener("DOMContentLoaded", initExecutiveManagement);
-
-

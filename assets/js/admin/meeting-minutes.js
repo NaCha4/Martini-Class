@@ -1,5 +1,4 @@
-﻿import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js";
-import {
+﻿import {
   collection,
   deleteDoc,
   doc,
@@ -15,7 +14,8 @@ import {
   ref,
   uploadBytes,
 } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-storage.js";
-import { getFirebaseServices, isAllowedAdminUser } from "../firebase-client.js";
+import { watchAdminAuth } from "../firebase-client.js";
+import { createFirebaseErrorFormatter, createStatusSetter } from "../shared/common.js";
 
 const COLLECTIONS = {
   template: "meetingMinuteTemplates",
@@ -28,39 +28,20 @@ const STORAGE_FOLDERS = {
 };
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024;
+
+const PERMISSION_MESSAGE = "권한이 없습니다. 관리자 로그인 상태, Firestore Rules, Storage Rules 배포 여부를 확인해주세요.";
+
 let minutesContext;
 let isDeleteMode = false;
 
-function getFirebaseErrorMessage(error, fallback) {
-  switch (error?.code) {
-    case "permission-denied":
-    case "storage/unauthorized":
-      return "권한이 없습니다. 관리자 로그인 상태, Firestore Rules, Storage Rules 배포 여부를 확인해주세요.";
-    case "failed-precondition":
-      return "Firestore 인덱스 또는 쿼리 조건 확인이 필요합니다. Firebase Console의 안내 링크를 확인해주세요.";
-    case "appCheck/recaptcha-error":
-    case "appCheck/fetch-status-error":
-    case "auth/firebase-app-check-token-is-invalid":
-      return "App Check 확인에 실패했습니다. reCAPTCHA 허용 도메인과 App Check 설정을 확인해주세요.";
-    case "storage/object-not-found":
-      return "Storage에서 파일을 찾을 수 없습니다. Firestore 기록과 Storage 파일이 서로 맞는지 확인해주세요.";
-    case "storage/quota-exceeded":
-      return "Storage 사용량 한도를 초과했습니다.";
-    default:
-      return error?.message || fallback;
-  }
-}
-
-function setStatus(message, isError = false) {
-  const status = document.querySelector("[data-minutes-status]");
-
-  if (!status) {
-    return;
-  }
-
-  status.textContent = message;
-  status.classList.toggle("is-error", isError);
-}
+const setStatus = createStatusSetter("[data-minutes-status]");
+const getFirebaseErrorMessage = createFirebaseErrorFormatter({
+  "permission-denied": PERMISSION_MESSAGE,
+  "storage/unauthorized": PERMISSION_MESSAGE,
+  "failed-precondition": "Firestore 인덱스 또는 쿼리 조건 확인이 필요합니다. Firebase Console의 안내 링크를 확인해주세요.",
+  "storage/object-not-found": "Storage에서 파일을 찾을 수 없습니다. Firestore 기록과 Storage 파일이 서로 맞는지 확인해주세요.",
+  "storage/quota-exceeded": "Storage 사용량 한도를 초과했습니다.",
+});
 
 function safeFileName(fileName) {
   return fileName
@@ -255,12 +236,6 @@ function setMinutesFormsEnabled(isEnabled) {
   });
 }
 
-function setUploadFormsEnabled(isEnabled) {
-  document.querySelectorAll("[data-minutes-form] input, [data-minutes-form] button").forEach((field) => {
-    field.disabled = !isEnabled;
-  });
-}
-
 function updateFilePicker(input) {
   const fileName = input.closest(".admin-upload-field")?.querySelector("[data-file-name]");
 
@@ -397,7 +372,7 @@ async function refreshMinutes() {
     ]);
     setStatus("");
   } catch (error) {
-    setUploadFormsEnabled(false);
+    setMinutesFormsEnabled(false);
     setStatus(getFirebaseErrorMessage(error, "회의록 정보를 불러오지 못했습니다."), true);
   }
 }
@@ -489,22 +464,19 @@ async function initMeetingMinutes() {
   });
   setMinutesFormsEnabled(false);
 
-
   try {
-    const { auth, db, storage } = await getFirebaseServices();
-
-    onAuthStateChanged(auth, async (user) => {
-      if (!isAllowedAdminUser(user)) {
+    await watchAdminAuth({
+      onDenied: () => {
         minutesContext = null;
         setMinutesFormsEnabled(false);
         setStatus("관리자 로그인 후 회의록을 관리할 수 있습니다.", true);
-        return;
-      }
-
-      minutesContext = { user, db, storage };
-      await bindMinutesForms(user, db, storage);
-      setMinutesFormsEnabled(true);
-      await refreshMinutes();
+      },
+      onAdmin: async (user, { db, storage }) => {
+        minutesContext = { user, db, storage };
+        await bindMinutesForms(user, db, storage);
+        setMinutesFormsEnabled(true);
+        await refreshMinutes();
+      },
     });
   } catch (error) {
     setMinutesFormsEnabled(false);
@@ -513,6 +485,3 @@ async function initMeetingMinutes() {
 }
 
 document.addEventListener("DOMContentLoaded", initMeetingMinutes);
-
-
-

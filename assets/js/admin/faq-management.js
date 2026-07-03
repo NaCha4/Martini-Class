@@ -1,5 +1,4 @@
-﻿import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js";
-import {
+﻿import {
   collection,
   deleteDoc,
   doc,
@@ -7,24 +6,16 @@ import {
   serverTimestamp,
   setDoc,
 } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js";
-import { getFirebaseServices, isAllowedAdminUser } from "../firebase-client.js";
+import { watchAdminAuth } from "../firebase-client.js";
+import { createFirebaseErrorFormatter, createStatusSetter, getTimestampMillis } from "../shared/common.js";
 
 const COLLECTION_NAME = "faqEntries";
 
 let faqContext;
 let faqEntries = [];
 
-
-function setStatus(message, isError = false) {
-  const status = document.querySelector("[data-faq-status]");
-
-  if (!status) {
-    return;
-  }
-
-  status.textContent = message;
-  status.classList.toggle("is-error", isError);
-}
+const setStatus = createStatusSetter("[data-faq-status]");
+const getFirebaseErrorMessage = createFirebaseErrorFormatter();
 
 function setControlsEnabled(isEnabled) {
   document.querySelectorAll("[data-faq-form] input, [data-faq-form] textarea, [data-faq-form] button, [data-faq-list] button").forEach((field) => {
@@ -32,46 +23,8 @@ function setControlsEnabled(isEnabled) {
   });
 }
 
-function getFirebaseErrorMessage(error, fallback) {
-  switch (error?.code) {
-    case "permission-denied":
-      return "권한이 없습니다. 관리자 로그인 상태와 Firestore Rules 배포 여부를 확인해주세요.";
-    case "appCheck/recaptcha-error":
-    case "appCheck/fetch-status-error":
-    case "auth/firebase-app-check-token-is-invalid":
-      return "App Check 확인에 실패했습니다. reCAPTCHA 허용 도메인과 App Check 설정을 확인해주세요.";
-    default:
-      return error?.message || fallback;
-  }
-}
-
-
-function getCreatedAtMillis(value) {
-  if (!value) {
-    return 0;
-  }
-
-  if (typeof value === "number") {
-    return value;
-  }
-
-  if (typeof value === "string") {
-    return new Date(value).getTime() || 0;
-  }
-
-  if (typeof value.toMillis === "function") {
-    return value.toMillis();
-  }
-
-  if (typeof value.seconds === "number") {
-    return value.seconds * 1000;
-  }
-
-  return 0;
-}
-
 function sortFaq(records) {
-  return [...records].sort((first, second) => getCreatedAtMillis(second.createdAt) - getCreatedAtMillis(first.createdAt));
+  return [...records].sort((first, second) => getTimestampMillis(second.createdAt) - getTimestampMillis(first.createdAt));
 }
 
 function normalizeFaqForm(form) {
@@ -195,19 +148,17 @@ async function initFaqManagement() {
   setControlsEnabled(false);
 
   try {
-    const { auth, db } = await getFirebaseServices();
-
-    onAuthStateChanged(auth, async (user) => {
-      if (!isAllowedAdminUser(user)) {
+    await watchAdminAuth({
+      onDenied: () => {
         faqContext = null;
         setControlsEnabled(false);
         setStatus("관리자 로그인 후 자주 묻는 질문을 관리할 수 있습니다.", true);
-        return;
-      }
-
-      faqContext = { user, db };
-      setControlsEnabled(true);
-      await refreshFaq();
+      },
+      onAdmin: async (user, { db }) => {
+        faqContext = { user, db };
+        setControlsEnabled(true);
+        await refreshFaq();
+      },
     });
   } catch (error) {
     setControlsEnabled(false);
@@ -216,5 +167,3 @@ async function initFaqManagement() {
 }
 
 document.addEventListener("DOMContentLoaded", initFaqManagement);
-
-
