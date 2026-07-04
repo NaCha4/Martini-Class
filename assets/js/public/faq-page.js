@@ -3,15 +3,17 @@ import { getFirebaseServices } from "../firebase-client.js";
 import { getTimestampMillis } from "../shared/common.js";
 
 const COLLECTION_NAME = "faqEntries";
+const LOADING_MESSAGE = "불러오는 중입니다.";
+const EMPTY_MESSAGE = "등록된 자주 묻는 질문이 없습니다.";
 
 function sortFaq(records) {
   return [...records].sort((first, second) => getTimestampMillis(second.createdAt) - getTimestampMillis(first.createdAt));
 }
 
-function createEmptyMessage() {
+function createMessage(message) {
   const empty = document.createElement("p");
   empty.className = "static-empty";
-  empty.textContent = "등록된 자주 묻는 질문이 없습니다.";
+  empty.textContent = message;
   return empty;
 }
 
@@ -77,7 +79,7 @@ async function initFaqPage() {
     return;
   }
 
-  bindFaqInteractions(list);
+  list.replaceChildren(createMessage(LOADING_MESSAGE));
 
   try {
     const { db } = await getFirebaseServices();
@@ -88,6 +90,7 @@ async function initFaqPage() {
     }));
 
     if (!entries.length) {
+      list.replaceChildren(createMessage(EMPTY_MESSAGE));
       return;
     }
 

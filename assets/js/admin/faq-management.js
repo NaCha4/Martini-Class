@@ -10,6 +10,8 @@ import { watchAdminAuth } from "../firebase-client.js";
 import { createFirebaseErrorFormatter, createStatusSetter, getTimestampMillis } from "../shared/common.js";
 
 const COLLECTION_NAME = "faqEntries";
+const LOADING_MESSAGE = "불러오는 중입니다.";
+const EMPTY_MESSAGE = "등록된 자주 묻는 질문이 없습니다.";
 
 let faqContext;
 let faqEntries = [];
@@ -21,6 +23,14 @@ function setControlsEnabled(isEnabled) {
   document.querySelectorAll("[data-faq-form] input, [data-faq-form] textarea, [data-faq-form] button, [data-faq-list] button").forEach((field) => {
     field.disabled = !isEnabled;
   });
+}
+
+function setFaqListMessage(message) {
+  const list = document.querySelector("[data-faq-list]");
+
+  if (list) {
+    list.innerHTML = `<p class="admin-empty">${message}</p>`;
+  }
 }
 
 function sortFaq(records) {
@@ -66,7 +76,7 @@ function renderFaq() {
   }
 
   if (!faqEntries.length) {
-    list.innerHTML = '<p class="admin-empty">등록된 자주 묻는 질문이 없습니다.</p>';
+    setFaqListMessage(EMPTY_MESSAGE);
     return;
   }
 
@@ -90,6 +100,7 @@ async function refreshFaq() {
   }
 
   try {
+    setFaqListMessage(LOADING_MESSAGE);
     await loadRemoteFaq(faqContext.db);
 
     setStatus("");
