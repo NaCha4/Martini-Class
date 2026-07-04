@@ -11,7 +11,6 @@ import { createFirebaseErrorFormatter, createStatusSetter, getTimestampMillis } 
 
 const COLLECTION_NAME = "faqEntries";
 const LOADING_MESSAGE = "불러오는 중입니다.";
-const EMPTY_MESSAGE = "등록된 자주 묻는 질문이 없습니다.";
 
 let faqContext;
 let faqEntries = [];
@@ -76,7 +75,7 @@ function renderFaq() {
   }
 
   if (!faqEntries.length) {
-    setFaqListMessage(EMPTY_MESSAGE);
+    setFaqListMessage(LOADING_MESSAGE);
     return;
   }
 
