@@ -1,6 +1,9 @@
 ﻿import {
+  collection,
+  deleteDoc,
   doc,
   getDoc,
+  getDocs,
   serverTimestamp,
   setDoc,
 } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js";
@@ -12,6 +15,7 @@ import {
 } from "../shared/common.js";
 
 const COLLECTION_NAME = "classSchedules";
+const APPLICATION_COLLECTION = "classApplications";
 const SCHEDULE_ID = "weekly";
 const DAYS = [
   { id: "mon", label: "월" },
@@ -29,12 +33,12 @@ let classScheduleTimer;
 let pendingAnimatedDayId = null;
 
 
-function setStatus() {
+function setStatus(message = "", isError = false) {
   const status = document.querySelector("[data-classes-status]");
 
   if (status) {
-    status.textContent = "";
-    status.classList.toggle("is-error", false);
+    status.textContent = message;
+    status.classList.toggle("is-error", isError);
   }
 }
 
@@ -99,20 +103,109 @@ function getCurrentApplicationOpenState() {
 
 
 async function loadRemoteSchedule(db) {
-  const snapshot = await getDoc(doc(db, COLLECTION_NAME, SCHEDULE_ID));
+  const [snapshot, applicationSnapshots] = await Promise.all([
+    getDoc(doc(db, COLLECTION_NAME, SCHEDULE_ID)),
+    getDocs(collection(db, APPLICATION_COLLECTION)),
+  ]);
+  const schedule = normalizeSchedule(snapshot.exists() ? snapshot.data() : createDefaultSchedule());
+  const applications = applicationSnapshots.docs.map((applicationSnapshot) => normalizeClassApplication({
+    applicationId: applicationSnapshot.id,
+    ...applicationSnapshot.data(),
+  }));
 
-  classSchedule = normalizeSchedule(snapshot.exists() ? snapshot.data() : createDefaultSchedule());
+  classSchedule = {
+    ...schedule,
+    days: schedule.days.map((day) => ({
+      ...day,
+      applicants: mergeApplicants(
+        day.applicants.map((applicant) => normalizeLegacyApplicant(applicant, day.id)),
+        applications.filter((application) => application.dayId === day.id),
+      ),
+    })),
+  };
 }
 
 async function saveRemoteSchedule(db) {
   await setDoc(doc(db, COLLECTION_NAME, SCHEDULE_ID), {
-    ...classSchedule,
+    ...getScheduleSettingsPayload(),
     updatedAt: serverTimestamp(),
   }, { merge: true });
 }
 
 async function persistSchedule() {
   await saveRemoteSchedule(classContext.db);
+}
+
+async function clearClassApplications() {
+  const snapshots = await getDocs(collection(classContext.db, APPLICATION_COLLECTION));
+
+  await Promise.all(snapshots.docs.map((snapshot) => (
+    deleteDoc(doc(classContext.db, APPLICATION_COLLECTION, snapshot.id))
+  )));
+}
+
+function normalizeLegacyApplicant(applicant = {}, dayId = "") {
+  const studentId = String(applicant.studentId || "").trim();
+
+  return {
+    id: String(applicant.id || studentId || crypto.randomUUID?.() || Date.now()),
+    name: String(applicant.name || "").trim(),
+    studentId,
+    createdAt: applicant.createdAt || "",
+    source: "schedule",
+    dayId,
+  };
+}
+
+function normalizeClassApplication(application = {}) {
+  const studentId = String(application.studentId || "").trim();
+  const applicationId = String(application.applicationId || studentId || "").trim();
+
+  return {
+    id: applicationId || studentId,
+    applicationId,
+    name: String(application.name || "").trim(),
+    studentId,
+    dayId: String(application.dayId || "").trim(),
+    dayLabel: String(application.dayLabel || "").trim(),
+    createdAt: application.createdAt || "",
+    source: "applicationDoc",
+  };
+}
+
+function getApplicantKey(applicant) {
+  return applicant.studentId || applicant.applicationId || applicant.id;
+}
+
+function mergeApplicants(...applicantGroups) {
+  const applicants = new Map();
+
+  applicantGroups.flat().forEach((applicant) => {
+    const key = getApplicantKey(applicant);
+
+    if (key) {
+      applicants.set(key, applicant);
+    }
+  });
+
+  return Array.from(applicants.values());
+}
+
+function getScheduleSettingsPayload() {
+  return {
+    ...classSchedule,
+    days: classSchedule.days.map((day) => ({
+      ...day,
+      applicants: day.applicants
+        .filter((applicant) => applicant.source === "schedule")
+        .map((applicant) => ({
+          id: applicant.id,
+          name: applicant.name,
+          studentId: applicant.studentId,
+          createdAt: applicant.createdAt,
+        })),
+    })),
+  };
 }
 
 function setClassControlsEnabled(isEnabled) {
@@ -271,7 +364,8 @@ async function updateSchedule() {
 
   try {
     await persistSchedule();
-  } catch {
+  } catch (error) {
+    setStatus(error?.message || "정기 교육 설정 저장에 실패했습니다.", true);
     await refreshClasses();
   }
 }
@@ -286,9 +380,9 @@ async function refreshClasses() {
 
     renderClasses();
     setStatus();
-  } catch {
+  } catch (error) {
     setClassControlsEnabled(false);
-    setStatus();
+    setStatus(error?.message || "정기 교육 정보를 불러오지 못했습니다.", true);
   }
 }
 
@@ -310,6 +404,7 @@ function bindClassButtons() {
     }
 
     classSchedule = createDefaultSchedule();
+    await clearClassApplications();
     await updateSchedule();
   });
 
@@ -340,6 +435,14 @@ async function removeClassApplicant(dayId, applicantId) {
   const day = classSchedule.days.find((item) => item.id === dayId);
 
   if (!day) {
+    return;
+  }
+
+  const applicant = day.applicants.find((item) => item.id === applicantId);
+
+  if (applicant?.source === "applicationDoc" && applicant.applicationId) {
+    await deleteDoc(doc(classContext.db, APPLICATION_COLLECTION, applicant.applicationId));
+    await refreshClasses();
     return;
   }
 
@@ -465,6 +568,16 @@ async function moveClassApplicant(sourceDayId, targetDayId, applicantId) {
     return;
   }
 
+  if (applicant.source === "applicationDoc" && applicant.applicationId) {
+    await setDoc(doc(classContext.db, APPLICATION_COLLECTION, applicant.applicationId), {
+      dayId: targetDay.id,
+      dayLabel: targetDay.label,
+      updatedAt: serverTimestamp(),
+    }, { merge: true });
+    await refreshClasses();
+    return;
+  }
+
   sourceDay.applicants = sourceDay.applicants.filter((item) => item.id !== applicantId);
   targetDay.applicants = [...targetDay.applicants.filter((item) => item.id !== applicantId), applicant];
   await updateSchedule();
@@ -506,7 +619,7 @@ async function initClassManagement() {
       onDenied: () => {
         classContext = null;
         setClassControlsEnabled(false);
-        setStatus();
+        setStatus("관리자 로그인 후 정기 교육을 관리할 수 있습니다.", true);
       },
       onAdmin: async (user, { db }) => {
         classContext = { user, db };
@@ -514,9 +627,9 @@ async function initClassManagement() {
         await refreshClasses();
       },
     });
-  } catch {
+  } catch (error) {
     setClassControlsEnabled(false);
-    setStatus();
+    setStatus(error?.message || "Firebase 초기화에 실패했습니다.", true);
   }
 }
 

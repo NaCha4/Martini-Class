@@ -7,6 +7,7 @@
     <link rel="icon" type="image/png" href="../assets/images/Logo.png" />
     <link rel="apple-touch-icon" href="../assets/images/Logo.png" />
     <link rel="stylesheet" href="../assets/css/public.css?v=mobile-topbar-20260620" />
+    <script src="../assets/js/firebase-config.js?v=firebase-config-20260619"></script>
     <script defer src="../assets/js/public/topbar.js?v=mobile-topbar-20260620" data-root="../"></script>
     <script defer src="../assets/js/public/login-modal.js?v=login-modal-20260620-fix"></script>
   </head>
@@ -32,6 +33,49 @@
             </article>
           </div>
         </section>
+        <section class="join-application-section" aria-labelledby="join-application-title">
+          <div class="section-heading">
+            <p class="section-kicker">Application</p>
+            <h2 id="join-application-title">가입 신청</h2>
+            <p>신청서는 검토 대기 상태로 저장되며, 운영진 확인 후 개별 안내됩니다.</p>
+          </div>
+          <form class="join-application-form" data-membership-application-form>
+            <label>
+              <span>이름</span>
+              <input type="text" name="name" autocomplete="name" required />
+            </label>
+            <label>
+              <span>학번</span>
+              <input type="text" name="studentId" inputmode="numeric" required />
+            </label>
+            <label>
+              <span>학과</span>
+              <input type="text" name="department" required />
+            </label>
+            <label>
+              <span>연락처</span>
+              <input type="tel" name="contact" autocomplete="tel" required />
+            </label>
+            <label>
+              <span>이메일</span>
+              <input type="email" name="email" autocomplete="email" required />
+            </label>
+            <label class="join-application-form__wide">
+              <span>지원 동기</span>
+              <textarea name="motivation" rows="6" required></textarea>
+            </label>
+            <label class="join-application-form__wide">
+              <span>기타 참고사항</span>
+              <textarea name="note" rows="4"></textarea>
+            </label>
+            <label class="join-application-consent join-application-form__wide">
+              <input type="checkbox" name="privacyAgreed" required />
+              <span>개인정보 수집 및 이용에 동의합니다.</span>
+            </label>
+            <p class="auth-status join-application-form__wide" data-membership-application-status aria-live="polite"></p>
+            <button class="auth-button auth-button--primary" type="submit">신청하기</button>
+          </form>
+        </section>
       </article>
     </main>
     <footer class="footer" id="contact">
@@ -55,6 +99,7 @@
         </p>
       </div>
     </footer>
+    <script type="module" src="../assets/js/public/membership-application.js?v=membership-20260705"></script>
   </body>
 </html>
 

@@ -21,6 +21,7 @@
         <aside class="admin-sidebar" aria-label="관리 항목">
           <button class="admin-menu-button is-active" type="button" data-admin-menu="executives" aria-pressed="true">임원 관리</button>
           <button class="admin-menu-button" type="button" data-admin-menu="members" aria-pressed="false">부원 관리</button>
+          <button class="admin-menu-button" type="button" data-admin-menu="applications" aria-pressed="false">가입 신청</button>
           <button class="admin-menu-button" type="button" data-admin-menu="classes" aria-pressed="false">정기 교육</button>
           <button class="admin-menu-button" type="button" data-admin-menu="events" aria-pressed="false">이벤트</button>
           <button class="admin-menu-button" type="button" data-admin-menu="inventory" aria-pressed="false">재고 관리</button>
@@ -121,6 +122,24 @@
                   </label>
                 </div>
                 <div class="admin-member-table" data-members-list></div>
+              </section>
+            </div>
+          </article>
+          <article class="admin-section-panel" data-admin-panel="applications" hidden>
+            <header class="admin-page-title">
+              <div>
+                <span>Applications</span>
+                <h1>Membership Applications</h1>
+              </div>
+            </header>
+            <p class="admin-status" data-applications-status aria-live="polite"></p>
+            <div class="admin-management-board" data-applications-app>
+              <section class="admin-list-card">
+                <div class="admin-card-title">
+                  <span>Review</span>
+                  <h2>가입 신청 목록</h2>
+                </div>
+                <div class="admin-application-list" data-applications-list></div>
               </section>
             </div>
           </article>
@@ -402,6 +421,7 @@
     <script src="../assets/js/admin/admin-shell.js"></script>
     <script type="module" src="../assets/js/admin/executive-management.js"></script>
     <script type="module" src="../assets/js/admin/member-management.js"></script>
+    <script type="module" src="../assets/js/admin/membership-application-management.js?v=membership-20260705"></script>
     <script type="module" src="../assets/js/admin/class-management.js"></script>
     <script type="module" src="../assets/js/admin/event-management.js"></script>
     <script type="module" src="../assets/js/admin/meeting-minutes.js?v=20260701-4"></script>

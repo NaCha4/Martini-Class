@@ -7,6 +7,7 @@
   query,
   serverTimestamp,
   setDoc,
+  where,
 } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js";
 import {
   deleteObject,
@@ -25,6 +26,7 @@ import {
 } from "../shared/common.js";
 
 const COLLECTION_NAME = "eventPosts";
+const APPLICATION_COLLECTION = "eventApplications";
 const STORAGE_FOLDER = "event-thumbnails";
 const MAX_THUMBNAIL_SIZE = 5 * 1024 * 1024;
 
@@ -58,6 +60,52 @@ function normalizePost(post = {}) {
     createdAt: normalizeDateTimeValue(post.createdAt),
     updatedAt: normalizeDateTimeValue(post.updatedAt),
   };
+}
+
+function normalizeEventApplication(application = {}) {
+  const studentId = String(application.studentId || "").trim();
+  const applicationId = String(application.applicationId || `${application.eventId || ""}_${studentId}`).trim();
+
+  return {
+    id: applicationId || studentId,
+    applicationId,
+    eventId: String(application.eventId || "").trim(),
+    eventTitle: String(application.eventTitle || "").trim(),
+    name: String(application.name || "").trim(),
+    studentId,
+    createdAt: application.createdAt || "",
+    source: "applicationDoc",
+  };
+}
+
+function normalizeLegacyApplicant(applicant = {}) {
+  const studentId = String(applicant.studentId || "").trim();
+
+  return {
+    id: String(applicant.id || studentId || crypto.randomUUID?.() || Date.now()),
+    name: String(applicant.name || "").trim(),
+    studentId,
+    createdAt: applicant.createdAt || "",
+    source: "eventPost",
+  };
+}
+
+function getApplicantKey(applicant) {
+  return applicant.studentId || applicant.applicationId || applicant.id;
+}
+
+function mergeApplicants(...applicantGroups) {
+  const applicants = new Map();
+
+  applicantGroups.flat().forEach((applicant) => {
+    const key = getApplicantKey(applicant);
+
+    if (key) {
+      applicants.set(key, applicant);
+    }
+  });
+
+  return Array.from(applicants.values());
 }
 
 function getFormValues(form) {
@@ -313,12 +361,29 @@ function renderPosts() {
 
 async function loadRemotePosts(db) {
   const eventQuery = query(collection(db, COLLECTION_NAME), orderBy("createdAt", "desc"));
-  const snapshots = await getDocs(eventQuery);
-
-  eventPosts = snapshots.docs.map((snapshot) => normalizePost({
-    id: snapshot.id,
-    ...snapshot.data(),
+  const [snapshots, applicationSnapshots] = await Promise.all([
+    getDocs(eventQuery),
+    getDocs(collection(db, APPLICATION_COLLECTION)),
+  ]);
+  const applications = applicationSnapshots.docs.map((applicationSnapshot) => normalizeEventApplication({
+    applicationId: applicationSnapshot.id,
+    ...applicationSnapshot.data(),
   }));
+
+  eventPosts = snapshots.docs.map((snapshot) => {
+    const post = normalizePost({
+      id: snapshot.id,
+      ...snapshot.data(),
+    });
+
+    return {
+      ...post,
+      applicants: mergeApplicants(
+        post.applicants.map(normalizeLegacyApplicant),
+        applications.filter((application) => application.eventId === post.id),
+      ),
+    };
+  });
   renderPosts();
 }
 
@@ -348,7 +413,14 @@ async function saveRemotePost(form, values, thumbnailFile) {
   const nowFields = {
     ...values,
     ...thumbnail,
-    applicants: previous?.applicants || [],
+    applicants: (previous?.applicants || [])
+      .filter((applicant) => applicant.source === "eventPost")
+      .map((applicant) => ({
+        id: applicant.id,
+        name: applicant.name,
+        studentId: applicant.studentId,
+        createdAt: applicant.createdAt,
+      })),
     updatedAt: serverTimestamp(),
   };
 
@@ -370,7 +442,14 @@ async function saveRemotePost(form, values, thumbnailFile) {
 
 async function savePostApplicants(post, applicants) {
   await setDoc(doc(eventContext.db, COLLECTION_NAME, post.id), {
-    applicants,
+    applicants: applicants
+      .filter((applicant) => applicant.source === "eventPost")
+      .map((applicant) => ({
+        id: applicant.id,
+        name: applicant.name,
+        studentId: applicant.studentId,
+        createdAt: applicant.createdAt,
+      })),
     updatedAt: serverTimestamp(),
   }, { merge: true });
 }
@@ -382,6 +461,7 @@ async function deletePost(post) {
 
   try {
     await deleteThumbnail(eventContext.storage, post.thumbnailPath);
+    await deleteEventApplications(post.id);
     await deleteDoc(doc(eventContext.db, COLLECTION_NAME, post.id));
 
     await refreshPosts();
@@ -398,6 +478,12 @@ async function deleteApplicant(post, applicant) {
   }
 
   try {
+    if (applicant.source === "applicationDoc" && applicant.applicationId) {
+      await deleteDoc(doc(eventContext.db, APPLICATION_COLLECTION, applicant.applicationId));
+      await refreshPosts();
+      return;
+    }
+
     const applicants = post.applicants.filter((item) => {
       if (applicant.id && item.id) {
         return item.id !== applicant.id;
@@ -411,6 +497,17 @@ async function deleteApplicant(post, applicant) {
   } catch (error) {
     setStatus(getFirebaseErrorMessage(error, "신청자 삭제에 실패했습니다."), true);
   }
+}
+
+async function deleteEventApplications(eventId) {
+  const snapshots = await getDocs(query(
+    collection(eventContext.db, APPLICATION_COLLECTION),
+    where("eventId", "==", eventId),
+  ));
+
+  await Promise.all(snapshots.docs.map((snapshot) => (
+    deleteDoc(doc(eventContext.db, APPLICATION_COLLECTION, snapshot.id))
+  )));
 }
 
 function bindEventControls() {

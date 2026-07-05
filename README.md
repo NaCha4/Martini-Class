@@ -46,7 +46,10 @@
   - `members`: 부원 목록
   - `officerDepartments`: 임원 부서 및 배치
   - `classSchedules/weekly`: 정기 교육 일정과 신청자
+  - `classApplications`: 정기 교육 신청 내역
   - `eventPosts`: 이벤트 게시글과 신청자
+  - `eventApplications`: 이벤트 신청 내역
+  - `membershipApplications`: 동아리 가입 신청 내역
   - `meetingMinuteTemplates`: 회의록 양식
   - `meetingMinutes`: 작성된 회의록
   - `faqEntries`: 자주 묻는 질문

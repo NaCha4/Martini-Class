@@ -15,7 +15,9 @@ import { formatDateTime, normalizeDateTimeValue } from "../shared/common.js";
 
 const CLASS_COLLECTION = "classSchedules";
 const CLASS_DOC_ID = "weekly";
+const CLASS_APPLICATION_COLLECTION = "classApplications";
 const EVENT_COLLECTION = "eventPosts";
+const EVENT_APPLICATION_COLLECTION = "eventApplications";
 const MEMBERS_COLLECTION = "members";
 
 let memberContext;
@@ -85,6 +87,54 @@ function normalizeEvent(post = {}) {
     description: String(post.description || ""),
     applicants: Array.isArray(post.applicants) ? post.applicants : [],
   };
+}
+
+function normalizeClassApplication(application = {}) {
+  const studentId = String(application.studentId || "").trim();
+  const applicationId = String(application.applicationId || studentId || "").trim();
+
+  return {
+    id: applicationId || studentId,
+    applicationId,
+    name: String(application.name || "").trim(),
+    studentId,
+    dayId: String(application.dayId || "").trim(),
+    dayLabel: String(application.dayLabel || "").trim(),
+    createdAt: application.createdAt || "",
+  };
+}
+
+function normalizeEventApplication(application = {}) {
+  const studentId = String(application.studentId || "").trim();
+  const applicationId = String(application.applicationId || `${application.eventId || ""}_${studentId}`).trim();
+
+  return {
+    id: applicationId || studentId,
+    applicationId,
+    eventId: String(application.eventId || "").trim(),
+    eventTitle: String(application.eventTitle || "").trim(),
+    name: String(application.name || "").trim(),
+    studentId,
+    createdAt: application.createdAt || "",
+  };
+}
+
+function getApplicantKey(applicant) {
+  return applicant.studentId || applicant.applicationId || applicant.id;
+}
+
+function mergeApplicants(...applicantGroups) {
+  const applicants = new Map();
+
+  applicantGroups.flat().forEach((applicant) => {
+    const key = getApplicantKey(applicant);
+
+    if (key) {
+      applicants.set(key, applicant);
+    }
+  });
+
+  return Array.from(applicants.values());
 }
 
 function getCurrentApplicationOpenState() {
@@ -184,16 +234,51 @@ async function assertRegisteredMember(name, studentId, setFeedback) {
 }
 
 async function loadRemoteData(db) {
-  const [scheduleSnapshot, eventSnapshots] = await Promise.all([
+  const [
+    scheduleSnapshot,
+    eventSnapshots,
+    classApplicationSnapshots,
+    eventApplicationSnapshots,
+  ] = await Promise.all([
     getDoc(doc(db, CLASS_COLLECTION, CLASS_DOC_ID)),
     getDocs(collection(db, EVENT_COLLECTION)),
+    getDocs(collection(db, CLASS_APPLICATION_COLLECTION)),
+    getDocs(collection(db, EVENT_APPLICATION_COLLECTION)),
   ]);
-
-  classSchedule = normalizeSchedule(scheduleSnapshot.exists() ? scheduleSnapshot.data() : createDefaultSchedule());
-  eventPosts = eventSnapshots.docs.map((snapshot) => normalizeEvent({
-    id: snapshot.id,
+  const classApplications = classApplicationSnapshots.docs.map((snapshot) => normalizeClassApplication({
+    applicationId: snapshot.id,
     ...snapshot.data(),
   }));
+  const eventApplications = eventApplicationSnapshots.docs.map((snapshot) => normalizeEventApplication({
+    applicationId: snapshot.id,
+    ...snapshot.data(),
+  }));
+
+  classSchedule = normalizeSchedule(scheduleSnapshot.exists() ? scheduleSnapshot.data() : createDefaultSchedule());
+  classSchedule = {
+    ...classSchedule,
+    days: classSchedule.days.map((day) => ({
+      ...day,
+      applicants: mergeApplicants(
+        day.applicants,
+        classApplications.filter((application) => application.dayId === day.id),
+      ),
+    })),
+  };
+  eventPosts = eventSnapshots.docs.map((snapshot) => {
+    const post = normalizeEvent({
+    id: snapshot.id,
+    ...snapshot.data(),
+    });
+
+    return {
+      ...post,
+      applicants: mergeApplicants(
+        post.applicants,
+        eventApplications.filter((application) => application.eventId === post.id),
+      ),
+    };
+  });
 }
 
 function renderClassOptions() {
@@ -398,15 +483,6 @@ function renderMemberPage() {
   renderEvents();
 }
 
-function createApplicant(name, studentId) {
-  return {
-    id: `${studentId}-${Date.now()}`,
-    name: String(name || "").trim(),
-    studentId: String(studentId || "").trim(),
-    createdAt: new Date().toISOString(),
-  };
-}
-
 async function applyClass(form) {
   const formData = new FormData(form);
   const dayId = String(formData.get("dayId") || "");
@@ -420,8 +496,6 @@ async function applyClass(form) {
   if (!registeredMember) {
     return;
   }
-
-  const applicant = createApplicant(registeredMember.name, registeredMember.studentId);
 
   if (!day) {
     classFeedbackMessage = "요일을 선택해주세요.";
@@ -441,13 +515,12 @@ async function applyClass(form) {
     return;
   }
 
-  day.applicants = [
-    ...day.applicants.filter((item) => item.studentId !== applicant.studentId),
-    applicant,
-  ];
-
-  await setDoc(doc(memberContext.db, CLASS_COLLECTION, CLASS_DOC_ID), {
-    ...classSchedule,
+  await setDoc(doc(memberContext.db, CLASS_APPLICATION_COLLECTION, registeredMember.studentId), {
+    dayId: day.id,
+    dayLabel: day.label,
+    name: registeredMember.name,
+    studentId: registeredMember.studentId,
+    createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   }, { merge: true });
 
@@ -469,21 +542,18 @@ async function applyEvent(eventId, name, studentId) {
     return;
   }
 
-  const applicant = createApplicant(registeredMember.name, registeredMember.studentId);
-
   if (!isEventRecruiting(post)) {
     eventFeedbackMessage = "신청 가능한 이벤트가 아닙니다.";
     renderEvents();
     return;
   }
 
-  post.applicants = [
-    ...post.applicants.filter((item) => item.studentId !== applicant.studentId),
-    applicant,
-  ];
-
-  await setDoc(doc(memberContext.db, EVENT_COLLECTION, eventId), {
-    applicants: post.applicants,
+  await setDoc(doc(memberContext.db, EVENT_APPLICATION_COLLECTION, `${eventId}_${registeredMember.studentId}`), {
+    eventId,
+    eventTitle: post.title,
+    name: registeredMember.name,
+    studentId: registeredMember.studentId,
+    createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   }, { merge: true });
 

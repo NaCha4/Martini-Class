@@ -8,6 +8,42 @@ This repository is a Firebase web app. Treat development changes and production 
 - Firebase Authentication is used for email/password login.
 - Firestore stores app data such as applications, schedules, attendance, inventory, settings, and admin-facing records.
 - Firebase Storage may be used for uploaded assets when enabled and allowed by rules.
+- The current frontend is a static HTML/CSS/JavaScript site. There is no build step.
+- Public pages, member pages, and admin pages share Firebase client utilities, but they must not share write privileges.
+
+## Current Data Ownership Model
+
+Keep operational configuration separate from user-submitted application records.
+
+Admin-owned operational documents:
+
+- `classSchedules/weekly`
+- `eventPosts/{eventId}`
+- `members/{memberId}`
+- `officerDepartments/{departmentId}`
+- `meetingMinuteTemplates/{templateId}`
+- `meetingMinutes/{minuteId}`
+- `memberAccessCodes/{codeHash}`
+
+Member-created application documents:
+
+- `classApplications/{studentId}`
+- `eventApplications/{eventId_studentId}`
+
+Public-created application documents:
+
+- `membershipApplications/{applicationId}`
+
+Rules and client code must preserve this boundary. Code-verified members must not write shared operational documents such as `classSchedules` or `eventPosts`.
+
+Legacy applicant arrays may still exist in:
+
+- `classSchedules/weekly.days[].applicants`
+- `eventPosts/{eventId}.applicants`
+
+These arrays are kept only for backward-compatible display and admin cleanup. New member-facing writes must use `classApplications` and `eventApplications`.
+
+See `SECURITY_REFACTOR_NOTES.md` for the rationale and details of the 2026-07-05 data-flow refactor.
 
 ## Key Classification
 
@@ -56,6 +92,7 @@ Agents may:
 - Do not update `README.md` unless the user explicitly asks for it.
 - Keep implementation changes and README maintenance separate by default.
 - Other agent-facing or task-specific docs may be updated when they are directly relevant to the requested work.
+- When authentication, authorization, Firestore Rules, Storage Rules, or production data shape changes, update the relevant agent-facing security notes if the user asks for documentation or handoff material.
 
 ## File Encoding Safety
 
@@ -78,6 +115,8 @@ Agents must not do the following without explicit user approval:
 - Run Admin SDK scripts that write to production
 - Change IAM, Owner, Editor, service account, API key, billing, quota, domain, or deployment settings
 - Weaken Security Rules to broad public read or write access
+- Reopen member write access to `classSchedules` or `eventPosts`
+- Run production migrations that move legacy applicant arrays into application collections
 
 ## Approval-Required Commands
 
@@ -94,6 +133,13 @@ firebase firestore:bulkdelete
 Also ask before running any Admin SDK script that writes, deletes, migrates, or bulk-updates production data.
 
 Dry-run and read-only inspection are allowed when they do not expose secret values or modify production state.
+
+Allowed without production deployment:
+
+```bash
+firebase deploy --only firestore:rules --dry-run --project PROJECT_ID
+firebase deploy --only storage --dry-run --project PROJECT_ID
+```
 
 ## Local Secrets
 
@@ -132,7 +178,17 @@ Before committing, merging, or deploying:
 - Confirm no service account JSON, private key, token, or real `.env` file is staged
 - Confirm `.gitignore` protects local secret paths and credential file patterns
 - Confirm Security Rules deny broad unauthenticated writes and unknown document paths
+- Confirm member-facing writes target only narrowly validated application collections
+- Confirm `classSchedules` and `eventPosts` remain admin-write only
 - Confirm public pages do not read private applicant, student, admin-only, or internal collections
 - Confirm App Check is active before enforcing it for Firestore or Storage
 - Confirm migrations have dry-run output before production writes
 - Confirm Firebase rules deploys and production data operations have explicit user approval
+
+## Refactor Safety Notes
+
+- Prefer individual application documents over array updates on shared operational documents.
+- Avoid storing new applicant data in `classSchedules.days[].applicants` or `eventPosts.applicants`.
+- Admin screens may merge legacy arrays with application collections for display, but member screens must not write those legacy arrays.
+- Date values that Security Rules compare must be stored as Firestore timestamps. Preserve `fromDateTimeLocalValue()` returning a `Date` object unless a replacement also stores timestamps.
+- Do not hide permission errors by weakening rules. Align client writes with the intended collection model instead.

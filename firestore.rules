@@ -11,6 +11,10 @@ service cloud.firestore {
       return day in ["monday", "tuesday", "wednesday", "thursday", "friday"];
     }
 
+    function isClassDayId(dayId) {
+      return dayId in ["mon", "tue", "wed", "thu", "fri"];
+    }
+
     function isShortText(value, maxLength) {
       return value is string
         && value.size() > 0
@@ -221,6 +225,78 @@ service cloud.firestore {
         && request.resource.data.updatedAt is timestamp;
     }
 
+    function isClassApplicationOpen(dayId) {
+      let schedulePath = /databases/$(database)/documents/classSchedules/weekly;
+      let schedule = get(schedulePath).data;
+      let hasTimestampReservation = schedule.reservationOpenAt is timestamp
+        && schedule.reservationCloseAt is timestamp;
+
+      return isClassDayId(dayId)
+        && exists(schedulePath)
+        && (
+          schedule.isApplicationOpen == true
+          || (
+            hasTimestampReservation
+            && schedule.reservationOpenAt <= request.time
+            && schedule.reservationCloseAt > request.time
+          )
+        );
+    }
+
+    function isValidClassApplication(applicationId) {
+      return request.resource.data.keys().hasOnly([
+          "dayId",
+          "dayLabel",
+          "name",
+          "studentId",
+          "createdAt",
+          "updatedAt"
+        ])
+        && applicationId == request.resource.data.studentId
+        && isClassDayId(request.resource.data.dayId)
+        && isShortText(request.resource.data.dayLabel, 20)
+        && isShortText(request.resource.data.name, 80)
+        && isShortText(request.resource.data.studentId, 80)
+        && request.resource.data.createdAt is timestamp
+        && request.resource.data.updatedAt is timestamp
+        && isClassApplicationOpen(request.resource.data.dayId);
+    }
+
+    function isEventRecruiting(eventId) {
+      let eventPath = /databases/$(database)/documents/eventPosts/$(eventId);
+      let eventData = get(eventPath).data;
+      let hasRecruitSchedule = eventData.recruitOpenAt is timestamp
+        && eventData.recruitCloseAt is timestamp;
+
+      return exists(eventPath)
+        && (
+          !hasRecruitSchedule
+          || (
+            eventData.recruitOpenAt <= request.time
+            && eventData.recruitCloseAt > request.time
+          )
+        );
+    }
+
+    function isValidEventApplication(applicationId) {
+      return request.resource.data.keys().hasOnly([
+          "eventId",
+          "eventTitle",
+          "name",
+          "studentId",
+          "createdAt",
+          "updatedAt"
+        ])
+        && applicationId == request.resource.data.eventId + "_" + request.resource.data.studentId
+        && isShortText(request.resource.data.eventId, 120)
+        && isShortText(request.resource.data.eventTitle, 120)
+        && isShortText(request.resource.data.name, 80)
+        && isShortText(request.resource.data.studentId, 80)
+        && request.resource.data.createdAt is timestamp
+        && request.resource.data.updatedAt is timestamp
+        && isEventRecruiting(request.resource.data.eventId);
+    }
+
     match /votes/{day} {
       allow read: if true;
       allow write: if isAdmin();
@@ -253,7 +329,14 @@ service cloud.firestore {
 
     match /classSchedules/{scheduleId} {
       allow read: if isAdminOrMember();
-      allow write: if isAdminOrMember();
+      allow write: if isAdmin();
+    }
+
+    match /classApplications/{applicationId} {
+      allow read: if isAdminOrMember();
+      allow create, update: if hasActiveMemberSession()
+        && isValidClassApplication(applicationId);
+      allow delete: if isAdmin();
     }
 
     match /privateClasses/{classId} {
@@ -299,7 +382,14 @@ service cloud.firestore {
 
     match /eventPosts/{eventId} {
       allow read: if isAdminOrMember();
-      allow write: if isAdminOrMember();
+      allow write: if isAdmin();
+    }
+
+    match /eventApplications/{applicationId} {
+      allow read: if isAdminOrMember();
+      allow create, update: if hasActiveMemberSession()
+        && isValidEventApplication(applicationId);
+      allow delete: if isAdmin();
     }
 
     match /faqEntries/{faqId} {

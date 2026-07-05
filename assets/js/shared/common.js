@@ -51,16 +51,20 @@ export function normalizeDateTimeValue(value) {
     return value;
   }
 
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? "" : value;
+  }
+
   if (typeof value.toDate === "function") {
-    return value.toDate().toISOString();
+    return value.toDate();
   }
 
   if (typeof value.seconds === "number") {
-    return new Date(value.seconds * 1000).toISOString();
+    return new Date(value.seconds * 1000);
   }
 
   if (typeof value === "number") {
-    return new Date(value).toISOString();
+    return new Date(value);
   }
 
   return "";
@@ -86,7 +90,7 @@ export function toDateTimeLocalValue(value) {
 }
 
 /**
- * `datetime-local` input value -> ISO string ("" when invalid).
+ * `datetime-local` input value -> Date ("" when invalid).
  */
 export function fromDateTimeLocalValue(value) {
   if (!value) {
@@ -95,7 +99,7 @@ export function fromDateTimeLocalValue(value) {
 
   const date = new Date(value);
 
-  return Number.isNaN(date.getTime()) ? "" : date.toISOString();
+  return Number.isNaN(date.getTime()) ? "" : date;
 }
 
 /**

@@ -1093,6 +1093,67 @@ body.is-modal-open {
   gap: 10px;
 }
 
+.join-application-section {
+  display: grid;
+  gap: 28px;
+  margin-top: 34px;
+}
+
+.join-application-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.join-application-form label {
+  display: grid;
+  gap: 8px;
+}
+
+.join-application-form span {
+  color: rgba(255, 247, 234, 0.74);
+  font-size: 0.88rem;
+  font-weight: 650;
+}
+
+.join-application-form input,
+.join-application-form textarea {
+  width: 100%;
+  border: 1px solid rgba(244, 205, 142, 0.22);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text);
+  font: inherit;
+  padding: 13px 15px;
+  outline: none;
+}
+
+.join-application-form textarea {
+  resize: vertical;
+}
+
+.join-application-form input:focus,
+.join-application-form textarea:focus {
+  border-color: rgba(244, 205, 142, 0.62);
+}
+
+.join-application-form__wide,
+.join-application-form .auth-status,
+.join-application-form .auth-button {
+  grid-column: 1 / -1;
+}
+
+.join-application-consent {
+  align-items: center;
+  grid-template-columns: auto 1fr;
+}
+
+.join-application-consent input {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+}
+
 .faq-item {
   overflow: hidden;
   border-radius: 8px;
@@ -2651,6 +2712,45 @@ body.member-page::after {
   outline: none;
 }
 
+.admin-application-list {
+  display: grid;
+  gap: 16px;
+}
+
+.admin-application-card {
+  display: grid;
+  gap: 18px;
+  padding: 20px;
+  border: 1px solid rgba(216, 179, 111, 0.18);
+  border-radius: 22px;
+  background: rgba(238, 242, 243, 0.04);
+}
+
+.admin-application-card__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.admin-application-card__header h3 {
+  margin: 8px 0 6px;
+  color: #ffffff;
+  font-size: 1.35rem;
+}
+
+.admin-application-card__header p,
+.admin-application-card__body p {
+  margin: 0;
+  color: rgba(238, 242, 243, 0.68);
+  line-height: 1.75;
+}
+
+.admin-application-card__body {
+  display: grid;
+  gap: 8px;
+}
+
 .admin-code-table {
   display: grid;
   overflow: hidden;
@@ -3354,6 +3454,16 @@ body.member-page::after {
   font-size: 0.78rem;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+  .join-application-form {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-application-card__header {
+    display: grid;
+  }
 }
 
 .admin-class-applicant {
