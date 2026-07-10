@@ -15,7 +15,7 @@ import {
   ref,
   uploadBytes,
 } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-storage.js";
-import { watchAdminAuth } from "../firebase-client.js";
+import { watchAdminAuth } from "../firebase-client.js?v=security-refactor-20260710";
 import {
   createFirebaseErrorFormatter,
   createStatusSetter,
@@ -23,7 +23,7 @@ import {
   fromDateTimeLocalValue,
   normalizeDateTimeValue,
   toDateTimeLocalValue,
-} from "../shared/common.js";
+} from "../shared/common.js?v=security-refactor-20260710";
 
 const COLLECTION_NAME = "eventPosts";
 const APPLICATION_COLLECTION = "eventApplications";
@@ -125,8 +125,20 @@ function getFormValues(form) {
     throw new Error("필수 항목을 입력해주세요.");
   }
 
+  if (values.title.length > 120) {
+    throw new Error("이벤트 제목은 120자 이하로 입력해주세요.");
+  }
+
   if (values.capacity < 0) {
     throw new Error("모집 인원은 0 이상이어야 합니다.");
+  }
+
+  if (values.recruitOpenAt.getTime() >= values.recruitCloseAt.getTime()) {
+    throw new Error("모집 마감 시간은 오픈 시간보다 뒤여야 합니다.");
+  }
+
+  if (values.recruitCloseAt.getTime() > values.eventAt.getTime()) {
+    throw new Error("모집 마감 시간은 이벤트 시작 시간보다 늦을 수 없습니다.");
   }
 
   return values;
@@ -165,10 +177,15 @@ async function uploadThumbnail(storage, postId, file) {
     contentType: file.type || "image/jpeg",
   });
 
-  return {
-    thumbnailPath: storagePath,
-    thumbnailUrl: await getDownloadURL(storageRef),
-  };
+  try {
+    return {
+      thumbnailPath: storagePath,
+      thumbnailUrl: await getDownloadURL(storageRef),
+    };
+  } catch (error) {
+    await deleteObject(storageRef).catch(() => undefined);
+    throw error;
+  }
 }
 
 async function deleteThumbnail(storage, storagePath) {
@@ -401,15 +418,23 @@ async function refreshPosts() {
 }
 
 async function saveRemotePost(form, values, thumbnailFile) {
+  const context = eventContext;
+
+  if (!context) {
+    throw new Error("관리자 로그인 상태를 확인해주세요.");
+  }
+
+  const { db, storage } = context;
   const id = form.elements.eventId.value;
   const previous = eventPosts.find((post) => post.id === id);
-  const docRef = id ? doc(eventContext.db, COLLECTION_NAME, id) : doc(collection(eventContext.db, COLLECTION_NAME));
-  const thumbnail = thumbnailFile
-    ? await uploadThumbnail(eventContext.storage, docRef.id, thumbnailFile)
-    : {
-      thumbnailPath: previous?.thumbnailPath || "",
-      thumbnailUrl: previous?.thumbnailUrl || "",
-    };
+  const docRef = id ? doc(db, COLLECTION_NAME, id) : doc(collection(db, COLLECTION_NAME));
+  const uploadedThumbnail = thumbnailFile
+    ? await uploadThumbnail(storage, docRef.id, thumbnailFile)
+    : null;
+  const thumbnail = uploadedThumbnail || {
+    thumbnailPath: previous?.thumbnailPath || "",
+    thumbnailUrl: previous?.thumbnailUrl || "",
+  };
   const nowFields = {
     ...values,
     ...thumbnail,
@@ -424,20 +449,28 @@ async function saveRemotePost(form, values, thumbnailFile) {
     updatedAt: serverTimestamp(),
   };
 
-  if (id) {
-    await setDoc(docRef, nowFields, { merge: true });
-
-    if (thumbnailFile && previous?.thumbnailPath && previous.thumbnailPath !== thumbnail.thumbnailPath) {
-      await deleteThumbnail(eventContext.storage, previous.thumbnailPath);
+  try {
+    if (id) {
+      await setDoc(docRef, nowFields, { merge: true });
+    } else {
+      await setDoc(docRef, {
+        ...nowFields,
+        createdAt: serverTimestamp(),
+      });
+    }
+  } catch (error) {
+    if (uploadedThumbnail) {
+      await deleteThumbnail(storage, uploadedThumbnail.thumbnailPath).catch(() => undefined);
     }
 
-    return;
+    throw error;
   }
 
-  await setDoc(docRef, {
-    ...nowFields,
-    createdAt: serverTimestamp(),
-  });
+  if (uploadedThumbnail && previous?.thumbnailPath && previous.thumbnailPath !== uploadedThumbnail.thumbnailPath) {
+    await deleteThumbnail(storage, previous.thumbnailPath).catch((error) => {
+      console.warn("Previous event thumbnail cleanup failed.", error);
+    });
+  }
 }
 
 async function savePostApplicants(post, applicants) {

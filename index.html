@@ -6,10 +6,10 @@
     <title>Martini</title>
     <link rel="icon" type="image/png" href="./assets/images/Logo.png" />
     <link rel="apple-touch-icon" href="./assets/images/Logo.png" />
-    <link rel="stylesheet" href="./assets/css/public.css?v=mobile-topbar-20260620" />
+    <link rel="stylesheet" href="./assets/css/public.css?v=refactor-20260710" />
     <script src="./assets/js/firebase-config.js?v=firebase-config-20260619"></script>
-    <script defer src="./assets/js/public/topbar.js?v=mobile-topbar-20260620" data-root="./"></script>
-    <script defer src="./assets/js/public/login-modal.js?v=login-modal-20260620-fix"></script>
+    <script defer src="./assets/js/public/topbar.js?v=refactor-20260710" data-root="./"></script>
+    <script defer src="./assets/js/public/login-modal.js?v=security-refactor-20260710"></script>
   </head>
   <body>
     <div data-shared-topbar></div>
@@ -114,20 +114,20 @@
           <article class="login-panel">
             <p class="intro__eyebrow">Member Code</p>
             <h3>부원 로그인</h3>
-            <form class="auth-form" data-member-login-form action="./member/index.html">
+            <form class="auth-form" data-member-login-form action="./member/index.html" method="post">
               <label class="auth-field">
                 <span>입장 코드</span>
                 <input type="text" name="accessCode" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*" required />
               </label>
               <div class="auth-field login-form-spacer" aria-hidden="true"></div>
               <p class="auth-status" data-member-login-status aria-live="polite"></p>
-              <button class="auth-button auth-button--primary" type="submit">로그인</button>
+              <button class="auth-button auth-button--primary" type="submit" disabled>로그인</button>
             </form>
           </article>
           <article class="login-panel">
             <p class="intro__eyebrow">Officer Login</p>
             <h3>임원 로그인</h3>
-            <form class="auth-form" data-admin-login-form action="./admin/index.html">
+            <form class="auth-form" data-admin-login-form action="./admin/index.html" method="post">
               <label class="auth-field">
                 <span>이메일</span>
                 <input type="email" autocomplete="email" required />
@@ -137,7 +137,7 @@
                 <input type="password" autocomplete="current-password" required />
               </label>
               <p class="auth-status" data-admin-login-status aria-live="polite"></p>
-              <button class="auth-button auth-button--primary" type="submit">로그인</button>
+              <button class="auth-button auth-button--primary" type="submit" disabled>로그인</button>
             </form>
           </article>
         </div>

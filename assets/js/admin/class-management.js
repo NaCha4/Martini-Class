@@ -7,12 +7,14 @@
   serverTimestamp,
   setDoc,
 } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js";
-import { watchAdminAuth } from "../firebase-client.js";
+import { watchAdminAuth } from "../firebase-client.js?v=security-refactor-20260710";
 import {
+  createStatusSetter,
   fromDateTimeLocalValue,
+  isApplicationWindowOpen,
   normalizeDateTimeValue,
   toDateTimeLocalValue,
-} from "../shared/common.js";
+} from "../shared/common.js?v=security-refactor-20260710";
 
 const COLLECTION_NAME = "classSchedules";
 const APPLICATION_COLLECTION = "classApplications";
@@ -31,16 +33,9 @@ let isClassEditMode = false;
 let activeApplicantDrag = null;
 let classScheduleTimer;
 let pendingAnimatedDayId = null;
+let areClassControlsAvailable = false;
 
-
-function setStatus(message = "", isError = false) {
-  const status = document.querySelector("[data-classes-status]");
-
-  if (status) {
-    status.textContent = message;
-    status.classList.toggle("is-error", isError);
-  }
-}
+const setStatus = createStatusSetter("[data-classes-status]");
 
 function createDefaultSchedule() {
   return {
@@ -86,19 +81,21 @@ function normalizeSchedule(data = {}) {
 }
 
 function getCurrentApplicationOpenState() {
-  const now = Date.now();
-  const openAt = classSchedule.reservationOpenAt ? new Date(classSchedule.reservationOpenAt).getTime() : null;
-  const closeAt = classSchedule.reservationCloseAt ? new Date(classSchedule.reservationCloseAt).getTime() : null;
+  return isApplicationWindowOpen({
+    closeAt: classSchedule.reservationCloseAt,
+    isOpen: classSchedule.isApplicationOpen,
+    openAt: classSchedule.reservationOpenAt,
+  });
+}
 
-  if (Number.isFinite(closeAt) && now >= closeAt) {
-    return false;
+function validateReservationWindow() {
+  if (!classSchedule.reservationOpenAt || !classSchedule.reservationCloseAt) {
+    return;
   }
 
-  if (Number.isFinite(openAt)) {
-    return now >= openAt;
+  if (classSchedule.reservationOpenAt.getTime() >= classSchedule.reservationCloseAt.getTime()) {
+    throw new Error("예약 마감 시간은 오픈 시간보다 뒤여야 합니다.");
   }
-
-  return Boolean(classSchedule.isApplicationOpen);
 }
 
 
@@ -209,6 +206,8 @@ function getScheduleSettingsPayload() {
 }
 
 function setClassControlsEnabled(isEnabled) {
+  areClassControlsAvailable = isEnabled;
+
   document.querySelectorAll("[data-classes-app-toggle], [data-classes-edit], [data-classes-reset], [data-classes-capacity], [data-classes-open-at], [data-classes-close-at], [data-classes-clear-reservation]").forEach((field) => {
     field.disabled = !isEnabled;
   });
@@ -302,6 +301,10 @@ function renderClassDayCard(day) {
   state.textContent = day.isOpen ? "Open" : "Closed";
   header.append(title, state);
   card.addEventListener("click", async (event) => {
+    if (!areClassControlsAvailable) {
+      return;
+    }
+
     const target = event.target;
     const isIgnoredClick = target instanceof Element
       && Boolean(target.closest(".admin-class-applicant"));
@@ -360,19 +363,22 @@ function renderClassApplicant(day, applicant) {
 }
 
 async function updateSchedule() {
-  renderClasses();
-
   try {
+    validateReservationWindow();
+    renderClasses();
     await persistSchedule();
+    setStatus();
   } catch (error) {
-    setStatus(error?.message || "정기 교육 설정 저장에 실패했습니다.", true);
+    const message = error?.message || "정기 교육 설정 저장에 실패했습니다.";
+
     await refreshClasses();
+    setStatus(message, true);
   }
 }
 
 async function refreshClasses() {
   if (!classContext) {
-    return;
+    return false;
   }
 
   try {
@@ -380,15 +386,19 @@ async function refreshClasses() {
 
     renderClasses();
     setStatus();
+    return true;
   } catch (error) {
     setClassControlsEnabled(false);
     setStatus(error?.message || "정기 교육 정보를 불러오지 못했습니다.", true);
+    return false;
   }
 }
 
 function bindClassButtons() {
   document.querySelector("[data-classes-app-toggle]")?.addEventListener("click", async () => {
-    classSchedule.isApplicationOpen = !classSchedule.isApplicationOpen;
+    classSchedule.isApplicationOpen = !getCurrentApplicationOpenState();
+    classSchedule.reservationOpenAt = "";
+    classSchedule.reservationCloseAt = "";
     playClassStateAnimation(document.querySelector("[data-classes-app-toggle]"));
     await updateSchedule();
   });
@@ -623,8 +633,9 @@ async function initClassManagement() {
       },
       onAdmin: async (user, { db }) => {
         classContext = { user, db };
-        setClassControlsEnabled(true);
-        await refreshClasses();
+        const loaded = await refreshClasses();
+
+        setClassControlsEnabled(loaded);
       },
     });
   } catch (error) {

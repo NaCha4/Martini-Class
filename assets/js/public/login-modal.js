@@ -14,6 +14,13 @@
     return loginUrl.href;
   }
 
+  function getFirebaseClientUrl(rootPath) {
+    const url = new URL(`${rootPath}assets/js/firebase-client.js`, window.location.href);
+
+    url.searchParams.set("v", "security-refactor-20260710");
+    return url.href;
+  }
+
   async function submitMemberLogin(form) {
     const status = form.querySelector("[data-member-login-status]");
     const codeInput = form.querySelector('input[name="accessCode"]');
@@ -25,7 +32,7 @@
     submitButton.disabled = true;
 
     try {
-      const firebaseClientUrl = new URL(`${rootPath}assets/js/firebase-client.js`, window.location.href).href;
+      const firebaseClientUrl = getFirebaseClientUrl(rootPath);
       const { signInMemberWithCode } = await import(firebaseClientUrl);
 
       await signInMemberWithCode(codeInput.value);
@@ -46,7 +53,7 @@
     submitButton.disabled = true;
 
     try {
-      const firebaseClientUrl = new URL(`${rootPath}assets/js/firebase-client.js`, window.location.href).href;
+      const firebaseClientUrl = getFirebaseClientUrl(rootPath);
       const { signInAdmin } = await import(firebaseClientUrl);
 
       await signInAdmin(emailInput.value.trim(), passwordInput.value);
@@ -112,6 +119,9 @@
       event.preventDefault();
       submitMemberLogin(memberLoginForm);
     });
+
+    adminLoginForm?.querySelector('button[type="submit"]')?.removeAttribute("disabled");
+    memberLoginForm?.querySelector('button[type="submit"]')?.removeAttribute("disabled");
 
     document.addEventListener("keydown", (event) => {
       if (event.key === "Escape" && !modal.hidden) {

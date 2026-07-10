@@ -6,11 +6,12 @@
   serverTimestamp,
   setDoc,
 } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js";
-import { watchAdminAuth } from "../firebase-client.js";
-import { createFirebaseErrorFormatter, createStatusSetter, getTimestampMillis } from "../shared/common.js";
+import { watchAdminAuth } from "../firebase-client.js?v=security-refactor-20260710";
+import { createFirebaseErrorFormatter, createStatusSetter, getTimestampMillis } from "../shared/common.js?v=security-refactor-20260710";
 
 const COLLECTION_NAME = "faqEntries";
 const LOADING_MESSAGE = "불러오는 중입니다.";
+const EMPTY_MESSAGE = "등록된 자주 묻는 질문이 없습니다.";
 
 let faqContext;
 let faqEntries = [];
@@ -28,7 +29,11 @@ function setFaqListMessage(message) {
   const list = document.querySelector("[data-faq-list]");
 
   if (list) {
-    list.innerHTML = `<p class="admin-empty">${message}</p>`;
+    const empty = document.createElement("p");
+
+    empty.className = "admin-empty";
+    empty.textContent = message;
+    list.replaceChildren(empty);
   }
 }
 
@@ -75,7 +80,7 @@ function renderFaq() {
   }
 
   if (!faqEntries.length) {
-    setFaqListMessage(LOADING_MESSAGE);
+    setFaqListMessage(EMPTY_MESSAGE);
     return;
   }
 

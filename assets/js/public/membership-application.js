@@ -4,9 +4,22 @@ import {
   serverTimestamp,
   setDoc,
 } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js";
-import { getFirebaseServices } from "../firebase-client.js";
+import { getFirebaseServices } from "../firebase-client.js?v=security-refactor-20260710";
+import { createFirebaseErrorFormatter } from "../shared/common.js?v=security-refactor-20260710";
 
 const COLLECTION_NAME = "membershipApplications";
+const FIELD_LIMITS = {
+  contact: 40,
+  department: 80,
+  email: 120,
+  motivation: 1200,
+  name: 40,
+  note: 1200,
+  studentId: 40,
+};
+const getFirebaseErrorMessage = createFirebaseErrorFormatter({
+  "permission-denied": "가입 신청을 접수할 수 없습니다. 잠시 후 다시 시도해주세요.",
+});
 
 function getTrimmed(formData, key) {
   return String(formData.get(key) || "").trim();
@@ -46,6 +59,13 @@ function getApplicationValues(form) {
     throw new Error("개인정보 수집 및 이용에 동의해주세요.");
   }
 
+  const oversizedField = Object.entries(FIELD_LIMITS)
+    .find(([key, maxLength]) => values[key].length > maxLength);
+
+  if (oversizedField) {
+    throw new Error("입력 가능한 글자 수를 초과한 항목이 있습니다.");
+  }
+
   return values;
 }
 
@@ -69,7 +89,7 @@ async function submitMembershipApplication(form) {
     form.reset();
     setStatus("가입 신청이 접수되었습니다.");
   } catch (error) {
-    setStatus(error?.message || "가입 신청 제출에 실패했습니다.", true);
+    setStatus(getFirebaseErrorMessage(error, "가입 신청 제출에 실패했습니다."), true);
   } finally {
     submitButton.disabled = false;
   }
@@ -78,10 +98,15 @@ async function submitMembershipApplication(form) {
 function bindMembershipApplicationForm() {
   const form = document.querySelector("[data-membership-application-form]");
 
-  form?.addEventListener("submit", (event) => {
+  if (!form) {
+    return;
+  }
+
+  form.addEventListener("submit", (event) => {
     event.preventDefault();
     submitMembershipApplication(form);
   });
+  form.querySelector('button[type="submit"]')?.removeAttribute("disabled");
 }
 
 document.addEventListener("DOMContentLoaded", bindMembershipApplicationForm);

@@ -7,12 +7,21 @@ service cloud.firestore {
         && request.auth.token.email == "admin@martini.com";
     }
 
-    function isWeekday(day) {
-      return day in ["monday", "tuesday", "wednesday", "thursday", "friday"];
-    }
-
     function isClassDayId(dayId) {
       return dayId in ["mon", "tue", "wed", "thu", "fri"];
+    }
+
+    function isOpenClassDay(schedule, dayId) {
+      return schedule.keys().hasAll(["days"])
+        && schedule.days is list
+        && schedule.days.size() == 5
+        && (
+          (schedule.days[0].id == dayId && schedule.days[0].isOpen == true)
+          || (schedule.days[1].id == dayId && schedule.days[1].isOpen == true)
+          || (schedule.days[2].id == dayId && schedule.days[2].isOpen == true)
+          || (schedule.days[3].id == dayId && schedule.days[3].isOpen == true)
+          || (schedule.days[4].id == dayId && schedule.days[4].isOpen == true)
+        );
     }
 
     function isShortText(value, maxLength) {
@@ -42,143 +51,14 @@ service cloud.firestore {
     function hasActiveMemberSession() {
       return request.auth != null
         && exists(/databases/$(database)/documents/memberAccessSessions/$(request.auth.uid))
-        && get(/databases/$(database)/documents/memberAccessSessions/$(request.auth.uid)).data.expiresAt is timestamp
-        && get(/databases/$(database)/documents/memberAccessSessions/$(request.auth.uid)).data.expiresAt > request.time
+        && get(/databases/$(database)/documents/memberAccessSessions/$(request.auth.uid)).data.createdAt is timestamp
+        && get(/databases/$(database)/documents/memberAccessSessions/$(request.auth.uid)).data.createdAt <= request.time
+        && get(/databases/$(database)/documents/memberAccessSessions/$(request.auth.uid)).data.createdAt + duration.value(24, 'h') > request.time
         && isActiveMemberAccessCode(get(/databases/$(database)/documents/memberAccessSessions/$(request.auth.uid)).data.codeHash);
     }
 
     function isAdminOrMember() {
       return isAdmin() || hasActiveMemberSession();
-    }
-
-    function isClassApplyOpen() {
-      let config = get(/databases/$(database)/documents/settings/voteConfig).data;
-      let isReservedClosed = config.reservedCloseAt is timestamp
-        && config.reservedCloseAt <= request.time;
-      let isReservedOpen = config.reservedOpenAt is timestamp
-        && config.reservedOpenAt <= request.time;
-
-      return !isReservedClosed && (config.isOpen == true || isReservedOpen);
-    }
-
-    function classVoteStateCount(day) {
-      let statePath = /databases/$(database)/documents/classVoteState/$(day);
-      return exists(statePath) && get(statePath).data.count is int
-        ? get(statePath).data.count
-        : 0;
-    }
-
-    function isClassVoteStateIncremented(day) {
-      let statePath = /databases/$(database)/documents/classVoteState/$(day);
-      let afterState = getAfter(statePath).data;
-
-      return afterState.count is int
-        && afterState.count == classVoteStateCount(day) + 1
-        && afterState.count <= 500;
-    }
-
-    function isValidClassVote(studentId) {
-      return request.resource.data.keys().hasOnly([
-          "name",
-          "studentId",
-          "day",
-          "dayLabel",
-          "createdAt",
-          "updatedAt"
-        ])
-        && request.resource.data.studentId == studentId
-        && isShortText(request.resource.data.name, 40)
-        && isShortText(request.resource.data.studentId, 40)
-        && isWeekday(request.resource.data.day)
-        && isShortText(request.resource.data.dayLabel, 20)
-        && request.resource.data.createdAt is timestamp
-        && request.resource.data.updatedAt is timestamp
-        && isClassVoteStateIncremented(request.resource.data.day);
-    }
-
-    function isValidClassVoteStateBase(day) {
-      return isWeekday(day)
-        && request.resource.data.keys().hasOnly(["count"])
-        && request.resource.data.count is int
-        && request.resource.data.count > 0
-        && request.resource.data.count <= 500;
-    }
-
-    function isValidClassVoteStateCreate(day) {
-      return isValidClassVoteStateBase(day)
-        && request.resource.data.count == 1;
-    }
-
-    function isValidClassVoteStateUpdate(day) {
-      let previousCount = resource.data.count is int
-        ? resource.data.count
-        : 0;
-
-      return isValidClassVoteStateBase(day)
-        && request.resource.data.count == previousCount + 1;
-    }
-
-    function isPrivateClassOpen(classId) {
-      let classData = get(/databases/$(database)/documents/privateClasses/$(classId)).data;
-      let hasRecruitSchedule = classData.recruitOpenAt is timestamp
-        && classData.recruitCloseAt is timestamp;
-      let applicationCount = classData.applicationCount is int
-        ? classData.applicationCount
-        : 0;
-      let isScheduledOpen = hasRecruitSchedule
-        && classData.recruitOpenAt <= request.time
-        && classData.recruitCloseAt > request.time;
-      let isNotFull = !(classData.capacity is int)
-        || classData.capacity <= 0
-        || applicationCount < classData.capacity;
-
-      return isNotFull
-        && (
-          (hasRecruitSchedule && isScheduledOpen)
-          || (!hasRecruitSchedule && classData.status == "open")
-        );
-    }
-
-    function isPrivateClassApplicationCountIncremented(classId) {
-      let classPath = /databases/$(database)/documents/privateClasses/$(classId);
-      let previousCount = get(classPath).data.applicationCount is int
-        ? get(classPath).data.applicationCount
-        : 0;
-      let afterClass = getAfter(classPath).data;
-
-      return afterClass.applicationCount is int
-        && afterClass.applicationCount == previousCount + 1
-        && afterClass.updatedAt is timestamp;
-    }
-
-    function isValidPrivateClassApplication(applicationId) {
-      return request.resource.data.keys().hasOnly([
-          "classId",
-          "classTitle",
-          "name",
-          "studentId",
-          "createdAt"
-        ])
-        && applicationId == request.resource.data.classId + "_" + request.resource.data.studentId
-        && isShortText(request.resource.data.classId, 120)
-        && isShortText(request.resource.data.classTitle, 120)
-        && isShortText(request.resource.data.name, 80)
-        && isShortText(request.resource.data.studentId, 80)
-        && request.resource.data.createdAt is timestamp
-        && isPrivateClassOpen(request.resource.data.classId)
-        && isPrivateClassApplicationCountIncremented(request.resource.data.classId);
-    }
-
-    function isValidPrivateClassApplyCountUpdate(classId) {
-      let previousCount = resource.data.applicationCount is int
-        ? resource.data.applicationCount
-        : 0;
-
-      return isPrivateClassOpen(classId)
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["applicationCount", "updatedAt"])
-        && request.resource.data.applicationCount is int
-        && request.resource.data.applicationCount == previousCount + 1
-        && request.resource.data.updatedAt is timestamp;
     }
 
     function isValidMembershipApplication() {
@@ -204,8 +84,8 @@ service cloud.firestore {
         && isText(request.resource.data.note, 1200)
         && request.resource.data.privacyAgreed == true
         && request.resource.data.status == "pending"
-        && request.resource.data.createdAt is timestamp
-        && request.resource.data.updatedAt is timestamp;
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time;
     }
 
     function isValidMemberAccessSession(sessionId) {
@@ -219,27 +99,31 @@ service cloud.firestore {
         ])
         && isCodeHash(request.resource.data.codeHash)
         && isActiveMemberAccessCode(request.resource.data.codeHash)
-        && request.resource.data.expiresAt is timestamp
-        && request.resource.data.expiresAt > request.time
-        && request.resource.data.createdAt is timestamp
-        && request.resource.data.updatedAt is timestamp;
+        && (
+          !request.resource.data.keys().hasAny(["expiresAt"])
+          || request.resource.data.expiresAt is timestamp
+        )
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time;
     }
 
     function isClassApplicationOpen(dayId) {
       let schedulePath = /databases/$(database)/documents/classSchedules/weekly;
       let schedule = get(schedulePath).data;
-      let hasTimestampReservation = schedule.reservationOpenAt is timestamp
+      let hasOpenAt = schedule.keys().hasAll(["reservationOpenAt"])
+        && schedule.reservationOpenAt is timestamp;
+      let hasCloseAt = schedule.keys().hasAll(["reservationCloseAt"])
         && schedule.reservationCloseAt is timestamp;
+      let isManualOpen = schedule.keys().hasAll(["isApplicationOpen"])
+        && schedule.isApplicationOpen == true;
 
       return isClassDayId(dayId)
         && exists(schedulePath)
+        && isOpenClassDay(schedule, dayId)
+        && (!hasCloseAt || schedule.reservationCloseAt > request.time)
         && (
-          schedule.isApplicationOpen == true
-          || (
-            hasTimestampReservation
-            && schedule.reservationOpenAt <= request.time
-            && schedule.reservationCloseAt > request.time
-          )
+          (hasOpenAt && schedule.reservationOpenAt <= request.time)
+          || (!hasOpenAt && isManualOpen)
         );
     }
 
@@ -257,25 +141,27 @@ service cloud.firestore {
         && isShortText(request.resource.data.dayLabel, 20)
         && isShortText(request.resource.data.name, 80)
         && isShortText(request.resource.data.studentId, 80)
-        && request.resource.data.createdAt is timestamp
-        && request.resource.data.updatedAt is timestamp
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time
         && isClassApplicationOpen(request.resource.data.dayId);
     }
 
     function isEventRecruiting(eventId) {
       let eventPath = /databases/$(database)/documents/eventPosts/$(eventId);
       let eventData = get(eventPath).data;
-      let hasRecruitSchedule = eventData.recruitOpenAt is timestamp
+      let hasRecruitOpenAt = eventData.keys().hasAll(["recruitOpenAt"])
+        && eventData.recruitOpenAt is timestamp;
+      let hasRecruitCloseAt = eventData.keys().hasAll(["recruitCloseAt"])
         && eventData.recruitCloseAt is timestamp;
+      let hasEventAt = eventData.keys().hasAll(["eventAt"])
+        && eventData.eventAt is timestamp;
 
       return exists(eventPath)
-        && (
-          !hasRecruitSchedule
-          || (
-            eventData.recruitOpenAt <= request.time
-            && eventData.recruitCloseAt > request.time
-          )
-        );
+        && hasRecruitOpenAt
+        && hasRecruitCloseAt
+        && eventData.recruitOpenAt <= request.time
+        && eventData.recruitCloseAt > request.time
+        && (!hasEventAt || eventData.eventAt > request.time);
     }
 
     function isValidEventApplication(applicationId) {
@@ -292,8 +178,10 @@ service cloud.firestore {
         && isShortText(request.resource.data.eventTitle, 120)
         && isShortText(request.resource.data.name, 80)
         && isShortText(request.resource.data.studentId, 80)
-        && request.resource.data.createdAt is timestamp
-        && request.resource.data.updatedAt is timestamp
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.eventTitle
+          == get(/databases/$(database)/documents/eventPosts/$(request.resource.data.eventId)).data.title
         && isEventRecruiting(request.resource.data.eventId);
     }
 
@@ -303,20 +191,11 @@ service cloud.firestore {
     }
 
     match /classVotes/{studentId} {
-      allow read: if isAdminOrMember();
-      allow create: if isAdmin()
-        || (hasActiveMemberSession() && isClassApplyOpen() && isValidClassVote(studentId));
-      allow update: if isAdmin();
-      allow delete: if isAdmin();
+      allow read, write: if isAdmin();
     }
 
     match /classVoteState/{day} {
-      allow read: if isAdminOrMember();
-      allow create: if isAdmin()
-        || (hasActiveMemberSession() && isClassApplyOpen() && isValidClassVoteStateCreate(day));
-      allow update: if isAdmin()
-        || (hasActiveMemberSession() && isClassApplyOpen() && isValidClassVoteStateUpdate(day));
-      allow delete: if isAdmin();
+      allow read, write: if isAdmin();
     }
 
     match /classAttendance/{studentId} {
@@ -334,28 +213,21 @@ service cloud.firestore {
 
     match /classApplications/{applicationId} {
       allow read: if isAdminOrMember();
-      allow create, update: if hasActiveMemberSession()
-        && isValidClassApplication(applicationId);
-      allow delete: if isAdmin();
-    }
-
-    match /privateClasses/{classId} {
-      allow read: if isAdminOrMember();
-      allow create, delete: if isAdmin();
-      allow update: if isAdmin()
-        || (hasActiveMemberSession() && isValidPrivateClassApplyCountUpdate(classId));
-    }
-
-    match /privateClassApplications/{applicationId} {
-      allow read: if isAdmin();
       allow create: if hasActiveMemberSession()
-        && isValidPrivateClassApplication(applicationId);
+        && isValidClassApplication(applicationId);
       allow update, delete: if isAdmin();
     }
 
+    match /privateClasses/{classId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /privateClassApplications/{applicationId} {
+      allow read, write: if isAdmin();
+    }
+
     match /settings/voteConfig {
-      allow read: if isAdminOrMember();
-      allow write: if isAdmin();
+      allow read, write: if isAdmin();
     }
 
     match /membershipApplications/{applicationId} {
@@ -387,9 +259,9 @@ service cloud.firestore {
 
     match /eventApplications/{applicationId} {
       allow read: if isAdminOrMember();
-      allow create, update: if hasActiveMemberSession()
+      allow create: if hasActiveMemberSession()
         && isValidEventApplication(applicationId);
-      allow delete: if isAdmin();
+      allow update, delete: if isAdmin();
     }
 
     match /faqEntries/{faqId} {
@@ -408,7 +280,8 @@ service cloud.firestore {
     match /memberAccessSessions/{sessionId} {
       allow get: if isAdmin() || (request.auth != null && request.auth.uid == sessionId);
       allow list: if isAdmin();
-      allow create, update: if isValidMemberAccessSession(sessionId);
+      allow create: if isValidMemberAccessSession(sessionId);
+      allow update: if false;
       allow delete: if isAdmin() || (request.auth != null && request.auth.uid == sessionId);
     }
 

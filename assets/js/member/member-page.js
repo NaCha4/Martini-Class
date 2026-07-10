@@ -1,6 +1,7 @@
 ﻿import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js";
 import {
   collection,
+  deleteDoc,
   doc,
   getDoc,
   getDocs,
@@ -10,8 +11,14 @@ import {
   setDoc,
   where,
 } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js";
-import { getFirebaseServices } from "../firebase-client.js";
-import { formatDateTime, normalizeDateTimeValue } from "../shared/common.js";
+import { signOut } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js";
+import { getFirebaseServices } from "../firebase-client.js?v=security-refactor-20260710";
+import {
+  createFirebaseErrorFormatter,
+  formatDateTime,
+  isApplicationWindowOpen,
+  normalizeDateTimeValue,
+} from "../shared/common.js?v=security-refactor-20260710";
 
 const CLASS_COLLECTION = "classSchedules";
 const CLASS_DOC_ID = "weekly";
@@ -19,6 +26,7 @@ const CLASS_APPLICATION_COLLECTION = "classApplications";
 const EVENT_COLLECTION = "eventPosts";
 const EVENT_APPLICATION_COLLECTION = "eventApplications";
 const MEMBERS_COLLECTION = "members";
+const MEMBER_ACCESS_SESSION_COLLECTION = "memberAccessSessions";
 
 let memberContext;
 let classSchedule = createDefaultSchedule();
@@ -27,6 +35,10 @@ let selectedEventId = null;
 let selectedClassDayId = "";
 let classFeedbackMessage = "";
 let eventFeedbackMessage = "";
+
+const getFirebaseErrorMessage = createFirebaseErrorFormatter({
+  "permission-denied": "로그인 세션이 만료되었습니다. 다시 로그인해주세요.",
+});
 
 function createDefaultSchedule() {
   return {
@@ -138,25 +150,26 @@ function mergeApplicants(...applicantGroups) {
 }
 
 function getCurrentApplicationOpenState() {
-  const now = Date.now();
-  const openAt = classSchedule.reservationOpenAt ? new Date(classSchedule.reservationOpenAt).getTime() : null;
-  const closeAt = classSchedule.reservationCloseAt ? new Date(classSchedule.reservationCloseAt).getTime() : null;
-
-  if (Number.isFinite(closeAt) && now >= closeAt) {
-    return false;
-  }
-
-  if (Number.isFinite(openAt)) {
-    return now >= openAt;
-  }
-
-  return Boolean(classSchedule.isApplicationOpen);
+  return isApplicationWindowOpen({
+    closeAt: classSchedule.reservationCloseAt,
+    isOpen: classSchedule.isApplicationOpen,
+    openAt: classSchedule.reservationOpenAt,
+  });
 }
 
 function isEventRecruiting(eventPost) {
+  if (!eventPost) {
+    return false;
+  }
+
   const now = Date.now();
+  const eventAt = eventPost.eventAt ? new Date(eventPost.eventAt).getTime() : null;
   const openAt = eventPost.recruitOpenAt ? new Date(eventPost.recruitOpenAt).getTime() : null;
   const closeAt = eventPost.recruitCloseAt ? new Date(eventPost.recruitCloseAt).getTime() : null;
+
+  if (Number.isFinite(eventAt) && now >= eventAt) {
+    return false;
+  }
 
   if (Number.isFinite(openAt) && now < openAt) {
     return false;
@@ -343,12 +356,11 @@ function renderClassOptions() {
     item.classList.toggle("is-locked", day.isOpen && !isSelectable);
     item.classList.toggle("is-selected", selectedClassDayId === day.id);
     item.disabled = !isSelectable;
+    item.setAttribute("aria-pressed", String(selectedClassDayId === day.id));
     title.textContent = day.label;
-    state.textContent = day.isOpen
+    state.textContent = classSchedule.capacity > 0
       ? `${day.applicants.length}/${classSchedule.capacity}`
-      : isFull
-        ? "Full"
-      : "Closed";
+      : `${day.applicants.length}명 · 제한 없음`;
     item.append(title, state);
     item.addEventListener("click", () => {
       selectedClassDayId = day.id;
@@ -430,11 +442,17 @@ function createEventDetail(eventPost) {
   meta.textContent = `${formatDateTime(eventPost.eventAt)} · ${eventPost.fee || "참여비 없음"} · ${eventPost.applicants.length}/${eventPost.capacity || "제한 없음"}`;
   description.textContent = eventPost.description;
   form.className = "member-event-apply";
+  form.method = "post";
   name.name = "name";
   name.placeholder = "이름";
+  name.autocomplete = "name";
+  name.maxLength = 80;
+  name.setAttribute("aria-label", "이름");
   name.required = true;
   studentId.name = "studentId";
   studentId.placeholder = "학번";
+  studentId.maxLength = 80;
+  studentId.setAttribute("aria-label", "학번");
   studentId.required = true;
   studentId.inputMode = "numeric";
   button.type = "submit";
@@ -442,11 +460,27 @@ function createEventDetail(eventPost) {
   button.disabled = !isEventRecruiting(eventPost);
   form.append(name, studentId, button);
   feedback.className = "member-event-state";
+  feedback.setAttribute("role", "status");
+  feedback.setAttribute("aria-live", "polite");
   feedback.textContent = eventFeedbackMessage;
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
-    await applyEvent(eventPost.id, name.value, studentId.value);
-    form.reset();
+    button.disabled = true;
+
+    try {
+      const wasSubmitted = await applyEvent(eventPost.id, name.value, studentId.value);
+
+      if (wasSubmitted) {
+        form.reset();
+      }
+
+      feedback.textContent = eventFeedbackMessage;
+      button.disabled = !isEventRecruiting(eventPost);
+    } catch (error) {
+      eventFeedbackMessage = getFirebaseErrorMessage(error, "이벤트 신청에 실패했습니다.");
+      feedback.textContent = eventFeedbackMessage;
+      button.disabled = !isEventRecruiting(eventPost);
+    }
   });
   detail.append(backButton, thumbnail, category, title, meta, description, form, feedback);
 
@@ -515,19 +549,34 @@ async function applyClass(form) {
     return;
   }
 
-  await setDoc(doc(memberContext.db, CLASS_APPLICATION_COLLECTION, registeredMember.studentId), {
+  const applicationRef = doc(memberContext.db, CLASS_APPLICATION_COLLECTION, registeredMember.studentId);
+  const existingApplication = await getDoc(applicationRef);
+
+  if (existingApplication.exists()) {
+    classFeedbackMessage = "이미 신청 내역이 있습니다. 변경은 운영진에게 문의해주세요.";
+    renderClassOptions();
+    return;
+  }
+
+  await setDoc(applicationRef, {
     dayId: day.id,
     dayLabel: day.label,
     name: registeredMember.name,
     studentId: registeredMember.studentId,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
-  }, { merge: true });
+  });
 
   form.reset();
   selectedClassDayId = "";
   classFeedbackMessage = "신청이 완료되었습니다.";
-  await refreshMemberData();
+
+  try {
+    await refreshMemberData();
+  } catch {
+    classFeedbackMessage = "신청은 완료되었지만 최신 목록을 불러오지 못했습니다.";
+    renderClassOptions();
+  }
 }
 
 async function applyEvent(eventId, name, studentId) {
@@ -535,30 +584,43 @@ async function applyEvent(eventId, name, studentId) {
   eventFeedbackMessage = "";
   const registeredMember = await assertRegisteredMember(name, studentId, (message) => {
     eventFeedbackMessage = message;
-    renderEvents();
   });
 
   if (!registeredMember) {
-    return;
+    return false;
   }
 
   if (!isEventRecruiting(post)) {
     eventFeedbackMessage = "신청 가능한 이벤트가 아닙니다.";
-    renderEvents();
-    return;
+    return false;
   }
 
-  await setDoc(doc(memberContext.db, EVENT_APPLICATION_COLLECTION, `${eventId}_${registeredMember.studentId}`), {
+  const applicationRef = doc(memberContext.db, EVENT_APPLICATION_COLLECTION, `${eventId}_${registeredMember.studentId}`);
+  const existingApplication = await getDoc(applicationRef);
+
+  if (existingApplication.exists()) {
+    eventFeedbackMessage = "이미 신청한 이벤트입니다.";
+    return false;
+  }
+
+  await setDoc(applicationRef, {
     eventId,
     eventTitle: post.title,
     name: registeredMember.name,
     studentId: registeredMember.studentId,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
-  }, { merge: true });
+  });
 
   eventFeedbackMessage = "신청이 완료되었습니다.";
-  await refreshMemberData();
+
+  try {
+    await refreshMemberData();
+  } catch {
+    eventFeedbackMessage = "신청은 완료되었지만 최신 목록을 불러오지 못했습니다.";
+  }
+
+  return true;
 }
 
 async function refreshMemberData() {
@@ -574,8 +636,41 @@ async function refreshMemberData() {
 function bindMemberForms() {
   document.querySelector("[data-member-class-form]")?.addEventListener("submit", async (event) => {
     event.preventDefault();
-    await applyClass(event.currentTarget);
+    const form = event.currentTarget;
+    const submitButton = form.querySelector('button[type="submit"]');
+
+    if (submitButton) {
+      submitButton.disabled = true;
+    }
+
+    try {
+      await applyClass(form);
+    } catch (error) {
+      classFeedbackMessage = getFirebaseErrorMessage(error, "정기 클래스 신청에 실패했습니다.");
+      renderClassOptions();
+    }
   });
+}
+
+function bindMemberLogout(auth, db) {
+  const button = document.querySelector("[data-member-logout]");
+
+  if (!button) {
+    return;
+  }
+
+  button.disabled = false;
+  button.addEventListener("click", async () => {
+    button.disabled = true;
+    const user = auth.currentUser;
+
+    if (user) {
+      await deleteDoc(doc(db, MEMBER_ACCESS_SESSION_COLLECTION, user.uid)).catch(() => undefined);
+    }
+
+    await signOut(auth).catch(() => undefined);
+    window.location.href = "../index.html";
+  }, { once: true });
 }
 
 async function initMemberPage() {
@@ -584,11 +679,12 @@ async function initMemberPage() {
   }
 
   bindMemberForms();
-
+  renderMemberPage();
 
   try {
     const { auth, db } = await getFirebaseServices();
 
+    bindMemberLogout(auth, db);
     onAuthStateChanged(auth, async (user) => {
       if (!user) {
         window.location.href = "../index.html";
@@ -596,7 +692,23 @@ async function initMemberPage() {
       }
 
       memberContext = { user, db };
-      await refreshMemberData();
+
+      try {
+        await refreshMemberData();
+      } catch (error) {
+        if (error?.code === "permission-denied") {
+          memberContext = null;
+          await signOut(auth).catch(() => undefined);
+          window.location.href = "../index.html?login=open";
+          return;
+        }
+
+        const message = getFirebaseErrorMessage(error, "부원 페이지 정보를 불러오지 못했습니다.");
+
+        classFeedbackMessage = message;
+        eventFeedbackMessage = message;
+        renderMemberPage();
+      }
     });
   } catch {
     window.location.href = "../index.html";

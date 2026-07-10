@@ -38,36 +38,42 @@ export function createStatusSetter(selector) {
   };
 }
 
-/**
- * Normalizes Firestore Timestamp / seconds object / number / string values
- * to an ISO string, or "" when the value is missing or unrecognized.
- */
-export function normalizeDateTimeValue(value) {
-  if (!value) {
-    return "";
-  }
-
-  if (typeof value === "string") {
-    return value;
+function toValidDate(value) {
+  if (value === null || value === undefined || value === "") {
+    return null;
   }
 
   if (value instanceof Date) {
-    return Number.isNaN(value.getTime()) ? "" : value;
+    return Number.isNaN(value.getTime()) ? null : value;
   }
 
   if (typeof value.toDate === "function") {
-    return value.toDate();
+    const date = value.toDate();
+
+    return date instanceof Date && !Number.isNaN(date.getTime()) ? date : null;
   }
 
   if (typeof value.seconds === "number") {
-    return new Date(value.seconds * 1000);
+    const date = new Date(value.seconds * 1000);
+
+    return Number.isNaN(date.getTime()) ? null : date;
   }
 
-  if (typeof value === "number") {
-    return new Date(value);
+  if (typeof value === "string" || typeof value === "number") {
+    const date = new Date(value);
+
+    return Number.isNaN(date.getTime()) ? null : date;
   }
 
-  return "";
+  return null;
+}
+
+/**
+ * Normalizes Firestore Timestamp / seconds object / number / string values
+ * to a valid Date, or "" when the value is missing or unrecognized.
+ */
+export function normalizeDateTimeValue(value) {
+  return toValidDate(value) || "";
 }
 
 /**
@@ -78,9 +84,9 @@ export function toDateTimeLocalValue(value) {
     return "";
   }
 
-  const date = new Date(value);
+  const date = toValidDate(value);
 
-  if (Number.isNaN(date.getTime())) {
+  if (!date) {
     return "";
   }
 
@@ -97,9 +103,7 @@ export function fromDateTimeLocalValue(value) {
     return "";
   }
 
-  const date = new Date(value);
-
-  return Number.isNaN(date.getTime()) ? "" : date;
+  return toValidDate(value) || "";
 }
 
 /**
@@ -110,9 +114,9 @@ export function formatDateTime(value) {
     return "-";
   }
 
-  const date = new Date(value);
+  const date = toValidDate(value);
 
-  if (Number.isNaN(date.getTime())) {
+  if (!date) {
     return "-";
   }
 
@@ -129,25 +133,36 @@ export function formatDateTime(value) {
  * Returns `fallback` for missing or unparsable values.
  */
 export function getTimestampMillis(value, fallback = 0) {
-  if (!value) {
-    return fallback;
+  if (value && typeof value.toMillis === "function") {
+    const millis = value.toMillis();
+
+    return Number.isFinite(millis) ? millis : fallback;
   }
 
-  if (typeof value === "number") {
-    return value;
+  return toValidDate(value)?.getTime() ?? fallback;
+}
+
+/**
+ * Resolves a manual/scheduled application window using one shared policy.
+ * A close time always wins; when an open time exists it takes precedence
+ * over the manual flag.
+ */
+export function isApplicationWindowOpen({ isOpen = false, openAt = "", closeAt = "" } = {}, now = Date.now()) {
+  const nowMillis = getTimestampMillis(now, Number.NaN);
+  const openMillis = getTimestampMillis(openAt, Number.NaN);
+  const closeMillis = getTimestampMillis(closeAt, Number.NaN);
+
+  if (!Number.isFinite(nowMillis)) {
+    return false;
   }
 
-  if (typeof value.toMillis === "function") {
-    return value.toMillis();
+  if (Number.isFinite(closeMillis) && nowMillis >= closeMillis) {
+    return false;
   }
 
-  if (typeof value.seconds === "number") {
-    return value.seconds * 1000;
+  if (Number.isFinite(openMillis)) {
+    return nowMillis >= openMillis;
   }
 
-  if (typeof value === "string") {
-    return new Date(value).getTime() || fallback;
-  }
-
-  return fallback;
+  return Boolean(isOpen);
 }

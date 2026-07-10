@@ -81,8 +81,9 @@
 
   function bindMobileMenus() {
     document.querySelectorAll(".site-nav__item > button").forEach((button) => {
+      const item = button.closest(".site-nav__item");
+
       button.addEventListener("click", () => {
-        const item = button.closest(".site-nav__item");
         const isOpen = item?.classList.contains("is-open");
 
         closeAllMenus();
@@ -90,6 +91,13 @@
         if (!isOpen && item) {
           item.classList.add("is-open");
           button.setAttribute("aria-expanded", "true");
+        }
+      });
+
+      item?.addEventListener("focusout", (event) => {
+        if (!item.contains(event.relatedTarget)) {
+          item.classList.remove("is-open");
+          button.setAttribute("aria-expanded", "false");
         }
       });
     });
@@ -100,6 +108,17 @@
       }
 
       closeAllMenus();
+    });
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key !== "Escape") {
+        return;
+      }
+
+      const openButton = document.querySelector(".site-nav__item.is-open > button");
+
+      closeAllMenus();
+      openButton?.focus();
     });
   }
 

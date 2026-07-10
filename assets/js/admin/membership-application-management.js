@@ -9,9 +9,10 @@ import {
   serverTimestamp,
   setDoc,
   where,
+  writeBatch,
 } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js";
-import { watchAdminAuth } from "../firebase-client.js";
-import { createFirebaseErrorFormatter, createStatusSetter, formatDateTime } from "../shared/common.js";
+import { watchAdminAuth } from "../firebase-client.js?v=security-refactor-20260710";
+import { createFirebaseErrorFormatter, createStatusSetter, formatDateTime } from "../shared/common.js?v=security-refactor-20260710";
 
 const APPLICATION_COLLECTION = "membershipApplications";
 const MEMBER_COLLECTION = "members";
@@ -163,8 +164,9 @@ async function approveApplication(application) {
     const memberRef = existingMember
       ? doc(applicationContext.db, MEMBER_COLLECTION, existingMember.id)
       : doc(collection(applicationContext.db, MEMBER_COLLECTION));
+    const batch = writeBatch(applicationContext.db);
 
-    await setDoc(memberRef, {
+    batch.set(memberRef, {
       name: application.name,
       studentId: application.studentId,
       department: application.department,
@@ -173,15 +175,21 @@ async function approveApplication(application) {
       updatedAt: serverTimestamp(),
       ...(existingMember ? {} : { createdAt: serverTimestamp() }),
     }, { merge: true });
+    batch.set(doc(applicationContext.db, APPLICATION_COLLECTION, application.id), {
+      status: "approved",
+      reviewedAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    }, { merge: true });
 
-    await updateApplicationStatus(application, "approved", false);
+    await batch.commit();
+    await refreshApplications();
   } catch (error) {
     setStatus(getFirebaseErrorMessage(error, "가입 신청 승인에 실패했습니다."), true);
   }
 }
 
-async function updateApplicationStatus(application, status, shouldConfirm = true) {
-  if (shouldConfirm && !window.confirm(`${application.name || "신청자"} 신청을 ${getStatusLabel(status)} 처리할까요?`)) {
+async function updateApplicationStatus(application, status) {
+  if (!window.confirm(`${application.name || "신청자"} 신청을 ${getStatusLabel(status)} 처리할까요?`)) {
     return;
   }
 

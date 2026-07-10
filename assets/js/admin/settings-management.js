@@ -1,13 +1,12 @@
 ﻿import {
   collection,
-  deleteDoc,
   doc,
   getDocs,
   serverTimestamp,
-  setDoc,
+  writeBatch,
 } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js";
-import { hashAccessCode, watchAdminAuth } from "../firebase-client.js";
-import { createFirebaseErrorFormatter, createStatusSetter } from "../shared/common.js";
+import { hashAccessCode, watchAdminAuth } from "../firebase-client.js?v=security-refactor-20260710";
+import { createFirebaseErrorFormatter, createStatusSetter } from "../shared/common.js?v=security-refactor-20260710";
 
 const CODE_COLLECTION = "memberAccessCodes";
 
@@ -62,17 +61,18 @@ async function saveAccessCode(form) {
   const codePrefix = accessCode.slice(0, 1);
 
   const snapshots = await getDocs(collection(settingsContext.db, CODE_COLLECTION));
-  const deleteJobs = snapshots.docs
-    .filter((snapshot) => snapshot.id !== codeHash)
-    .map((snapshot) => deleteDoc(doc(settingsContext.db, CODE_COLLECTION, snapshot.id)));
+  const batch = writeBatch(settingsContext.db);
 
-  await Promise.all(deleteJobs);
-  await setDoc(doc(settingsContext.db, CODE_COLLECTION, codeHash), {
+  snapshots.docs
+    .filter((snapshot) => snapshot.id !== codeHash)
+    .forEach((snapshot) => batch.delete(doc(settingsContext.db, CODE_COLLECTION, snapshot.id)));
+  batch.set(doc(settingsContext.db, CODE_COLLECTION, codeHash), {
     enabled: true,
     codePrefix,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   }, { merge: true });
+  await batch.commit();
 }
 
 function bindSettingsForm() {

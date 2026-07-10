@@ -6,7 +6,7 @@
     <title>Member | Martini</title>
     <link rel="icon" type="image/png" href="../assets/images/Logo.png" />
     <link rel="apple-touch-icon" href="../assets/images/Logo.png" />
-    <link rel="stylesheet" href="../assets/css/public.css?v=mobile-topbar-20260620" />
+    <link rel="stylesheet" href="../assets/css/public.css?v=refactor-20260710" />
     <script src="../assets/js/firebase-config.js?v=firebase-config-20260619"></script>
   </head>
   <body class="member-page">
@@ -14,9 +14,11 @@
       <a class="member-header__brand" href="../index.html" aria-label="Martini home">
         <img src="../assets/images/Name.png" alt="Martini" />
       </a>
+      <button class="login-button member-logout-button" type="button" data-member-logout disabled>로그아웃</button>
     </header>
 
     <main class="member-main">
+      <h1 class="visually-hidden">Martini 부원 신청</h1>
       <div class="member-dashboard" data-member-app>
         <section class="member-card">
           <div class="member-card__title">
@@ -24,19 +26,19 @@
             <h2>정기 클래스 신청</h2>
           </div>
           <div class="member-class-list" data-member-class-list></div>
-          <form class="member-apply-form" data-member-class-form>
+          <form class="member-apply-form" data-member-class-form method="post">
             <label>
               <span>이름</span>
-              <input type="text" name="name" required />
+              <input type="text" name="name" autocomplete="name" maxlength="80" required />
             </label>
             <label>
               <span>학번</span>
-              <input type="text" name="studentId" inputmode="numeric" required />
+              <input type="text" name="studentId" inputmode="numeric" maxlength="80" required />
             </label>
             <input type="hidden" name="dayId" data-member-selected-day required />
-            <button type="submit">신청</button>
+            <button type="submit" disabled>신청</button>
           </form>
-          <p class="member-class-state" data-member-class-state></p>
+          <p class="member-class-state" data-member-class-state role="status" aria-live="polite"></p>
         </section>
 
         <section class="member-card">
@@ -48,7 +50,7 @@
         </section>
       </div>
     </main>
-    <script type="module" src="../assets/js/member/member-page.js"></script>
+    <script type="module" src="../assets/js/member/member-page.js?v=security-refactor-20260710"></script>
   </body>
 </html>
 

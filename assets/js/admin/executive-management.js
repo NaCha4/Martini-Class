@@ -8,8 +8,8 @@
   serverTimestamp,
   setDoc,
 } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js";
-import { watchAdminAuth } from "../firebase-client.js";
-import { createFirebaseErrorFormatter, getTimestampMillis } from "../shared/common.js";
+import { watchAdminAuth } from "../firebase-client.js?v=security-refactor-20260710";
+import { createFirebaseErrorFormatter, createStatusSetter, getTimestampMillis } from "../shared/common.js?v=security-refactor-20260710";
 
 const MEMBERS_COLLECTION = "members";
 const DEPARTMENTS_COLLECTION = "officerDepartments";
@@ -22,20 +22,7 @@ let areExecutiveControlsAvailable = false;
 let activeDepartmentDrag = null;
 let activeMemberDrag = null;
 
-
-// Intentionally silent: this panel does not surface status text,
-// but call sites keep messages for future use.
-function setStatus(message, isError = false) {
-  const status = document.querySelector("[data-executives-status]");
-
-  if (!status) {
-    return;
-  }
-
-  status.textContent = "";
-  status.classList.toggle("is-error", false);
-}
-
+const setStatus = createStatusSetter("[data-executives-status]");
 const getFirebaseErrorMessage = createFirebaseErrorFormatter();
 
 function sortByName(records) {
@@ -496,23 +483,35 @@ function renderDepartments() {
   }
 
   list.replaceChildren(...departments.map(renderDepartmentCard));
-  setControlsEnabled(true);
+  setControlsEnabled(areExecutiveControlsAvailable);
 }
 
 async function refreshExecutives() {
   if (!executiveContext) {
-    return;
+    return false;
   }
 
+  const context = executiveContext;
   setStatus("임원 정보를 불러오는 중입니다.");
 
   try {
-    await loadRemoteData(executiveContext.db);
+    await loadRemoteData(context.db);
+
+    if (executiveContext !== context) {
+      return false;
+    }
+
     renderDepartments();
     setStatus("");
+    return true;
   } catch (error) {
+    if (executiveContext !== context) {
+      return false;
+    }
+
     setControlsEnabled(false);
     setStatus(getFirebaseErrorMessage(error, "임원 정보를 불러오지 못했습니다."), true);
+    return false;
   }
 }
 
@@ -748,8 +747,9 @@ async function initExecutiveManagement() {
       },
       onAdmin: async (user, { db }) => {
         executiveContext = { user, db };
-        setControlsEnabled(true);
-        await refreshExecutives();
+        const loaded = await refreshExecutives();
+
+        setControlsEnabled(loaded);
       },
     });
   } catch (error) {

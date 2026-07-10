@@ -6,7 +6,7 @@
     <title>Martini Admin</title>
     <link rel="icon" type="image/png" href="../assets/images/Logo.png" />
     <link rel="apple-touch-icon" href="../assets/images/Logo.png" />
-    <link rel="stylesheet" href="../assets/css/public.css?v=minutes-download-20260701" />
+    <link rel="stylesheet" href="../assets/css/public.css?v=refactor-20260710" />
     <script src="../assets/js/firebase-config.js?v=firebase-config-20260619"></script>
   </head>
   <body class="admin-page">
@@ -39,7 +39,7 @@
                 <h1>Officer</h1>
               </div>
               <div class="admin-page-actions">
-                <form class="admin-department-quick-form admin-executive-edit-control" data-department-form>
+                <form class="admin-department-quick-form admin-executive-edit-control" data-department-form method="post">
                   <input type="text" name="departmentName" placeholder="부서 이름" aria-label="부서 이름" required />
                   <button type="submit">Add</button>
                 </form>
@@ -76,7 +76,7 @@
                   <span>Profile</span>
                   <h2>부원 정보</h2>
                 </div>
-                <form class="admin-upload-form" data-member-form>
+                <form class="admin-upload-form" data-member-form method="post">
                   <input type="hidden" name="memberId" />
                   <label>
                     <span>이름</span>
@@ -198,7 +198,7 @@
               </section>
 
               <section class="admin-event-editor" data-events-view="editor" hidden>
-                <form class="admin-event-form" data-event-form>
+                <form class="admin-event-form" data-event-form method="post">
                   <input type="hidden" name="eventId" />
                   <div class="admin-upload-field">
                     <span>썸네일</span>
@@ -210,7 +210,7 @@
                   </div>
                   <label>
                     <span>제목</span>
-                    <input type="text" name="title" required />
+                    <input type="text" name="title" maxlength="120" required />
                   </label>
                   <label>
                     <span>분류</span>
@@ -311,7 +311,7 @@
                   <span>Template</span>
                   <h2>양식</h2>
                 </div>
-                <form class="admin-upload-form" data-minutes-form="template">
+                <form class="admin-upload-form" data-minutes-form="template" method="post">
                   <label>
                     <span>양식 이름</span>
                     <input type="text" name="title" placeholder="예: 정기 회의록 양식" required />
@@ -334,7 +334,7 @@
                   <span>Completed</span>
                   <h2>회의록</h2>
                 </div>
-                <form class="admin-upload-form" data-minutes-form="completed">
+                <form class="admin-upload-form" data-minutes-form="completed" method="post">
                   <label>
                     <span>회의 제목</span>
                     <input type="text" name="title" placeholder="예: 2026년 1학기 운영 회의" required />
@@ -367,7 +367,7 @@
                   <span>Member Login</span>
                   <h2>부원 로그인 코드</h2>
                 </div>
-                <form class="admin-upload-form admin-settings-form" data-member-code-form>
+                <form class="admin-upload-form admin-settings-form" data-member-code-form method="post">
                   <label>
                     <span>코드</span>
                     <input type="text" name="accessCode" autocomplete="off" autocapitalize="none" spellcheck="false" required />
@@ -392,7 +392,7 @@
                   <span>Question</span>
                   <h2>자주 묻는 질문 추가</h2>
                 </div>
-                <form class="admin-upload-form admin-history-form" data-faq-form>
+                <form class="admin-upload-form admin-history-form" data-faq-form method="post">
                   <label>
                     <span>제목</span>
                     <input type="text" name="title" required />
@@ -419,14 +419,14 @@
     </main>
 
     <script src="../assets/js/admin/admin-shell.js"></script>
-    <script type="module" src="../assets/js/admin/executive-management.js"></script>
-    <script type="module" src="../assets/js/admin/member-management.js"></script>
-    <script type="module" src="../assets/js/admin/membership-application-management.js?v=membership-20260705"></script>
-    <script type="module" src="../assets/js/admin/class-management.js"></script>
-    <script type="module" src="../assets/js/admin/event-management.js"></script>
-    <script type="module" src="../assets/js/admin/meeting-minutes.js?v=20260701-4"></script>
-    <script type="module" src="../assets/js/admin/settings-management.js"></script>
-    <script type="module" src="../assets/js/admin/faq-management.js?v=faq-loading-20260704"></script>
+    <script type="module" src="../assets/js/admin/executive-management.js?v=refactor-20260710"></script>
+    <script type="module" src="../assets/js/admin/member-management.js?v=refactor-20260710"></script>
+    <script type="module" src="../assets/js/admin/membership-application-management.js?v=refactor-20260710"></script>
+    <script type="module" src="../assets/js/admin/class-management.js?v=refactor-20260710"></script>
+    <script type="module" src="../assets/js/admin/event-management.js?v=refactor-20260710"></script>
+    <script type="module" src="../assets/js/admin/meeting-minutes.js?v=refactor-20260710"></script>
+    <script type="module" src="../assets/js/admin/settings-management.js?v=refactor-20260710"></script>
+    <script type="module" src="../assets/js/admin/faq-management.js?v=refactor-20260710"></script>
   </body>
 </html>
 

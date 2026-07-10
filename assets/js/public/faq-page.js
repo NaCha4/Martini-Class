@@ -1,9 +1,11 @@
 import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js";
-import { getFirebaseServices } from "../firebase-client.js";
-import { getTimestampMillis } from "../shared/common.js";
+import { getFirebaseServices } from "../firebase-client.js?v=security-refactor-20260710";
+import { getTimestampMillis } from "../shared/common.js?v=security-refactor-20260710";
 
 const COLLECTION_NAME = "faqEntries";
 const LOADING_MESSAGE = "\uBD88\uB7EC\uC624\uB294 \uC911\uC785\uB2C8\uB2E4.";
+const EMPTY_MESSAGE = "등록된 자주 묻는 질문이 없습니다.";
+const ERROR_MESSAGE = "자주 묻는 질문을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.";
 
 function sortFaq(records) {
   return [...records].sort((first, second) => getTimestampMillis(second.createdAt) - getTimestampMillis(first.createdAt));
@@ -53,24 +55,6 @@ function createFaqItem(entry, index) {
   return item;
 }
 
-function bindFaqInteractions(root) {
-  root.querySelectorAll(".faq-question").forEach((button) => {
-    if (button.dataset.faqBound === "true") {
-      return;
-    }
-
-    const item = button.closest(".faq-item");
-    const answerId = button.getAttribute("aria-controls");
-    const answer = answerId ? document.getElementById(answerId) : null;
-
-    if (!item || !answer) {
-      return;
-    }
-
-    bindFaqToggle(item, button, answer);
-  });
-}
-
 async function initFaqPage() {
   const list = document.querySelector("[data-public-faq-list]");
 
@@ -89,13 +73,13 @@ async function initFaqPage() {
     }));
 
     if (!entries.length) {
-      list.replaceChildren(createMessage(LOADING_MESSAGE));
+      list.replaceChildren(createMessage(EMPTY_MESSAGE));
       return;
     }
 
     list.replaceChildren(...sortFaq(entries).map(createFaqItem));
   } catch {
-    bindFaqInteractions(list);
+    list.replaceChildren(createMessage(ERROR_MESSAGE));
   }
 }
 

@@ -8,8 +8,8 @@
   serverTimestamp,
   setDoc,
 } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js";
-import { watchAdminAuth } from "../firebase-client.js";
-import { createFirebaseErrorFormatter, createStatusSetter } from "../shared/common.js";
+import { watchAdminAuth } from "../firebase-client.js?v=security-refactor-20260710";
+import { createFirebaseErrorFormatter, createStatusSetter } from "../shared/common.js?v=security-refactor-20260710";
 
 const COLLECTION_NAME = "members";
 

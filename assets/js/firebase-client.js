@@ -28,6 +28,10 @@ const LOCAL_HOSTNAMES = new Set(["localhost", "127.0.0.1", "0.0.0.0", "::1", "[:
 
 let servicesPromise;
 let appCheckInstance;
+let adminAuthObserverStarted = false;
+let adminAuthState = null;
+let adminAuthRevision = 0;
+const adminAuthSubscribers = new Set();
 
 function isLocalEnvironment() {
   const { hostname, protocol } = window.location;
@@ -146,7 +150,7 @@ export async function hashAccessCode(value) {
 
 export async function getFirebaseServices() {
   if (!servicesPromise) {
-    servicesPromise = loadFirebaseConfig().then((config) => {
+    const initialization = loadFirebaseConfig().then((config) => {
       const app = getApps().length ? getApp() : initializeApp(config);
       const appCheckSiteKey = config.appCheckSiteKey || window.MARTINI_APPCHECK_SITE_KEY;
       const appCheckProviderType = config.appCheckProvider || window.MARTINI_APPCHECK_PROVIDER || "recaptcha-enterprise";
@@ -176,28 +180,136 @@ export async function getFirebaseServices() {
         storage: getStorage(app),
       };
     });
+
+    servicesPromise = initialization.catch((error) => {
+      servicesPromise = undefined;
+      throw error;
+    });
   }
 
   return servicesPromise;
 }
 
+function settleInitialAdminAuth(subscriber, method, value) {
+  if (subscriber.isInitialSettled) {
+    return;
+  }
+
+  subscriber.isInitialSettled = true;
+  subscriber[method](value);
+}
+
+function runAdminAuthCallback(subscriber, state) {
+  return isAllowedAdminUser(state.user)
+    ? subscriber.onAdmin?.(state.user, state.services)
+    : subscriber.onDenied?.(state.user);
+}
+
+function restoreLatestAdminAuthState(subscriber, staleRevision) {
+  if (!adminAuthState || subscriber.lastRevision === staleRevision) {
+    return;
+  }
+
+  Promise.resolve().then(() => runAdminAuthCallback(subscriber, adminAuthState)).catch((error) => {
+    console.error("[Martini] Admin auth state restoration failed.", error);
+  });
+}
+
+function enqueueAdminAuthCallback(subscriber, state) {
+  if (subscriber.lastRevision === state.revision) {
+    return;
+  }
+
+  subscriber.lastRevision = state.revision;
+  const isDeniedState = !isAllowedAdminUser(state.user);
+  const task = (isDeniedState ? Promise.resolve() : subscriber.queue)
+    .catch(() => undefined)
+    .then(() => runAdminAuthCallback(subscriber, state));
+
+  subscriber.queue = task;
+  task.then(
+    () => {
+      if (subscriber.lastRevision !== state.revision) {
+        restoreLatestAdminAuthState(subscriber, state.revision);
+        return;
+      }
+
+      settleInitialAdminAuth(subscriber, "resolveInitial", state.services);
+    },
+    (error) => {
+      if (subscriber.lastRevision !== state.revision) {
+        restoreLatestAdminAuthState(subscriber, state.revision);
+        return;
+      }
+
+      if (!subscriber.isInitialSettled) {
+        settleInitialAdminAuth(subscriber, "rejectInitial", error);
+        return;
+      }
+
+      console.error("[Martini] Admin auth state handler failed.", error);
+    },
+  );
+}
+
+function startAdminAuthObserver(services) {
+  if (adminAuthObserverStarted) {
+    return;
+  }
+
+  adminAuthObserverStarted = true;
+  onAuthStateChanged(services.auth, (user) => {
+    adminAuthState = {
+      revision: ++adminAuthRevision,
+      services,
+      user,
+    };
+
+    adminAuthSubscribers.forEach((subscriber) => {
+      enqueueAdminAuthCallback(subscriber, adminAuthState);
+    });
+  }, (error) => {
+    adminAuthSubscribers.forEach((subscriber) => {
+      if (!subscriber.isInitialSettled) {
+        settleInitialAdminAuth(subscriber, "rejectInitial", error);
+      } else {
+        console.error("[Martini] Admin auth observer failed.", error);
+      }
+    });
+  });
+}
+
 /**
- * Watches auth state and routes to `onAdmin(user, services)` for the admin
- * account or `onDenied(user)` otherwise. Rejects if Firebase init fails.
+ * Subscribes to the shared admin auth observer and routes each state change to
+ * `onAdmin(user, services)` or `onDenied(user)`. The returned promise waits for
+ * this subscriber's first callback, so initialization errors remain catchable.
  */
 export async function watchAdminAuth({ onAdmin, onDenied }) {
   const services = await getFirebaseServices();
-
-  onAuthStateChanged(services.auth, (user) => {
-    if (!isAllowedAdminUser(user)) {
-      onDenied?.(user);
-      return;
-    }
-
-    onAdmin(user, services);
+  let resolveInitial;
+  let rejectInitial;
+  const initialStateHandled = new Promise((resolve, reject) => {
+    resolveInitial = resolve;
+    rejectInitial = reject;
   });
+  const subscriber = {
+    isInitialSettled: false,
+    lastRevision: 0,
+    onAdmin,
+    onDenied,
+    queue: Promise.resolve(),
+    rejectInitial,
+    resolveInitial,
+  };
 
-  return services;
+  adminAuthSubscribers.add(subscriber);
+  startAdminAuthObserver(services);
+
+  if (adminAuthState) {
+    enqueueAdminAuthCallback(subscriber, adminAuthState);
+  }
+
+  return initialStateHandled;
 }
 
 export async function signInAdmin(email, password) {
@@ -239,6 +351,10 @@ export async function signInMemberWithCode(accessCode) {
     throw new Error(INVALID_ACCESS_CODE_MESSAGE);
   }
 
+  if (auth.currentUser) {
+    await signOut(auth);
+  }
+
   let credential;
 
   try {
@@ -247,14 +363,19 @@ export async function signInMemberWithCode(accessCode) {
     throw new Error(ANONYMOUS_AUTH_DISABLED_MESSAGE);
   }
 
-  const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
-
-  await setDoc(doc(db, MEMBER_ACCESS_SESSION_COLLECTION, credential.user.uid), {
-    codeHash,
-    expiresAt: Timestamp.fromDate(expiresAt),
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  });
+  try {
+    await setDoc(doc(db, MEMBER_ACCESS_SESSION_COLLECTION, credential.user.uid), {
+      codeHash,
+      // Kept for compatibility with the previously deployed rules. The current
+      // rules calculate expiry from the server-owned createdAt timestamp.
+      expiresAt: Timestamp.fromMillis(Date.now() + 24 * 60 * 60 * 1000),
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+  } catch (error) {
+    await signOut(auth).catch(() => undefined);
+    throw error;
+  }
 
   return credential.user;
 }
