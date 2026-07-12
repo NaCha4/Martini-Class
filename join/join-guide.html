@@ -33,49 +33,6 @@
             </article>
           </div>
         </section>
-        <section class="join-application-section" aria-labelledby="join-application-title">
-          <div class="section-heading">
-            <p class="section-kicker">Application</p>
-            <h2 id="join-application-title">가입 신청</h2>
-            <p>신청서는 검토 대기 상태로 저장되며, 운영진 확인 후 개별 안내됩니다.</p>
-          </div>
-          <form class="join-application-form" data-membership-application-form method="post">
-            <label>
-              <span>이름</span>
-              <input type="text" name="name" autocomplete="name" maxlength="40" required />
-            </label>
-            <label>
-              <span>학번</span>
-              <input type="text" name="studentId" inputmode="numeric" maxlength="40" required />
-            </label>
-            <label>
-              <span>학과</span>
-              <input type="text" name="department" maxlength="80" required />
-            </label>
-            <label>
-              <span>연락처</span>
-              <input type="tel" name="contact" autocomplete="tel" maxlength="40" required />
-            </label>
-            <label>
-              <span>이메일</span>
-              <input type="email" name="email" autocomplete="email" maxlength="120" required />
-            </label>
-            <label class="join-application-form__wide">
-              <span>지원 동기</span>
-              <textarea name="motivation" rows="6" maxlength="1200" required></textarea>
-            </label>
-            <label class="join-application-form__wide">
-              <span>기타 참고사항</span>
-              <textarea name="note" rows="4" maxlength="1200"></textarea>
-            </label>
-            <label class="join-application-consent join-application-form__wide">
-              <input type="checkbox" name="privacyAgreed" required />
-              <span><a href="../legal/privacy.html">개인정보 처리방침</a>에 따른 수집 및 이용에 동의합니다.</span>
-            </label>
-            <p class="auth-status join-application-form__wide" data-membership-application-status aria-live="polite"></p>
-            <button class="auth-button auth-button--primary" type="submit" disabled>신청하기</button>
-          </form>
-        </section>
       </article>
     </main>
     <footer class="footer" id="contact">
@@ -99,7 +56,6 @@
         </p>
       </div>
     </footer>
-    <script type="module" src="../assets/js/public/membership-application.js?v=refactor-20260710"></script>
   </body>
 </html>
 
