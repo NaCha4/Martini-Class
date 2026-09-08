@@ -1,25 +1,92 @@
-# Authentication access change
+# 보안 및 운영 기준
 
-The proposed admin policy permits all email/password Firebase Authentication accounts. Anonymous member sessions remain excluded. The frontend checks password provider membership; Firestore and Storage require a token issued by password sign-in. The current admin login uses email/password only.
+## 공개 설정과 비밀 정보
 
-## High risk: account creation
+web/src/firebase.js의 Firebase Web 설정과 App Check 사이트 키는 공개 클라이언트 설정이다. 서비스 계정 키, OAuth 토큰, 실제 .env 값, 비밀번호는 저장소·로그·회의록·채팅에 남기지 않는다. .env.example은 안전한 옵션만 제공한다.
 
-This policy does not distinguish console-created accounts from accounts created through Firebase's public signup API. Hiding a signup form does not disable signup. Before deployment, verify that untrusted users cannot create email/password accounts or link anonymous accounts to the password provider. If that cannot be enforced, use an explicitly provisioned admin claim or allowlist instead. App Check alone is not an administrator approval mechanism.
+최초 운영자 준비 스크립트는 Firebase CLI의 기존 OAuth 세션을 메모리에서 사용한다. 요청·응답 본문 로그를 끄고 결과 상태만 출력한다. 임시 비밀번호는 출력하거나 파일에 저장하지 않는다.
 
-## Credentials and operations
+## 데이터 접근
 
-Firebase Web configuration and App Check site keys are public client configuration, not administrative credentials. Private keys, service account files, real environment values, and tokens must remain local, ignored by Git, and absent from logs and commits.
+- Firebase Auth 로그인 후 martini_v2_admins/{uid}의 역할·활성 상태·임기를 확인한다.
+- 모든 앱 데이터 요청은 martiniApi callable을 통한다.
+- Firestore와 Storage의 클라이언트 직접 접근은 모두 차단한다.
+- Admin SDK는 서버에서만 실행하며 입력 필드·자료형·길이·역할·신청 기간·활동 자격을 확인한다.
+- 부원 목록·학번·전화번호는 공개 API로 제공하지 않는다.
+- 정원·신청 상태·재고·장부는 트랜잭션으로 일관성을 유지한다.
+- 수정 버전과 요청 ID로 오래된 덮어쓰기·중복 차감·중복 장부를 방지한다.
 
-Production deployment, production data modifications, IAM changes, and account provisioning policy changes require explicit user approval. This local change does not perform those operations.
+## 역할
 
-## Merge and deployment checklist
+| 역할 | 범위 |
+| --- | --- |
+| owner | 전체 업무, 임원 권한, 개인정보 정리 |
+| chair | 회장단 업무, 설정, 이력 |
+| education | 행사·재고·회의·결정 |
+| execution | 행사·명부·재고·회의·결정 |
+| finance | 명부·회비·정산·참가자 확인·회의·결정 |
+| publicity | 공개 콘텐츠·회의·결정 |
 
-- Verify account creation restrictions before granting every password account admin access.
-- Run both existing test files and JavaScript syntax checks.
-- Compile and test Firestore and Storage rules, including anonymous denial and password-account access.
-- Review the auth changes and confirm no credentials are staged.
-- Obtain explicit approval before merge/push of this security-sensitive change and before production deployment.
-- Deploy matching frontend and rules versions, then verify a newly created password account and an anonymous member session.
-- README and AGENT.md descriptions of the previous fixed-email policy are historical until separately updated; this document describes the proposed change.
+로그인 공급자가 비밀번호라는 이유만으로 임원 권한을 부여하지 않는다. UI 메뉴 숨김과 별개로 서버가 매 요청 권한을 확인한다.
 
-Reference: https://firebase.google.com/docs/reference/rest/auth#section-create-email-password
+## App Check와 남용 방지
+
+기존 프로젝트는 Auth·Firestore·Storage의 App Check를 이미 강제하고 있다. 이 설정을 유지했다. 프로덕션 웹은 등록된 reCAPTCHA Enterprise 공급자를 초기화하며 실제 허용 도메인은 hyu-martini.site이다.
+
+새 martiniApi 함수의 enforceAppCheck는 false이다. 함수의 강제 적용은 실제 사용자 지표 확인과 별도 승인 후 진행한다. 임원 업무는 Auth+UID 역할 검증, 공개 신청은 링크·명부·현재 학기·납부 자격과 요청 제한으로 보호한다.
+
+- 공용 Wi-Fi를 고려해 IP 제한을 분산하고 부원 식별값별 요청 제한을 둔다.
+- 운영 함수는 CPU 1, 512MiB, 최대 1개 인스턴스, 동시 요청 100, 제한 시간 60초이다.
+- 행사별 메모리 대기열은 과도한 경합을 줄인다. 배포 교체 중의 여러 인스턴스에서도 Firestore 트랜잭션이 정원을 보장한다.
+- rateLimits에는 해시 식별자·카운트·만료 Timestamp를 저장한다. expiresAt의 TTL 설정은 별도이며, 필드만으로 자동 삭제되지 않는다.
+- API 키는 기존 키를 유지했고 Auth 및 Secure Token API 허용을 확인했다.
+
+## 개인정보 보존
+
+학기말 정리는 owner만 사용할 수 있다. 대상 조회 → 건수·미정산 검토 → 확인 문구·사유 입력 → 적용 순서이다. 미리보기 후 자료가 바뀌면 중단한다.
+
+- 선택 학기의 신청·재신청 이력 이름과 답변, 연결 장부의 제목·메모를 지운다.
+- 명부 자체를 정리할 때는 모든 학기의 미정산·진행 중 신청을 확인한다.
+- 새 학기 명부는 유지하면서 이전 학기 기록만 정리할 수 있다.
+- 금액·행사 집계·내부 연결 ID는 보존하므로 법률상 완전한 익명화를 보장하는 기능은 아니다.
+- 정리된 신청으로 현재 명부의 연락처를 다시 조회하거나 개인 확인 링크를 재발급할 수 없다.
+- 회의·결정 본문, 공개 글, 변경 사유의 자유 입력, 외부 CSV·백업은 담당자가 별도로 검토해야 한다.
+- 한 대상의 연결 문서가 350개를 넘으면 자동 처리를 차단한다.
+
+실제 운영 자료에 이 정리 기능을 실행하지 않았다.
+
+## 승인 범위와 운영 변경
+
+사용자가 제공한 Global Security And Operations Policy를 따른다.
+
+이번 작업에서 승인된 범위:
+- 완성한 서비스의 main push와 테스트
+- Firebase에 필요한 API 활성화와 함수·Firestore/Storage 규칙 배포
+- 현재 CLI 로그인 이메일로 최초 앱 owner 생성과 비밀번호 설정 메일 요청
+
+별도 명시 승인이 필요한 실행:
+- 기존 운영 자료의 이관·수정·삭제·일괄 정리
+- IAM, 프로젝트 소유·관리 권한, 키 생성·교체·삭제
+- 과금·할당량·도메인·기타 운영 인프라 변경
+- App Check 강제 적용 변경
+- force push
+
+최초 계정 스크립트는 기본 dry run이며 --apply가 있어야 실행한다. owner가 이미 존재하면 덮어쓰지 않는다. 메일 발송 도구도 --send를 명시해야 한다.
+
+## 전환과 복구
+
+기존 데이터는 martini_v2_* 밖에 보존한다. 새 차단 규칙을 적용한 후에는 이전 클라이언트가 직접 Firestore/Storage를 사용하는 방식으로 돌아갈 수 없다. 화면만 과거 버전으로 되돌려도 데이터 접근이 복구되는 것은 아니다.
+
+GitHub Pages의 기존 main/root 설정과 CNAME은 유지한다. npm run build:pages가 공개 HTML과 assets를 만든다. 서버와 규칙의 변경은 Firebase 배포 이력에서 별도로 검토한다.
+
+## 병합·배포 체크리스트
+
+- [x] 최신 사용자 결정·제공 자산 반영
+- [x] 개발/운영 데이터 분리, 비밀 정보 기본 검사
+- [x] 권한·정원·대기·회비·재고·회의·개인정보 검증
+- [x] 데스크톱·모바일 Chrome 주요 흐름 검증
+- [x] 함수·규칙·계정 준비 실행 승인
+- [x] 기존 App Check 보호와 도메인 유지
+- [ ] 실제 운영자가 비밀번호 설정 후 로그인 확인
+- [ ] 실제 회비·가입 주소·문의처·명부·재고 입력
+- [ ] 후임 관리자, 백업·보존, rateLimits TTL, 빌드 이미지 정리 정책 확인

@@ -1,39 +1,7 @@
 rules_version = '2';
-
 service firebase.storage {
   match /b/{bucket}/o {
-    function isAdmin() {
-      return request.auth != null
-        && request.auth.token.firebase.sign_in_provider == "password";
-    }
-
-    match /private-class-thumbnails/{classId}/{fileName} {
-      allow read: if true;
-      allow create, update: if isAdmin()
-        && request.resource.size <= 3 * 1024 * 1024
-        && request.resource.contentType.matches('image/.*');
-      allow delete: if isAdmin();
-    }
-
-    match /event-thumbnails/{eventId}/{fileName} {
-      allow read: if true;
-      allow delete: if isAdmin();
-      allow write: if isAdmin()
-        && request.resource.size <= 5 * 1024 * 1024
-        && request.resource.contentType.matches('image/.*');
-    }
-
-    match /meeting-minutes/{fileType}/{fileName} {
-      allow read, delete: if isAdmin()
-        && fileType in ['template', 'completed'];
-      allow write: if isAdmin()
-        && fileType in ['template', 'completed']
-        && request.resource.size <= 20 * 1024 * 1024
-        && (
-          request.resource.contentType.matches('application/(pdf|msword|vnd.openxmlformats-officedocument.wordprocessingml.document|x-hwp|haansofthwp|vnd.hancom.hwp|vnd.hancom.hwpx|octet-stream)')
-          || request.resource.contentType.matches('application/.*word.*')
-          || request.resource.contentType.matches('application/.*hwp.*')
-        );
-    }
+    // Meeting records are Firestore documents, not file uploads.
+    match /{path=**} { allow read, write: if false; }
   }
 }
