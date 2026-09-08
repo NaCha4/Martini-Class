@@ -1923,17 +1923,6 @@ body.member-page::after {
   transform: translateX(3px);
 }
 
-.admin-menu-button.is-active::before {
-  content: "";
-  display: inline-block;
-  width: 7px;
-  height: 7px;
-  margin-right: 10px;
-  border-radius: 999px;
-  background: var(--gold-bright);
-  vertical-align: 1px;
-}
-
 .admin-content {
   min-height: 520px;
   padding: clamp(36px, 5vw, 62px);
