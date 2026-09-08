@@ -5,7 +5,16 @@ function header(home=false){
  return '<a class="skip-link" href="#main-content">본문으로 건너뛰기</a><header class="public-header '+(home?'over-hero':'')+'"><a class="brand" href="/" data-nav aria-label="마티니 홈"><img class="wordmark" src="/assets/wordmark.png" alt="Martini" width="170" height="42"></a><nav aria-label="홈페이지 메뉴">'+links+'</nav><div class="header-actions"><a class="staff-link" href="/admin" data-nav>'+icon('log-out')+'<span>운영실</span></a><details class="public-mobile-menu"><summary aria-label="홈페이지 메뉴" aria-controls="public-mobile-links">'+icon('menu')+'</summary><nav id="public-mobile-links" aria-label="모바일 홈페이지 메뉴">'+links+'</nav></details></div></header>';
 }
 function footer(){
- return '<footer class="public-footer"><a href="/" data-nav class="brand"><img class="wordmark" src="/assets/wordmark.png" alt="Martini" width="130" height="32"></a><span>한양대학교 ERICA 칵테일 동아리</span><div><a href="/privacy" data-nav>개인정보 안내</a><a href="/admin" data-nav>운영실</a></div></footer>';
+ return `<footer class="public-footer" id="contact">
+  <div class="footer-contact"><strong>Martini</strong><span>한양대학교 ERICA 학생복지관 502호</span></div>
+  <div class="footer-meta">
+   <a class="footer-instagram" href="https://www.instagram.com/hy_martini/" target="_blank" rel="noopener noreferrer" aria-label="Martini Instagram (새 탭)">
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="3" y="3" width="18" height="18" rx="5"></rect><circle cx="12" cy="12" r="4"></circle><circle cx="17.5" cy="6.5" r="1"></circle></svg>
+   </a>
+   <p lang="en">&copy; 2026 Martini. Central Club of Hanyang University ERICA.</p>
+   <p class="footer-links" lang="en"><a href="/privacy" data-nav>Privacy Policy</a><span aria-hidden="true">|</span><span>All Rights Reserved.</span></p>
+  </div>
+ </footer>`;
 }
 function home(){
  return header(true)+'<main id="main-content"><section class="hero" aria-labelledby="hero-title"><div class="hero-copy"><p class="hero-kicker">HANYANG COCKTAIL SOCIETY</p><h1 id="hero-title">Martini</h1><p class="hero-description">칵테일을 배우고, 직접 만들고, 함께 나누는<br class="mobile-break"> 한양대학교 ERICA 칵테일 동아리.</p><div class="hero-tags"><span>Cocktail</span><span>Craft</span><span>Community</span></div></div><a class="hero-scroll" href="#club-intro">마티니 알아보기 '+icon('arrow-right')+'</a></section><section class="home-intro" id="club-intro"><div class="section-heading"><span class="eyebrow">마티니의 활동</span><h2>처음 만드는 한 잔부터.</h2></div><p>칵테일에 관심이 있다면 누구나. 재료와 도구를 배우는 교육, 새 학기를 시작하는 총회, 함께 즐기는 모임을 준비합니다.</p></section><section class="home-activities" aria-label="주요 활동"><a href="/activities" data-nav><span class="activity-index">01</span><div><h3>칵테일 교육</h3><p>재료와 도구의 기초부터 직접 만드는 실습까지.</p></div>'+icon('arrow-up-right')+'</a><a href="/activities" data-nav><span class="activity-index">02</span><div><h3>총회와 모임</h3><p>개강총회와 친목 활동으로 부원들을 만납니다.</p></div>'+icon('arrow-up-right')+'</a><a href="/notices" data-nav><span class="activity-index">03</span><div><h3>동아리 소식</h3><p>모집 안내와 동아리의 새로운 소식을 확인하세요.</p></div>'+icon('arrow-up-right')+'</a></section><section class="join-banner"><div><span class="eyebrow">가입 안내</span><h2>이번 학기, 마티니에서 만나요.</h2></div><a href="/join" data-nav class="button">가입 절차 확인 '+icon('arrow-up-right')+'</a></section></main>'+footer();
