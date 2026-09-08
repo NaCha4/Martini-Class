@@ -4,8 +4,8 @@ import {
   serverTimestamp,
   setDoc,
 } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js";
-import { getFirebaseServices } from "../firebase-client.js?v=security-refactor-20260710";
-import { createFirebaseErrorFormatter } from "../shared/common.js?v=security-refactor-20260710";
+import { getFirebaseServices } from "../firebase-client.js?v=auth-accounts-20260908";
+import { createFirebaseErrorFormatter } from "../shared/common.js?v=auth-accounts-20260908";
 
 const COLLECTION_NAME = "membershipApplications";
 const FIELD_LIMITS = {

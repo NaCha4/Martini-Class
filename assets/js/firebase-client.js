@@ -9,7 +9,6 @@ import { getAuth, onAuthStateChanged, signInAnonymously, signInWithEmailAndPassw
 import { Timestamp, doc, getDoc, getFirestore, serverTimestamp, setDoc } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js";
 import { getStorage } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-storage.js";
 
-const ADMIN_EMAIL = "admin@martini.com";
 const MEMBER_ACCESS_CODE_COLLECTION = "memberAccessCodes";
 const MEMBER_ACCESS_SESSION_COLLECTION = "memberAccessSessions";
 const FIREBASE_CONFIG_REQUIRED_MESSAGE = "Firebase Web config is required. Fill apiKey and appId in assets/js/firebase-config.js.";
@@ -89,7 +88,8 @@ async function loadFirebaseConfig() {
 }
 
 export function isAllowedAdminUser(user) {
-  return user?.email?.toLowerCase() === ADMIN_EMAIL;
+  return Boolean(user && !user.isAnonymous && user.email
+    && user.providerData?.some((provider) => provider.providerId === "password"));
 }
 
 function getAuthErrorMessage(error) {

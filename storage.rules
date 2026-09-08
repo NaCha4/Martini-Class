@@ -4,7 +4,7 @@ service firebase.storage {
   match /b/{bucket}/o {
     function isAdmin() {
       return request.auth != null
-        && request.auth.token.email == "admin@martini.com";
+        && request.auth.token.firebase.sign_in_provider == "password";
     }
 
     match /private-class-thumbnails/{classId}/{fileName} {

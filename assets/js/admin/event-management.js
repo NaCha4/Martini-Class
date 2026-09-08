@@ -15,7 +15,7 @@ import {
   ref,
   uploadBytes,
 } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-storage.js";
-import { watchAdminAuth } from "../firebase-client.js?v=security-refactor-20260710";
+import { watchAdminAuth } from "../firebase-client.js?v=auth-accounts-20260908";
 import {
   createFirebaseErrorFormatter,
   createStatusSetter,
@@ -23,7 +23,7 @@ import {
   fromDateTimeLocalValue,
   normalizeDateTimeValue,
   toDateTimeLocalValue,
-} from "../shared/common.js?v=security-refactor-20260710";
+} from "../shared/common.js?v=auth-accounts-20260908";
 
 const COLLECTION_NAME = "eventPosts";
 const APPLICATION_COLLECTION = "eventApplications";

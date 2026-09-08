@@ -12,13 +12,13 @@ import {
   where,
 } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js";
 import { signOut } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js";
-import { getFirebaseServices } from "../firebase-client.js?v=security-refactor-20260710";
+import { getFirebaseServices } from "../firebase-client.js?v=auth-accounts-20260908";
 import {
   createFirebaseErrorFormatter,
   formatDateTime,
   isApplicationWindowOpen,
   normalizeDateTimeValue,
-} from "../shared/common.js?v=security-refactor-20260710";
+} from "../shared/common.js?v=auth-accounts-20260908";
 
 const CLASS_COLLECTION = "classSchedules";
 const CLASS_DOC_ID = "weekly";

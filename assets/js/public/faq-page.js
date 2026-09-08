@@ -1,6 +1,6 @@
 import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js";
-import { getFirebaseServices } from "../firebase-client.js?v=security-refactor-20260710";
-import { getTimestampMillis } from "../shared/common.js?v=security-refactor-20260710";
+import { getFirebaseServices } from "../firebase-client.js?v=auth-accounts-20260908";
+import { getTimestampMillis } from "../shared/common.js?v=auth-accounts-20260908";
 
 const COLLECTION_NAME = "faqEntries";
 const LOADING_MESSAGE = "\uBD88\uB7EC\uC624\uB294 \uC911\uC785\uB2C8\uB2E4.";

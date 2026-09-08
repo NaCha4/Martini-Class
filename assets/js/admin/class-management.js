@@ -7,14 +7,14 @@
   serverTimestamp,
   setDoc,
 } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js";
-import { watchAdminAuth } from "../firebase-client.js?v=security-refactor-20260710";
+import { watchAdminAuth } from "../firebase-client.js?v=auth-accounts-20260908";
 import {
   createStatusSetter,
   fromDateTimeLocalValue,
   isApplicationWindowOpen,
   normalizeDateTimeValue,
   toDateTimeLocalValue,
-} from "../shared/common.js?v=security-refactor-20260710";
+} from "../shared/common.js?v=auth-accounts-20260908";
 
 const COLLECTION_NAME = "classSchedules";
 const APPLICATION_COLLECTION = "classApplications";

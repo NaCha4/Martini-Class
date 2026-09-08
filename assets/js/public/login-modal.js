@@ -17,7 +17,7 @@
   function getFirebaseClientUrl(rootPath) {
     const url = new URL(`${rootPath}assets/js/firebase-client.js`, window.location.href);
 
-    url.searchParams.set("v", "security-refactor-20260710");
+    url.searchParams.set("v", "auth-accounts-20260908");
     return url.href;
   }
 
