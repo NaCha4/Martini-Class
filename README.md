@@ -99,7 +99,7 @@ npm run build:pages
 
 프로덕션 App Check는 기본 활성화되어 있으며 기존 reCAPTCHA Enterprise 등록을 사용한다. 허용된 도메인은 hyu-martini.site이다. localhost에서는 항상 Emulator를 사용한다. 실제 로그인 검증을 위해 보호 설정을 끄지 않는다.
 
-2026-09-08 실제 공개 화면 16회(데스크톱·모바일)는 정상 표시됐지만 자동화 Chrome의 App Check는 403 App attestation failed로 거절됐다. 키와 허용 도메인은 일치한다. 실제 운영자 로그인은 비밀번호 설정 후 일반 Chrome에서 확인해야 한다. 보호 설정을 내려 자동화 테스트를 통과시키지 않는다.
+2026-09-08 실제 공개 화면 16회(데스크톱·모바일)는 정상 표시됐지만 자동화 Chrome의 App Check는 403 App attestation failed로 거절됐다. 키와 허용 도메인은 일치한다. 이후 사용자가 일반 Chrome에서 운영자 로그인 성공을 직접 확인했다. 보호 설정을 내려 자동화 테스트를 통과시키지 않는다.
 
 선택적으로 node tests/production-smoke.mjs를 실행하면 실제 사이트를 조회한다. 공개 요청 제한 카운터 외 업무 자료를 변경하지 않으며, App Check가 거절되면 화면 검증과 구분해 실패를 보고한다.
 
