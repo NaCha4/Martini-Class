@@ -46,6 +46,7 @@
 | docs/기획서.md | 사용자가 작성한 원문 |
 | docs/구현-운영.md | 기능 결정과 인수인계 |
 | docs/검증-보안-보고서.md | 검증 및 배포 상태 |
+| docs/UI-UX-개선.md | 화면 안정성·입력 보호·접근성 개선과 검증 |
 
 docs의 배경·로고 파일은 public/assets/background.png, logo.png, wordmark.png로 이동했다. 공개 산출물의 assets는 빌드가 만드는 복사본이다.
 

@@ -37,3 +37,120 @@ dialog{border:1px solid #63543f;border-radius:8px;padding:0;width:min(600px,94vw
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{animation:none!important;transition:none!important}}
 
 @media(max-width:580px){.field input,.field select,.field textarea,.search-box input{font-size:16px}.toolbar[data-form=privacy-filter]{flex-wrap:wrap;align-items:flex-end}.toolbar[data-form=privacy-filter] .field{margin-bottom:0}}
+
+/* Stable geometry, predictable feedback and accessible controls. */
+html{scrollbar-gutter:stable}
+html.dialog-open{overflow:hidden}
+@supports not (scrollbar-gutter:stable){
+  html{overflow-y:scroll}
+  html.dialog-open body{padding-right:var(--scrollbar-compensation,0px)}
+  html.dialog-open .public-header.over-hero,html.dialog-open .mobile-admin-nav{right:var(--scrollbar-compensation,0px)}
+}
+body{min-width:320px}
+.sr-only{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0}
+button,a,summary{touch-action:manipulation}
+button:disabled{cursor:not-allowed}
+button[aria-busy=true]{cursor:progress}
+.button,.icon-button,.password-toggle{scroll-margin-block:20px}
+.icon-button{width:44px;height:44px}
+.text-button,.side-footer a,.side-footer button,.panel-title a,.back-link{min-height:44px}
+.text-button{padding:8px 4px}
+.public-header a,.public-footer a{min-height:44px;display:inline-flex;align-items:center}
+.public-footer a.brand{display:flex}
+.public-mobile-menu>summary{min-width:44px;min-height:44px}
+.staff-link{min-height:44px}
+a[aria-current=page]{font-weight:700}
+.public-header nav a[aria-current=page]{text-decoration:underline;text-underline-offset:8px;text-decoration-thickness:2px}
+h1:focus,h2[tabindex="-1"]:focus,main:focus{outline:none}
+.field input:focus-visible,.field select:focus-visible,.field textarea:focus-visible{outline:2px solid var(--gold);outline-offset:2px;border-color:var(--gold)}
+.field input[readonly],.field textarea[readonly]{background:#242426;color:#d0cac0;border-style:dashed}
+.field input[aria-invalid=true],.field textarea[aria-invalid=true],.field select[aria-invalid=true]{border-color:#eeaca2}
+.field .field-error{color:#f0aaa1;font-size:13px}
+.field input::placeholder,.field textarea::placeholder{color:#9b968d;opacity:1}
+.field input,.field select,.field textarea{scroll-margin-block:24px}
+.field.check-field{min-height:44px;align-items:flex-start;padding-block:5px}
+.field.check-field input{flex-shrink:0;margin-top:3px}
+.input-with-action{position:relative;display:flex;align-items:stretch}
+.input-with-action input{padding-right:68px}
+.password-toggle{position:absolute;right:3px;top:3px;bottom:3px;min-width:56px;border:0;border-radius:4px;color:var(--gold);background:transparent;font-size:13px;font-weight:600}
+.password-toggle:hover{background:#ffffff08}
+.form-error:empty{display:none}
+.form-error:not(:empty){border-left:3px solid #cf8d83;background:#392724;padding:12px 14px;border-radius:0 4px 4px 0}
+#page-progress{position:fixed;inset:0 0 auto;height:3px;background:var(--gold);z-index:200;transform-origin:left;animation:page-progress 1.2s ease-in-out infinite alternate;pointer-events:none}
+@keyframes page-progress{from{transform:scaleX(.15)}to{transform:scaleX(.85)}}
+#app[aria-busy=true] .workspace-content,#app[aria-busy=true] .public-page{cursor:progress}
+#toast{display:flex;align-items:center;gap:12px;padding:10px 10px 10px 18px;line-height:1.6}
+#toast.visible{pointer-events:auto}
+#toast:not(.visible){visibility:hidden}
+.toast-dismiss{display:grid;place-items:center;flex-shrink:0;width:44px;height:44px;border:0;background:transparent;color:inherit;border-radius:4px}
+.toast-dismiss:hover{background:#00000010}
+dialog{width:min(600px,calc(100% - 32px));max-height:min(90dvh,960px);max-width:calc(100% - 32px);overflow:hidden}
+dialog.wide-dialog{width:min(840px,calc(100% - 32px))}
+dialog>form{display:flex;flex-direction:column;max-height:inherit;min-height:0}
+dialog header{flex:none;padding:20px 26px;background:var(--surface)}
+dialog h2{font-size:22px;line-height:1.45;overflow-wrap:anywhere}
+.dialog-scroll{min-height:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable}
+dialog .form-grid{padding:24px 26px 6px;align-items:start}
+dialog .form-grid>.wide{min-width:0}
+dialog .form-error:not(:empty){margin:0 26px 20px;padding:12px 14px}
+dialog footer{flex:none;display:flex;align-items:center;flex-wrap:wrap;gap:12px;justify-content:space-between;padding:16px 26px}
+.dialog-actions{display:flex;justify-content:flex-end;gap:10px;margin-left:auto}
+.dialog-status{font-size:13px;color:var(--muted)}
+.dialog-status:empty{display:none}
+.discard-confirmation{flex:none;padding:18px 26px;background:#32291e;border-bottom:1px solid #6a5436}
+.discard-confirmation h3{font-size:17px;margin-bottom:8px}
+.discard-confirmation p{font-size:14px;color:#d2c6b0}
+.discard-confirmation>div{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
+.dialog-scroll[inert]{opacity:.45}
+.toolbar{flex-wrap:wrap}
+.toolbar .search-box{flex:1 1 190px;min-height:46px}
+.toolbar>.muted{display:block;font-size:13px;line-height:1.6}
+.toolbar .filter-reset{min-height:44px;padding:8px 12px}
+.filter-empty{border:1px dashed var(--line);border-radius:6px;margin:22px 0;background:var(--surface)}
+.filter-empty h3{font-size:19px}
+.table-wrap{scrollbar-gutter:stable}
+table{font-variant-numeric:tabular-nums}
+td,th{overflow-wrap:anywhere}
+td .title-button{text-align:left;line-height:1.6}
+.finance-summary strong,.event-bottom,.event-statbar{font-variant-numeric:tabular-nums}
+.sidebar{padding-bottom:max(20px,env(safe-area-inset-bottom))}
+.sidebar nav{overscroll-behavior:contain;scrollbar-gutter:stable;min-height:0}
+.side-footer{gap:4px;padding-top:14px;flex-shrink:0}
+.event-state-note{margin:18px 0;padding:14px 16px;border-left:3px solid var(--gold);background:#2b271f;color:#e1d1b4;font-size:14px;line-height:1.8}
+.receipt-link-save{margin:22px 0;padding:20px;border:1px solid #6a583a;border-radius:6px;background:#2b271f;text-align:left}
+.receipt-link-save h3{font-size:17px;margin-bottom:8px}
+.receipt-link-save p{font-size:14px;color:#d0c4af;margin-bottom:14px}
+.receipt-link-save .button{width:100%}
+.receipt-policy{margin:24px 0;padding-top:18px;border-top:1px solid var(--line);text-align:left}
+.receipt-policy summary{min-height:44px;cursor:pointer;font-size:14px;color:var(--gold);line-height:1.7}
+.receipt-policy .prose{font-size:14px;margin-top:12px}
+@media(max-width:800px){
+  .button.small,.text-button{min-height:44px}
+  .row-actions{gap:10px}
+  .row-actions .button{padding-inline:14px}
+  .toolbar>.muted{display:block;margin-left:0;flex-basis:100%;order:3}
+  .toolbar .filter-reset{margin-left:auto}
+  .toolbar select{min-height:46px}
+  .field input,.field select,.field textarea,.search-box input,.toolbar select{font-size:16px}
+  .public-mobile-menu nav{max-height:calc(100dvh - 80px);overflow-y:auto;overscroll-behavior:contain}
+  .workspace-content{padding-bottom:calc(105px + env(safe-area-inset-bottom))}
+  .mobile-admin-nav{padding-bottom:max(10px,env(safe-area-inset-bottom))}
+  body:has(.mobile-admin-nav) #toast{bottom:calc(85px + env(safe-area-inset-bottom))}
+  body:not(:has(.mobile-admin-nav)) #toast{bottom:max(20px,env(safe-area-inset-bottom))}
+}
+@media(max-width:580px){
+  dialog,dialog.wide-dialog{width:calc(100% - 20px);max-width:calc(100% - 20px);max-height:calc(100dvh - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom));border-radius:8px}
+  dialog header{padding:16px 18px;gap:12px}
+  dialog h2{font-size:20px}
+  dialog .form-grid{padding:20px 18px 4px;grid-template-columns:1fr}
+  dialog footer{padding:12px 18px max(12px,env(safe-area-inset-bottom));gap:10px}
+  .dialog-actions{width:100%}
+  .dialog-actions>.button{flex:1}
+  dialog .form-error:not(:empty){margin:0 18px 18px}
+  .discard-confirmation{padding:16px 18px}
+  .discard-confirmation>div{gap:8px}
+  .discard-confirmation .button{padding-inline:12px}
+  .receipt-link-save{padding:18px}
+  .hero{min-height:640px}
+}
+@media(prefers-reduced-motion:reduce){#page-progress{animation:none;transform:none}}
