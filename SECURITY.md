@@ -57,7 +57,7 @@ web/src/firebase.js의 Firebase Web 설정과 App Check 사이트 키는 공개 
 
 ## 승인 범위와 운영 변경
 
-사용자가 제공한 Global Security And Operations Policy를 따른다.
+사용자가 제공한 Global Security And Operations Policy를 따르되, 2026-09-09의 최신 지시에 따라 요청한 코드 변경의 검증·main 반영·GitHub Pages 및 Firebase 배포는 사전 승인된 것으로 처리한다. 매 배포마다 별도 승인을 요청하지 않는다. 이 승인은 관련 없는 운영 데이터 정리나 키·IAM 변경을 자동 실행하라는 지시가 아니다.
 
 이번 작업에서 승인된 범위:
 - 완성한 서비스의 main push와 테스트
