@@ -203,3 +203,5 @@ td .title-button{text-align:left;line-height:1.6}
 
 .role-name{display:block;min-width:140px;white-space:nowrap;word-break:keep-all}td:has(>.role-name){min-width:172px}table:has(.management-actions) td:last-child{min-width:120px}
 @media(max-width:1000px){.role-name{min-width:0;white-space:normal;word-break:keep-all;overflow-wrap:anywhere}td:has(>.role-name){min-width:0}}
+
+.finance-ledger{margin-top:32px;border-top:1px solid var(--line);padding-top:20px}.finance-ledger summary{cursor:pointer;padding:12px 0;font-weight:600}.finance-ledger>.button{margin:16px 0}.finance-summary:has(>div:nth-child(3):last-child){grid-template-columns:repeat(3,minmax(0,1fr))}@media(max-width:600px){.finance-summary:has(>div:nth-child(3):last-child){grid-template-columns:1fr}}

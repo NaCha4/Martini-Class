@@ -46,7 +46,7 @@ function toolbar(kind,choices=[],extra=''){
  return '<div class="toolbar"><label class="search-box">'+icon('search')+'<input type="search" data-search placeholder="'+config[0]+' 검색" aria-label="'+config[1]+' 검색" autocomplete="off" spellcheck="false" aria-describedby="filtered-count"></label>'+(choices.length?'<select data-filter aria-label="'+(inventory?'분류':'상태')+' 필터"><option value="all">전체 '+(inventory?'분류':'상태')+'</option>'+choices.map(c=>'<option value="'+c+'">'+esc(label(c))+'</option>').join('')+'</select>':'')+extra+'<span id="filtered-count" class="muted" role="status" aria-live="polite" aria-atomic="true"></span></div>';
 }
 function managementActions(kind,id,allowDelete=true){
- const title=kind==='role'?'역할':'임원';
+ const title=({role:'역할',admin:'임원',budget:'지출 계획'})[kind];
  return '<div class="management-actions"><button type="button" class="icon-button" data-action="'+kind+'-edit" data-id="'+esc(id)+'" aria-label="수정" title="'+title+' 수정">'+icon('wrench')+'</button>'+(allowDelete?'<button type="button" class="icon-button management-delete-button" data-action="'+kind+'-delete" data-id="'+esc(id)+'" aria-label="삭제" title="'+title+' 삭제">'+icon('x')+'</button>':'<span class="help">내 계정</span>')+'</div>';
 }
 function table(headers,rows){return '<div class="table-wrap"><table><thead><tr>'+headers.map(h=>'<th scope="col">'+h+'</th>').join('')+'</tr></thead><tbody>'+rows.join('')+'</tbody></table></div>';}
@@ -118,11 +118,17 @@ async function list(ctx,kind){
   (rows.length?table(heads,rows.map(d=>row(d,d.title+' '+d.body+' '+d.owner,['<button class="title-button" data-action="decision-view" data-id="'+d.id+'"><strong>'+esc(d.title)+'</strong></button>'+ (d.meetingId?'<small>회의에 연결됨</small>':''),badge(d.type),esc(d.owner||'미정'),d.dueAt?date(d.dueAt):'—',badge(d.status),button('수정','decision-edit',{id:d.id,class:'button small secondary'})],heads))):empty('아직 기록된 결정이 없습니다','회의에 연결하거나 독립적인 결정·업무를 등록할 수 있습니다.',button('첫 결정 기록','decision-edit',{class:'button secondary'})))+next(ctx,kind);
  }
  if(kind==='finance'){
-  const heads=['내용','구분','금액','학기','확인자','기록일'];
-  const received=rows.filter(r=>['income','dues'].includes(r.kind)).reduce((s,r)=>s+r.amount,0),spent=rows.filter(r=>r.kind==='expense').reduce((s,r)=>s+r.amount,0),refund=rows.filter(r=>r.kind==='refund').reduce((s,r)=>s+r.amount,0);
-  return heading('CLEAR & ACCOUNTABLE','회비 · 정산','확인한 입금과 지출, 환불을 기록합니다. 실제 송금은 계좌에서 처리합니다.',button('수입 · 지출 기록','finance-add',{icon:'plus'}))+
-  '<div class="finance-summary"><div><span>확인한 수입</span><strong>'+money(received)+'</strong></div><div><span>지출</span><strong>'+money(spent)+'</strong></div><div><span>환불</span><strong>'+money(refund)+'</strong></div><div><span>기록상 잔액</span><strong>'+money(received-spent-refund)+'</strong></div></div><p class="data-caption">전체 '+rows.length+'개 정산 기록의 합계 · 부원 등록과 장부 기록은 별도로 관리합니다.</p>'+toolbar(kind,['income','expense','dues','refund'])+
-  (rows.length?table(heads,rows.map(r=>row(r,r.title+' '+r.note,[esc(r.title)+'<small>'+esc(r.note)+'</small>',esc({income:'수입',expense:'지출',dues:'학기 회비',refund:'환불'}[r.kind]),'<strong>'+money(r.amount)+'</strong>',esc(r.semester),esc(r.actor),date(r.createdAt)],heads,r.kind))):empty('아직 정산 기록이 없습니다','행사 참가비는 행사 상세의 신청 명단에서 확인할 수 있습니다.'))+next(ctx,kind);
+  const plans=(await readAll(ctx,'budgets')).rows,open=plans.filter(p=>p.status==='planned').sort((a,b)=>(a.dueDate||'9999').localeCompare(b.dueDate||'9999')||a.title.localeCompare(b.title,'ko'));
+  const balance=rows.reduce((sum,r)=>sum+(['income','dues'].includes(r.kind)?r.amount:-r.amount),0),planned=open.reduce((sum,p)=>sum+p.amount,0),remaining=balance-planned;
+  let running=balance;const heads=['사용 목적','예정일 · 학기','예상 지출','지출 후 잔액','관리'];
+  const planRows=open.map(p=>{running-=p.amount;return row(p,p.title+' '+p.note,[esc(p.title)+'<small>'+esc(p.note)+'</small>',(p.dueDate?esc(p.dueDate):'미정')+'<small>'+esc(p.semester)+'</small>',money(p.amount),'<strong class="'+(running<0?'warning-text':'')+'">'+money(running)+'</strong>','<div class="row-actions">'+button('집행 완료','budget-execute',{id:p.id,class:'button small secondary'})+managementActions('budget',p.id)+'</div>'],heads);});
+  const actualHeads=['내용','구분','금액','학기','확인자','기록일'];
+  return heading('','회비 · 정산','입력된 수입·지출의 잔액을 기준으로 앞으로의 사용 계획을 세웁니다.','<div class="row-actions">'+button('수입 · 지출 기록','finance-add',{class:'button secondary'})+button('지출 계획 추가','budget-edit',{icon:'plus'})+'</div>')+
+  '<div class="finance-summary"><div><span>현재 잔액</span><strong>'+money(balance)+'</strong></div><div><span>예정 지출</span><strong>'+money(planned)+'</strong></div><div><span>계획 후 예상 잔액</span><strong class="'+(remaining<0?'warning-text':'')+'">'+money(remaining)+'</strong></div></div><p class="data-caption">전체 학기 장부와 미집행 계획의 합계 · 추가 수입은 가정하지 않습니다. 예정일 미정인 계획은 마지막에 계산합니다.</p>'+
+  (remaining<0?'<p class="form-error" role="status">계획대로 사용하면 '+money(-remaining)+'이 부족합니다. 예정 지출이나 확보 가능한 수입을 확인해 주세요.</p>':'')+
+  (planRows.length?table(heads,planRows):empty('아직 예정된 지출이 없습니다','교육 재료, 주류 구매, 행사 비용 등 앞으로 사용할 금액을 입력해 주세요.',button('지출 계획 추가','budget-edit',{class:'button secondary'})))+
+  '<details class="finance-ledger"><summary>실제 입출금 기록 · '+rows.length+'건</summary><p class="help">현재 잔액의 근거가 되는 기록입니다. 계획의 집행 완료는 실제 지출을 한 번만 기록합니다.</p>'+
+  (rows.length?table(actualHeads,rows.map(r=>row(r,r.title,[esc(r.title)+'<small>'+esc(r.note)+'</small>',esc({income:'수입',expense:'지출',dues:'학기 회비',refund:'환불'}[r.kind]),money(r.amount),esc(r.semester),esc(r.actor),date(r.createdAt)],actualHeads))):'<p class="help">기록된 입출금이 없습니다. 보유 금액은 수입 기록으로 입력해 주세요.</p>')+'</details>';
  }
  if(kind==='content'){
   const heads=['제목','유형','공개 상태','수정일','관리'];

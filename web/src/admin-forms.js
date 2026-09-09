@@ -119,6 +119,14 @@ async function applicationChange(ctx,id,action,attendance){
  (action==='offer'?field('offerExpiresAt','승급 응답 기한',localTime(new Date(Date.now()+6*3600000)),{type:'datetime-local',required:true,wide:true}):''),
  async f=>save(ctx,'applicationCommand',{id,action,reason:val(f,'reason'),...(attendance?{attendance}:{}),...(action==='offer'?{offerExpiresAt:toISO(val(f,'offerExpiresAt'))}:{})}),{submit:copy.submit,submitClass:action==='cancel'||action==='expire'?'button danger':'button'});
 }
+async function budgetEdit(ctx,id){
+ const r=id?(await read(ctx,'budgets',{recordId:id})).rows[0]:null;
+ modal(r?'지출 계획 수정':'지출 계획 추가',field('title','사용 목적',r?.title,{required:true,wide:true,maxLength:160})+field('amount','예상 금액 (원)',r?.amount,{type:'number',min:1,max:100000000,required:true})+field('dueDate','예정일',r?.dueDate,{type:'date'})+field('semester','학기',r?.semester||semester(ctx),{required:true})+field('note','산정 근거 · 메모',r?.note,{type:'textarea',wide:true,maxLength:2000})+'<p class="wide help">계획은 실제 잔액을 차감하지 않습니다. 예정일이 없으면 미정으로 표시됩니다.</p>',async f=>save(ctx,'saveBudget',{...meta(r),title:val(f,'title'),amount:num(f,'amount'),dueDate:val(f,'dueDate'),semester:val(f,'semester'),note:val(f,'note')}));
+}
+async function budgetCommand(ctx,id,execute){
+ const r=(await read(ctx,'budgets',{recordId:id})).rows[0];
+ modal(execute?'지출 집행 완료':'지출 계획 삭제','<p class="wide">'+esc(r.title)+'</p>'+(execute?field('amount','실제 지출액 (원)',r.amount,{type:'number',min:1,max:100000000,required:true})+field('confirmed','실제로 지출했으며 장부에 별도로 기록하지 않았습니다',false,{type:'checkbox',required:true,wide:true})+'<p class="wide help">실제 지출액을 장부에 기록하고 예정 지출에서 제외합니다. 송금은 실행하지 않습니다.</p>':'<p class="wide help">이 계획을 예상 지출에서 제외합니다. 실제 장부는 변경하지 않습니다.</p>'),async f=>save(ctx,execute?'executeBudget':'deleteBudget',{id:r.id,revision:r.revision,...(execute?{amount:num(f,'amount'),confirmed:f.has('confirmed')}:{})}),{submit:execute?'집행 완료 기록':'계획 삭제',submitClass:execute?'button':'button danger'});
+}
 async function financeAdd(ctx,applicationId='',refund=false){
  if(!hasPermission(ctx.state.profile,'finance'))throw Error('회비 · 정산 권한이 없습니다.');
  const a=applicationId?await record(ctx,'applications',applicationId):null;
@@ -236,6 +244,9 @@ export async function handleAdminAction(ctx,action,id,target){
  if(action==='application-cancel')return applicationChange(ctx,id,'cancel');
  if(action==='application-payment')return financeAdd(ctx,id,false);
  if(action==='application-refund')return financeAdd(ctx,id,true);
+ if(action==='budget-edit')return budgetEdit(ctx,id);
+ if(action==='budget-delete')return budgetCommand(ctx,id,false);
+ if(action==='budget-execute')return budgetCommand(ctx,id,true);
  if(action==='finance-add')return financeAdd(ctx);
  if(action==='settings-edit')return settingsEdit(ctx);
  if(action==='content-edit')return contentEdit(ctx,id);

@@ -507,3 +507,24 @@ test('admin deletion revokes access, preserves history and guards self, stale an
  await service.handle({op:'saveAdmin',uid:'education',displayName:'다시 등록',role:'education',active:true,expiresAt:time(86400000)},owner);
  assert.equal((await service.handle({op:'profile'},education)).role,'education');
 });
+
+test('spending plans are finance-only, do not spend on save, and execute atomically once',async()=>{
+ const input={op:'saveBudget',revision:0,title:'교육 재료',amount:50000,dueDate:'2026-10-01',note:'20명 기준',semester:'2026-2'};
+ await assert.rejects(service.handle(input,education),e=>e.code==='permission-denied');
+ await assert.rejects(service.handle({op:'read',kind:'budgets'},education),e=>e.code==='permission-denied');
+ await assert.rejects(service.handle({...input,dueDate:'2026-02-30'},finance),e=>e.code==='invalid-argument');
+ await assert.rejects(service.handle({...input,amount:0},finance),e=>e.code==='invalid-argument');
+ const p=await service.handle(input,finance);assert.equal(p.status,'planned');assert.equal((await db.collection('martini_v2_finance').get()).size,0);
+ const next=await service.handle({...input,id:p.id,revision:1,amount:60000},finance);
+ await assert.rejects(service.handle({op:'deleteBudget',id:p.id,revision:1},finance),e=>e.code==='aborted');
+ await assert.rejects(service.handle({op:'executeBudget',id:p.id,revision:2,amount:55000,confirmed:false},finance),e=>e.code==='invalid-argument');
+ const execution={op:'executeBudget',id:p.id,revision:next.revision,amount:55000,confirmed:true};
+ await assert.rejects(service.handle(execution,education),e=>e.code==='permission-denied');
+ await Promise.all([service.handle(execution,finance),service.handle(execution,finance)]);
+ const ledger=await db.collection('martini_v2_finance').get();assert.equal(ledger.size,1);assert.equal(ledger.docs[0].data().amount,55000);assert.equal(ledger.docs[0].data().kind,'expense');
+ const stored=(await service.handle({op:'read',kind:'budgets',recordId:p.id},finance)).rows[0];assert.equal(stored.status,'executed');assert.equal(stored.amount,60000);assert.equal(stored.actualAmount,55000);
+ await assert.rejects(service.handle({...input,id:p.id,revision:stored.revision},finance),e=>e.code==='failed-precondition');
+ await assert.rejects(service.handle({op:'deleteBudget',id:p.id,revision:stored.revision},finance),e=>e.code==='failed-precondition');
+ const unused=await service.handle({...input,title:'취소할 구매',dueDate:''},finance);
+ await service.handle({op:'deleteBudget',id:unused.id,revision:1},finance);assert.equal((await db.doc('martini_v2_budgets/'+unused.id).get()).exists,false);assert.equal((await db.collection('martini_v2_finance').get()).size,1);
+});

@@ -75,6 +75,7 @@ export function createService(db,clock=Date.now){
     next.identityHash=key;next.phone=normalizePhone(input.phone);next.note=input.note??old?.note??'';
     tx.set(col('semesters').doc(input.semester),{updatedAt:now()},{merge:true});
    }
+   if(kind==='budgets'){if(old?.status==='executed')fail('failed-precondition','집행 완료한 계획은 수정할 수 없습니다.');next.status='planned';}
    if(kind==='events'){
     validateEvent(input,old?.registered||0);
     if(old?.status==='cancelled'&&input.status!=='cancelled')fail('failed-precondition','취소된 행사는 다시 열 수 없습니다. 새 행사를 만들어 주세요.');
@@ -110,13 +111,14 @@ export function createService(db,clock=Date.now){
   });
  }
  async function read(data,who){
-  const allowed=['members','events','applications','finance','inventory','stockMoves','meetings','decisions','content','settings','admins','audit'];
+  const allowed=['budgets','members','events','applications','finance','inventory','stockMoves','meetings','decisions','content','settings','admins','audit'];
   const input=parse(z.object({kind:z.enum(allowed),semester:semesterSchema.optional(),removed:z.boolean().optional(),eventId:idSchema.optional(),meetingId:idSchema.optional(),itemId:idSchema.optional(),cursor:idSchema.optional(),parentId:idSchema.optional(),recordId:idSchema.optional(),revisions:z.boolean().optional()}).strict(),data);
   let scope=input.kind;
   if(scope==='applications'){if(!hasPermission(who,'participants'))fail('permission-denied','참가자 명단 조회 권한이 없습니다.');}
   else if(scope==='settings'){} // Basic operating context is available to signed-in staff.
   else if(scope==='events')ensureScope(who,'eventRead',clock());
   else if(scope==='members')ensureScope(who,'membersRead',clock());
+  else if(scope==='budgets')ensureScope(who,'finance',clock());
   else if(scope==='stockMoves')ensureScope(who,'inventory',clock());
   else ensureScope(who,scope,clock());
   if(input.kind==='members'){
@@ -342,9 +344,24 @@ export function createService(db,clock=Date.now){
   const saves={
    saveMember:['members',schemas.member,'members'],saveEvent:['events',schemas.event,'events'],saveItem:['inventory',schemas.item,'inventory'],
    saveMeeting:['meetings',schemas.meeting,'meetings'],saveDecision:['decisions',schemas.decision,'decisions'],saveContent:['content',schemas.content,'content'],
-   saveSettings:['settings',schemas.settings,'settings']
+   saveBudget:['budgets',schemas.budget,'finance'],saveSettings:['settings',schemas.settings,'settings']
   };
   if(saves[op]){const [kind,schema,scope]=saves[op];return save(kind,schema,data,who,scope);}
+  if(op==='deleteBudget'||op==='executeBudget'){
+   ensureScope(who,'finance',clock());
+   const schema=op==='executeBudget'?z.object({id:idSchema,revision:z.number().int().min(1),amount:z.number().int().min(1).max(100000000),confirmed:z.literal(true)}).strict():z.object({id:idSchema,revision:z.number().int().min(1)}).strict();
+   const input=parse(schema,data),ref=col('budgets').doc(input.id);
+   return db.runTransaction(async tx=>{
+    const doc=await tx.get(ref),plan=doc.data();if(!plan)fail('not-found','지출 계획을 찾을 수 없습니다.');
+    if(plan.status==='executed'){if(op==='executeBudget')return {saved:true,duplicate:true};fail('failed-precondition','집행 완료한 계획은 삭제할 수 없습니다.');}
+    requireRevision(plan,input.revision);
+    if(op==='deleteBudget'){tx.delete(ref);audit(tx,who,'budgets',input.id,'지출 계획 삭제',plan.semester);return {saved:true};}
+    const entry=col('finance').doc(),at=now();
+    tx.create(entry,{id:entry.id,requestId:entry.id,kind:'expense',amount:input.amount,title:plan.title,note:plan.note||'',semester:plan.semester,eventId:'',applicationId:'',memberId:'',budgetId:input.id,actor:who.displayName,createdAt:at,updatedAt:at});
+    tx.update(ref,{status:'executed',actualAmount:input.amount,transactionId:entry.id,revision:plan.revision+1,updatedAt:at,updatedBy:who.uid});
+    audit(tx,who,'budgets',input.id,'지출 계획 집행 완료',plan.semester);audit(tx,who,'finance',entry.id,'계획 지출 기록',plan.semester);return {saved:true};
+   });
+  }
   if(op==='stock')return stock(data,who);
   if(op==='finance')return finance(data,who);
   if(op==='applicationCommand')return applicationCommand(data,who);
