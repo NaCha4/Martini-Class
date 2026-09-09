@@ -6,6 +6,24 @@ import { handleAdminAction, handleAdminSubmit } from './admin-forms.js';
 const navigation=[['','layout-dashboard','오늘의 운영'],['events','calendar-days','행사 · 교육'],['members','users-round','부원 명부'],['inventory','package','재고 관리'],['finance','wallet','회비 · 정산'],['meetings','notebook-pen','회의록'],['decisions','list-checks','결정 · 할 일'],['content','megaphone','공지 · 활동'],['settings','settings-2','학기 · 운영 설정'],['roles','list-checks','역할 관리'],['admins','shield-check','임원 배정'],['privacy','shield-check','학기말 정보 정리'],['audit','history','변경 이력']];
 const can=(ctx,kind)=>hasPermission(ctx.state.profile,['roles','privacy'].includes(kind)?'admins':kind==='events'?'eventRead':kind);
 const scopeEvent=ctx=>hasPermission(ctx.state.profile,'events');
+const memberSortFields=[['name','이름별'],['grade','학년별'],['department','학과별'],['studentId','학번별']];
+const memberCollator=new Intl.Collator('ko-KR',{numeric:true,sensitivity:'base'});
+function compareMembers(a,b,field='name',direction='asc'){
+ const left=String(a[field]??'').trim(),right=String(b[field]??'').trim();
+ // Keep missing values last in either direction; resolve ties consistently.
+ if(!left!==!right)return left?-1:1;
+ return memberCollator.compare(left,right)*(direction==='desc'?-1:1)||memberCollator.compare(a.name||'',b.name||'')||memberCollator.compare(a.studentId||'',b.studentId||'')||memberCollator.compare(a.id,b.id);
+}
+function memberSortControls(ctx){
+ return '<label class="member-sort">정렬 기준<select id="member-sort-field" aria-label="정렬 기준" data-member-sort="field">'+memberSortFields.map(([value,title])=>'<option value="'+value+'"'+((ctx.state.memberSortField||'name')===value?' selected':'')+'>'+title+'</option>').join('')+'</select></label><label class="member-sort">정렬 방향<select id="member-sort-direction" aria-label="정렬 방향" data-member-sort="direction"><option value="asc"'+(ctx.state.memberSortDirection!=='desc'?' selected':'')+'>오름차순</option><option value="desc"'+(ctx.state.memberSortDirection==='desc'?' selected':'')+'>내림차순</option></select></label>';
+}
+export function sortMemberRows(ctx,control){
+ if(control.dataset.memberSort==='field')ctx.state.memberSortField=memberSortFields.some(([value])=>value===control.value)?control.value:'name';
+ else ctx.state.memberSortDirection=control.value==='desc'?'desc':'asc';
+ const body=document.querySelector('#app tbody');if(!body)return;
+ const member=tr=>ctx.state.data.members[tr.querySelector('[data-action="member-view"]').dataset.id];
+ body.append(...Array.from(body.rows).sort((a,b)=>compareMembers(member(a),member(b),ctx.state.memberSortField,ctx.state.memberSortDirection)));
+}
 
 export const rosterSemester=ctx=>/^20\d{2}-[12]$/.test(new URLSearchParams(location.search).get('semester')||'')&&location.pathname.replace(/\/$/,'')==='/admin/members'?new URLSearchParams(location.search).get('semester'):ctx.state.settings.semester;
 function memberParams(ctx,kind,params){if(kind!=='members')return params;const semester=params.semester||rosterSemester(ctx),removed=false;if(ctx.state.memberSemester!==semester||ctx.state.memberRemoved!==removed){ctx.state.data.members={};if(ctx.state.pages)delete ctx.state.pages.members;ctx.state.memberSemester=semester;ctx.state.memberRemoved=removed;}return {...params,semester,removed};}
@@ -23,9 +41,9 @@ export async function readAll(ctx,kind,params={}){
  ctx.state.data[kind]||={};rows.forEach(r=>ctx.state.data[kind][r.id]=r);ctx.state.pages||={};ctx.state.pages[kind]={rows,nextCursor:null};return {rows,nextCursor:null};
 }
 function heading(eyebrow,title,description,action=''){return '<div class="page-heading"><div><h1 id="page-title" tabindex="-1">'+title+'</h1><p>'+description+'</p></div>'+action+'</div>';}
-function toolbar(kind,choices=[]){
+function toolbar(kind,choices=[],extra=''){
  const inventory=kind==='inventory',config={events:['행사 이름 · 장소','행사'],members:['이름 · 학번 · 연락처 · 학과','부원'],inventory:['품목 이름 · 보관 위치','품목'],meetings:['회의 이름 · 안건 · 내용','회의'],decisions:['제목 · 내용 · 담당자','결정 · 할 일'],finance:['내용 · 메모','정산'],content:['제목 · 내용','게시글'],admins:['이름 · 역할','임원'],audit:['작업 · 처리자','변경 이력'],applications:['신청자 이름','신청자']}[kind]||['이름 · 내용','목록'];
- return '<div class="toolbar"><label class="search-box">'+icon('search')+'<input type="search" data-search placeholder="'+config[0]+' 검색" aria-label="'+config[1]+' 검색" autocomplete="off" spellcheck="false" aria-describedby="filtered-count"></label>'+(choices.length?'<select data-filter aria-label="'+(inventory?'분류':'상태')+' 필터"><option value="all">전체 '+(inventory?'분류':'상태')+'</option>'+choices.map(c=>'<option value="'+c+'">'+esc(label(c))+'</option>').join('')+'</select>':'')+'<span id="filtered-count" class="muted" role="status" aria-live="polite" aria-atomic="true"></span></div>';
+ return '<div class="toolbar"><label class="search-box">'+icon('search')+'<input type="search" data-search placeholder="'+config[0]+' 검색" aria-label="'+config[1]+' 검색" autocomplete="off" spellcheck="false" aria-describedby="filtered-count"></label>'+(choices.length?'<select data-filter aria-label="'+(inventory?'분류':'상태')+' 필터"><option value="all">전체 '+(inventory?'분류':'상태')+'</option>'+choices.map(c=>'<option value="'+c+'">'+esc(label(c))+'</option>').join('')+'</select>':'')+extra+'<span id="filtered-count" class="muted" role="status" aria-live="polite" aria-atomic="true"></span></div>';
 }
 function table(headers,rows){return '<div class="table-wrap"><table><thead><tr>'+headers.map(h=>'<th scope="col">'+h+'</th>').join('')+'</tr></thead><tbody>'+rows.join('')+'</tbody></table></div>';}
 function row(record,search,cells,headers,status=record.status){return '<tr data-searchable="'+esc(search)+'" data-status="'+esc(status||'')+'">'+cells.map((cell,i)=>'<td data-label="'+esc(headers[i])+'">'+cell+'</td>').join('')+'</tr>';}
@@ -65,17 +83,18 @@ async function list(ctx,kind){
   return heading('','역할 관리','역할을 만들고 업무 권한을 정한 뒤 임원에게 배정합니다.',button('역할 만들기','role-edit',{icon:'plus'}))+table(heads,roles.map(r=>row(r,r.name,[esc(r.name),r.permissions.map(p=>esc(permissionLabels[p]||'역할·임원 관리')).join(' · '),r.assigned+'명',r.id==='owner'?'<span class="help">필수 관리 권한 유지</span>':button('수정','role-edit',{id:r.id,class:'button small secondary'})+(!r.system?button('삭제','role-delete',{id:r.id,class:'button small secondary'}):'')],heads)))+'<p class="help">회비·정산 권한은 기본적으로 회장·부회장·재무부에만 부여됩니다. 권한을 수정하면 배정된 임원 모두에게 적용됩니다.</p>';
  }
 
- const {rows}=kind==='finance'?await readAll(ctx,kind):await read(ctx,kind);
+ const {rows}=['finance','members'].includes(kind)?await readAll(ctx,kind):await read(ctx,kind);
  if(kind==='events'){
   const writable=hasPermission(ctx.state.profile,'events');
   return heading('GATHER & LEARN','행사 · 교육','신청 접수부터 출석과 정산까지 관리합니다.',writable?button('행사 만들기','event-edit',{icon:'plus'}):'')+toolbar(kind,['draft','open','closed','completed','cancelled'])+
   (rows.length?'<div class="event-grid">'+rows.map(e=>'<a class="event-card" href="/admin/events/'+e.id+'" data-nav data-searchable="'+esc(e.title+' '+e.location)+'" data-status="'+e.status+'"><div class="event-visual '+e.type+'">'+icon(e.type==='class'?'martini':e.type==='meeting'?'users-round':'sparkles')+'<span>'+esc(label(e.type))+'</span>'+badge(e.status)+'</div><div class="event-content"><h2>'+esc(e.title)+'</h2><p>'+icon('calendar-days')+date(e.startsAt,true)+'</p><p>'+icon('map-pin')+esc(e.location)+'</p><div class="event-bottom"><span>등록 <b>'+e.registered+'</b> / '+e.capacity+'명</span><span>'+money(e.fee)+'</span></div><div class="capacity-bar"><span style="width:'+Math.min(100,e.registered/e.capacity*100)+'%"></span></div></div></a>').join('')+'</div>':empty('아직 등록된 행사가 없습니다','행사를 만들고 공유 링크를 전달하면 부원이 로그인 없이 신청할 수 있습니다.',writable?button('첫 행사 준비','event-edit',{class:'button secondary'}):''))+next(ctx,kind);
  }
  if(kind==='members'){
+  rows.sort((a,b)=>compareMembers(a,b,ctx.state.memberSortField,ctx.state.memberSortDirection));
   const term=rosterSemester(ctx),terms=[...new Set([...(await ctx.api('rosterTerms')).rows,term])].sort().reverse();
   const tree='<nav class="semester-tree" aria-label="명부 학기">'+terms.map(t=>'<a data-nav href="/admin/members?semester='+t+'"'+(t===term?' aria-current="page"':'')+'>'+icon('folder')+'<span>'+esc(t)+'</span></a>').join('')+button('다른 학기 열기','roster-term',{class:'button secondary small',icon:'plus'})+'</nav>';
   const heads=['부원','소속','학번 · 연락처','관리'];
-  return heading('THE PEOPLE OF MARTINI','부원 명부','학기를 선택하면 해당 학기의 부원 정보를 확인할 수 있습니다.',button('부원 등록','member-edit',{icon:'user-plus'}))+tree+toolbar(kind)+
+  return heading('THE PEOPLE OF MARTINI','부원 명부','학기를 선택하면 해당 학기의 부원 정보를 확인할 수 있습니다.',button('부원 등록','member-edit',{icon:'user-plus'}))+tree+toolbar(kind,[],memberSortControls(ctx))+
   '<div class="list-meta"><p>선택한 학기에 등록됩니다. 다른 학기의 명부는 변경되지 않습니다.</p>'+button('CSV 내보내기','export',{id:kind,class:'button small secondary',icon:'download'})+'</div>'+
   (rows.length?table(heads,rows.map(m=>row(m,m.name+' '+m.studentId+' '+m.phone+' '+m.department,[ '<button class="title-button" data-action="member-view" data-id="'+esc(m.id)+'"><strong>'+esc(m.name)+'</strong></button><small>'+esc(m.grade?m.grade+'학년':'')+'</small>',esc(m.college)+'<small>'+esc(m.department)+'</small>',esc(m.studentId)+'<small>'+esc(m.phone)+'</small>','<div class="member-actions"><button type="button" class="icon-button member-edit-button" data-action="member-edit" data-id="'+esc(m.id)+'" aria-label="수정" title="부원 정보 수정">'+icon('wrench')+'</button><button type="button" class="icon-button member-remove-button" data-action="member-remove" data-id="'+esc(m.id)+'" aria-label="명부에서 제거" title="이 학기 명부에서 제거">'+icon('x')+'</button></div>'],heads))):empty('명부가 아직 비어 있습니다','학번과 연락처가 행사 신청 정보와 일치해야 참가 자격을 확인할 수 있습니다.',button('첫 부원 등록','member-edit',{class:'button secondary'})))+next(ctx,kind);
  }

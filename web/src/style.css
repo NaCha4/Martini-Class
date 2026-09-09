@@ -113,6 +113,8 @@ dialog footer{flex:none;display:flex;align-items:center;flex-wrap:wrap;gap:12px;
 .discard-confirmation>div{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
 .dialog-scroll[inert]{opacity:.45}
 .toolbar{flex-wrap:wrap}
+.member-sort{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
+.toolbar .member-sort select{min-width:108px}
 .toolbar .search-box{flex:1 1 190px;min-height:46px}
 .toolbar>.muted{display:block;font-size:13px;line-height:1.6}
 .toolbar .filter-reset{min-height:44px;padding:8px 12px}

@@ -2,7 +2,7 @@ import './style.css';
 import { api, auth, onAuthStateChanged } from './firebase.js';
 import { esc, icon, refreshIcons, toast, modal, closeModal, formSignature, captureFocus, restoreFocus, busyControl, showFormError } from './ui.js';
 import { renderPublic, publicAction, publicSubmit } from './public.js';
-import { renderAdmin, adminAction, adminSubmit } from './admin.js';
+import { renderAdmin, adminAction, adminSubmit, sortMemberRows } from './admin.js';
 export const state={profile:null,user:null,authReady:false,data:{},settings:{},search:'',filter:'all'};
 export const ctx={state,api,toast,navigate,render};
 const app=document.querySelector('#app');
@@ -126,6 +126,7 @@ document.addEventListener('input',event=>{
 document.addEventListener('change',event=>{
   if(event.target.matches('input,select,textarea'))clearInvalid(event.target);
   if(event.target.matches('[data-filter]')){state.filter=event.target.value;filterRows();}
+  if(event.target.matches('[data-member-sort]'))sortMemberRows(ctx,event.target);
 });
 function filterRows(){
   const rows=Array.from(app.querySelectorAll('[data-searchable]'));let count=0;
