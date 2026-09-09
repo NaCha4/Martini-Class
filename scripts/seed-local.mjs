@@ -12,8 +12,9 @@ const meta={revision:1,createdAt:at,updatedAt:at,createdBy:'local-owner',updated
 const batch=db.batch();
 batch.set(db.doc('martini_v2_admins/local-owner'),{displayName:'로컬 운영 책임자',role:'owner',active:true,expiresAt:future(365),updatedAt:at});
 batch.set(db.doc('martini_v2_settings/club'),{...meta,id:'club',semester:'2026-2',semesterEndsAt:future(120),duesAmount:30000,joinUrl:'',contact:'로컬 검증용 문의처',intro:'칵테일을 배우고, 함께 만들고, 가까워지는 동아리 마티니.',location:'동아리방',privacy:'로컬 검증용 안내입니다. 이 환경에는 가상 데이터만 입력해 주세요. 실제 서비스에서는 학기 단위 보존과 처리 담당자를 안내합니다.',bankInstructions:'로컬 테스트: 실제 입금하지 마세요.'});
+batch.set(db.doc('martini_v2_semesters/2026-2'),{updatedAt:at});
 for(const [id,name,studentId,phone,paid] of [['demo-member-1','가상부원 가','202600001','01000000001',true],['demo-member-2','가상부원 나','202600002','01000000002',true],['demo-member-3','가상부원 다','202600003','01000000003',false]]){
- batch.set(db.doc('martini_v2_members/'+id),{...meta,id,name,studentId,phone,college:'예시 단과대학',department:'예시학과',grade:'2',gender:'미기재',semester:'2026-2',status:'active',duesPaid:paid,identityHash:identity(studentId,phone)});
+ batch.set(db.doc('martini_v2_semesters/2026-2/members/'+id),{...meta,id,name,studentId,phone,college:'예시 단과대학',department:'예시학과',grade:'2',gender:'',identityHash:identity(studentId,phone)});
 }
 for(const [id,title,type,fee,capacity] of [['demo-opening','우리의 첫 잔, 개강총회','meeting',0,50],['demo-class','처음 만나는 칵테일 도구','class',10000,20]]){
  batch.set(db.doc('martini_v2_events/'+id),{...meta,id,title,type,description:'로컬 검증용 가상 행사입니다. 함께 알아가고 이야기하는 시간을 준비합니다.',location:'동아리방',startsAt:future(7),endsAt:new Date(Date.now()+7*86400000+7200000).toISOString(),opensAt:at,closesAt:future(6),cancelUntil:future(6),capacity,fee,waitlist:true,status:'open',semester:'2026-2',questions:[],policy:'로컬 검증용 정책: 취소 마감 전 취소할 수 있습니다.',paymentInstructions:'로컬 검증용입니다. 실제 입금하지 마세요.',registered:0,waiting:0,sequence:0,linkHash:hash('a'.repeat(64)),owner:'교육부'});

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { initializeApp,deleteApp } from '../functions/node_modules/firebase-admin/lib/app/index.js';
 import { getFirestore } from '../functions/node_modules/firebase-admin/lib/firestore/index.js';
+import { migrateRoster } from '../scripts/semester-roster-migration.mjs';
 import { createService } from '../functions/src/service.js';
 import { identity,hash } from '../functions/src/domain.js';
 import { initializeTestEnvironment,assertFails } from '@firebase/rules-unit-testing';
@@ -110,7 +111,8 @@ test('roster registration and semester edits do not require dues or activity sta
  const input={op:'saveMember',revision:0,name:'신규 가상',studentId:'202699999',phone:'01099999999',college:'',department:'',grade:'',gender:'',semester:'2026-2',status:'active',duesPaid:false};
  const result=await service.handle(input,{uid:'execution'});assert.equal('duesPaid' in result,false);assert.equal('status' in result,false);
  const current=member(1);delete current.id;delete current.identityHash;delete current.createdAt;delete current.updatedAt;delete current.createdBy;delete current.updatedBy;
- assert.equal((await service.handle({op:'saveMember',...current,id:'member-1',semester:'2027-1'},owner)).semester,'2027-1');
+ await assert.rejects(service.handle({op:'saveMember',...current,id:'member-1',semester:'2027-1'},owner),e=>e.code==='not-found');
+ assert.equal((await service.handle({op:'saveMember',...current,revision:0,semester:'2027-1'},owner)).semester,'2027-1');
 });
 test('stocked units cannot change and meeting agenda links cannot be orphaned',async()=>{
  await assert.rejects(service.handle({op:'saveItem',id:'gin',revision:1,name:'가상 진',category:'spirit',unit:'bottle',size:1000,location:'A',minimum:0,note:''},owner),e=>e.code==='failed-precondition');
@@ -157,8 +159,8 @@ test('manually confirmed dues can be entered once and retain their ledger link a
  await assert.rejects(service.handle({...dues,requestId:'dues-twice'},finance),e=>e.code==='already-exists');
  const ref=db.doc('martini_v2_members/member-1'),{identityHash,createdAt,updatedAt,createdBy,updatedBy,...editable}=(await ref.get()).data();
  await service.handle({op:'saveMember',...editable,grade:'2'},finance);
- assert.equal((await ref.collection('semesters').doc(event.semester).get()).data().duesTransactionId,'dues-once');
- await service.handle({op:'saveMember',...editable,revision:editable.revision+1,duesPaid:false},finance);assert.equal((await ref.get()).data().duesPaid,undefined);
+ assert.equal((await db.doc('martini_v2_semesters/2026-2/dues/member-1').get()).data().duesTransactionId,'dues-once');
+ await service.handle({op:'saveMember',...editable,revision:editable.revision+1,duesPaid:false},finance);assert.equal((await db.doc('martini_v2_semesters/2026-2/members/member-1').get()).data().duesPaid,undefined);
 });
 test('waitlist offers recheck eligibility and can be declined after the normal cancellation deadline',async()=>{
  const first=await service.handle(application(1),{ip:'1'}),second=await service.handle(application(2),{ip:'2'});
@@ -335,6 +337,72 @@ test('membership without payment and activity flags qualifies, unsupported gende
  assert.equal('status' in m,false);assert.equal('duesPaid' in m,false);
  const a=await service.handle({...application(1),name:m.name,studentId:m.studentId,phone:m.phone,requestId:'new-registered-member'},{ip:'new'});
  assert.equal(a.status,'registered');
- const stored=(await db.doc('martini_v2_members/'+m.id).get()).data();
+ const stored=(await db.doc('martini_v2_semesters/2026-2/members/'+m.id).get()).data();
  assert.equal('status' in stored,false);assert.equal('duesPaid' in stored,false);
+});
+
+
+test('semester trees preserve separate identities and reject duplicate registration within one semester',async()=>{
+ const input={op:'saveMember',revision:0,name:'학기별 부원',studentId:'20300001',phone:'01011112222',gender:'남성',semester:'2026-2'};
+ const outcomes=await Promise.allSettled([service.handle(input,owner),service.handle(input,owner)]);
+ assert.equal(outcomes.filter(r=>r.status==='fulfilled').length,1);
+ assert.equal(outcomes.find(r=>r.status==='rejected').reason.code,'already-exists');
+ const first=outcomes.find(r=>r.status==='fulfilled').value;
+ const second=await service.handle({...input,semester:'2027-1',name:'다음 학기 이름'},owner);
+ const data=(await db.doc('martini_v2_semesters/2026-2/members/'+first.id).get()).data();assert.equal(data.semester,undefined);
+ assert.equal((await service.handle({op:'read',kind:'members',semester:'2026-2',recordId:first.id},owner)).rows[0].name,input.name);
+ await assert.rejects(service.handle({op:'read',kind:'members',semester:'2027-1',recordId:first.id},owner),e=>e.code==='not-found');
+ assert.equal((await service.handle({op:'read',kind:'members',semester:'2027-1'},owner)).rows[0].id,second.id);
+ await assert.rejects(service.handle({...input,semester:'../bad'},owner),e=>e.code==='invalid-argument');
+ await assert.rejects(service.handle({op:'rosterTerms'},education),e=>e.code==='permission-denied');
+});
+
+test('roster migration is repeatable, preserves ledger links and existing applications, and removes redundant fields',async()=>{
+ const a=await service.handle(application(1),{ip:'migration'});
+ await db.doc('martini_v2_members/member-1/semesters/2026-2').set({semester:'2026-2',duesTransactionId:'old-ledger',updatedAt:stamp});
+ const preview=await migrateRoster(db);assert.equal(preview.members,8);assert.equal(preview.remaining,8);
+ const applied=await migrateRoster(db,{apply:true});assert.equal(applied.moved,8);assert.equal(applied.remaining,0);
+ assert.equal((await migrateRoster(db,{apply:true})).moved,0);
+ const stored=(await db.doc('martini_v2_semesters/2026-2/members/member-1').get()).data();assert.equal(stored.semester,undefined);assert.equal(stored.status,undefined);assert.equal(stored.duesPaid,undefined);assert.equal(stored.phone,member(1).phone);
+ assert.equal((await db.doc('martini_v2_semesters/2026-2/dues/member-1').get()).data().duesTransactionId,'old-ledger');
+ assert.equal((await service.handle({op:'participantContact',id:a.id},education)).phone,member(1).phone);
+ assert.equal((await service.handle(application(1),{ip:'migration'})).id,a.id);
+ await assert.rejects(service.handle({op:'finance',kind:'dues',requestId:'duplicate-migrated',memberId:'member-1',semester:'2026-2',amount:10000,title:'중복'},finance),e=>e.code==='already-exists');
+});
+
+test('nested roster pagination and privacy cleanup stay within the selected semester',async()=>{
+ await migrateRoster(db,{apply:true});
+ const batch=db.batch();for(let i=10;i<120;i++){const {semester,status,duesPaid,...m}=member(i);batch.set(db.doc('martini_v2_semesters/2026-2/members/member-'+i),m);}await batch.commit();
+ const first=await service.handle({op:'read',kind:'members',semester:'2026-2'},owner),second=await service.handle({op:'read',kind:'members',semester:'2026-2',cursor:first.nextCursor},owner);
+ assert.equal(first.rows.length,100);assert.equal(second.rows.length,18);assert.equal(new Set([...first.rows,...second.rows].map(m=>m.id)).size,118);
+ const {semester,status,duesPaid,...future}=member(1);await db.doc('martini_v2_semesters/2027-1/members/member-1').set({...future,name:'다음 학기 정보'});
+ await db.doc('martini_v2_settings/club').update({semester:'2027-1'});
+ const query={semester:'2026-2',memberId:'member-1'},review=await service.handle({op:'privacyReview',...query},owner);
+ assert.deepEqual(review.blockers,[]);assert.equal(review.counts.member,1);
+ await service.handle({op:'privacyAnonymize',...query,fingerprint:review.fingerprint,confirmation:'2026-2 정리',reason:'보존 종료'},owner);
+ assert.equal((await db.doc('martini_v2_semesters/2026-2/members/member-1').get()).data().phone,'');
+ assert.equal((await db.doc('martini_v2_semesters/2027-1/members/member-1').get()).data().phone,member(1).phone);
+});
+
+
+test('nested waitlist uses the event semester even when a newer roster has the same member id',async()=>{
+ await migrateRoster(db,{apply:true});
+ const a=await service.handle(application(1),{ip:'nested-first'}),b=await service.handle(application(2),{ip:'nested-second'});
+ await db.doc('martini_v2_semesters/2027-1/members/member-2').set({...member(2),phone:'01077778888'});
+ assert.equal((await service.handle({op:'participantContact',id:b.id},education)).phone,member(2).phone);
+ await service.handle({op:'receipt',id:a.id,key:'1'.repeat(64),action:'cancel'},{ip:'nested-first'});
+ await service.handle({op:'applicationCommand',id:b.id,action:'offer',offerExpiresAt:time(3600000),reason:'좌석 제안'},owner);
+ await service.handle({op:'receipt',id:b.id,key:'2'.repeat(64),action:'accept'},{ip:'nested-second'});
+ assert.equal((await db.doc('martini_v2_applications/'+b.id).get()).data().status,'registered');
+});
+
+test('migration refuses conflicting ledger links and preserves an edited nested roster',async()=>{
+ await db.doc('martini_v2_members/member-1/semesters/2026-2').set({duesTransactionId:'old-link'});
+ await db.doc('martini_v2_semesters/2026-2/dues/member-1').set({duesTransactionId:'conflict'});
+ await assert.rejects(migrateRoster(db,{apply:true}),/LEDGER_LINK_CONFLICT/);
+ assert.equal((await db.doc('martini_v2_members/member-1').get()).exists,true);
+ await db.doc('martini_v2_semesters/2026-2/dues/member-1').set({duesTransactionId:'old-link'});
+ const {semester,status,duesPaid,...data}=member(1);await db.doc('martini_v2_semesters/2026-2/members/member-1').set({...data,revision:2,name:'수정된 이름'});
+ await migrateRoster(db,{apply:true});
+ assert.equal((await db.doc('martini_v2_semesters/2026-2/members/member-1').get()).data().name,'수정된 이름');
 });

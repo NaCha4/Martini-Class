@@ -7,15 +7,19 @@ const navigation=[['','layout-dashboard','오늘의 운영'],['events','calendar
 const can=(ctx,kind)=>hasPermission(ctx.state.profile,['roles','privacy'].includes(kind)?'admins':kind==='events'?'eventRead':kind);
 const scopeEvent=ctx=>hasPermission(ctx.state.profile,'events');
 
+export const rosterSemester=ctx=>/^20\d{2}-[12]$/.test(new URLSearchParams(location.search).get('semester')||'')&&location.pathname.replace(/\/$/,'')==='/admin/members'?new URLSearchParams(location.search).get('semester'):ctx.state.settings.semester;
+function memberParams(ctx,kind,params){if(kind!=='members')return params;const semester=params.semester||rosterSemester(ctx);if(ctx.state.memberSemester!==semester){ctx.state.data.members={};if(ctx.state.pages)delete ctx.state.pages.members;ctx.state.memberSemester=semester;}return {...params,semester};}
 export async function read(ctx,kind,params={}){
+ params=memberParams(ctx,kind,params);
  const result=await ctx.api('read',{kind,...params});
  ctx.state.data[kind]||={};result.rows.forEach(row=>ctx.state.data[kind][row.id]=row);
  ctx.state.pages||={};if(!params.recordId&&!params.eventId&&!params.revisions)ctx.state.pages[kind]=result;
  return result;
 }
-export async function readAll(ctx,kind){
+export async function readAll(ctx,kind,params={}){
+ params=memberParams(ctx,kind,params);
  const rows=[];let cursor;
- do{const page=await ctx.api('read',{kind,...(cursor?{cursor}:{})});rows.push(...page.rows);cursor=page.nextCursor;}while(cursor);
+ do{const page=await ctx.api('read',{kind,...params,...(cursor?{cursor}:{})});rows.push(...page.rows);cursor=page.nextCursor;}while(cursor);
  ctx.state.data[kind]||={};rows.forEach(r=>ctx.state.data[kind][r.id]=r);ctx.state.pages||={};ctx.state.pages[kind]={rows,nextCursor:null};return {rows,nextCursor:null};
 }
 function heading(eyebrow,title,description,action=''){return '<div class="page-heading"><div><h1 id="page-title" tabindex="-1">'+title+'</h1><p>'+description+'</p></div>'+action+'</div>';}
@@ -68,10 +72,12 @@ async function list(ctx,kind){
   (rows.length?'<div class="event-grid">'+rows.map(e=>'<a class="event-card" href="/admin/events/'+e.id+'" data-nav data-searchable="'+esc(e.title+' '+e.location)+'" data-status="'+e.status+'"><div class="event-visual '+e.type+'">'+icon(e.type==='class'?'martini':e.type==='meeting'?'users-round':'sparkles')+'<span>'+esc(label(e.type))+'</span>'+badge(e.status)+'</div><div class="event-content"><h2>'+esc(e.title)+'</h2><p>'+icon('calendar-days')+date(e.startsAt,true)+'</p><p>'+icon('map-pin')+esc(e.location)+'</p><div class="event-bottom"><span>등록 <b>'+e.registered+'</b> / '+e.capacity+'명</span><span>'+money(e.fee)+'</span></div><div class="capacity-bar"><span style="width:'+Math.min(100,e.registered/e.capacity*100)+'%"></span></div></div></a>').join('')+'</div>':empty('아직 등록된 행사가 없습니다','행사를 만들고 공유 링크를 전달하면 부원이 로그인 없이 신청할 수 있습니다.',writable?button('첫 행사 준비','event-edit',{class:'button secondary'}):''))+next(ctx,kind);
  }
  if(kind==='members'){
-  const heads=['부원','소속','학번 · 연락처','등록 학기','관리'];
-  return heading('THE PEOPLE OF MARTINI','부원 명부','입력한 명부를 기준으로 행사 신청 자격을 확인합니다.',button('부원 등록','member-edit',{icon:'user-plus'}))+toolbar(kind)+
-  '<div class="list-meta"><p>등록된 학기의 부원은 별도 회비 확인 없이 행사에 신청할 수 있습니다.</p>'+button('CSV 내보내기','export',{id:kind,class:'button small secondary',icon:'download'})+'</div>'+
-  (rows.length?table(heads,rows.map(m=>row(m,m.name+' '+m.studentId+' '+m.phone+' '+m.department,[ '<strong>'+esc(m.name)+'</strong><small>'+esc(m.grade?m.grade+'학년':'')+'</small>',esc(m.college)+'<small>'+esc(m.department)+'</small>',esc(m.studentId)+'<small>'+esc(m.phone)+'</small>',esc(m.semester),button('수정','member-edit',{id:m.id,class:'button small secondary'})],heads))):empty('명부가 아직 비어 있습니다','학번과 연락처가 행사 신청 정보와 일치해야 참가 자격을 확인할 수 있습니다.',button('첫 부원 등록','member-edit',{class:'button secondary'})))+next(ctx,kind);
+  const term=rosterSemester(ctx),terms=[...new Set([...(await ctx.api('rosterTerms')).rows,term])].sort().reverse();
+  const tree='<nav class="semester-tree" aria-label="명부 학기">'+terms.map(t=>'<a data-nav href="/admin/members?semester='+t+'"'+(t===term?' aria-current="page"':'')+'>'+icon('folder')+'<span>'+esc(t)+'</span></a>').join('')+button('다른 학기 열기','roster-term',{class:'button secondary small',icon:'plus'})+'</nav>';
+  const heads=['부원','소속','학번 · 연락처','관리'];
+  return heading('THE PEOPLE OF MARTINI','부원 명부','학기를 선택하면 해당 학기의 부원 정보를 확인할 수 있습니다.',button('부원 등록','member-edit',{icon:'user-plus'}))+tree+'<h2 class="roster-title">'+esc(term)+' 부원 명부</h2>'+toolbar(kind)+
+  '<div class="list-meta"><p>선택한 학기에 등록됩니다. 다른 학기의 명부는 변경되지 않습니다.</p>'+button('CSV 내보내기','export',{id:kind,class:'button small secondary',icon:'download'})+'</div>'+
+  (rows.length?table(heads,rows.map(m=>row(m,m.name+' '+m.studentId+' '+m.phone+' '+m.department,[ '<strong>'+esc(m.name)+'</strong><small>'+esc(m.grade?m.grade+'학년':'')+'</small>',esc(m.college)+'<small>'+esc(m.department)+'</small>',esc(m.studentId)+'<small>'+esc(m.phone)+'</small>',button('수정','member-edit',{id:m.id,class:'button small secondary'})],heads))):empty('명부가 아직 비어 있습니다','학번과 연락처가 행사 신청 정보와 일치해야 참가 자격을 확인할 수 있습니다.',button('첫 부원 등록','member-edit',{class:'button secondary'})))+next(ctx,kind);
  }
  if(kind==='inventory'){
   const heads=['품목','보관 위치','미개봉 / 수량','개봉 잔량','총 보유량','기록'];
@@ -145,7 +151,7 @@ export async function adminAction(ctx,action,id,target){
  if(action==='logout'){ctx.state.profile=null;ctx.state.data={};ctx.state.authError='';await signOut(auth);return ctx.render();}
  if(action==='local-login'&&local){await signInWithEmailAndPassword(auth,'admin@martini.local','Martini-Local-2026!');ctx.state.profile=await ctx.api('profile');return ctx.render();}
  if(action==='mobile-menu'){modal('운영 메뉴','<div class="mobile-menu-list wide">'+navigation.filter(([k])=>!k||can(ctx,k)).map(([k,i,t])=>'<a href="/admin'+(k?'/'+k:'')+'" data-nav'+((location.pathname.split('/')[2]||'')===k?' aria-current="page"':'')+'>'+icon(i)+t+'</a>').join('')+'</div>',null);return;}
- if(action==='load-more'){const current=ctx.state.pages[id];const result=await ctx.api('read',{kind:id,cursor:current.nextCursor});result.rows.forEach(r=>ctx.state.data[id][r.id]=r);ctx.state.pages[id]={rows:[...current.rows,...result.rows],nextCursor:result.nextCursor};ctx.toast('추가 기록 '+result.rows.length+'개를 불러왔습니다.');return showMoreRows(ctx,id);}
+ if(action==='load-more'){const current=ctx.state.pages[id];const result=await ctx.api('read',{kind:id,cursor:current.nextCursor,...(id==='members'?{semester:rosterSemester(ctx)}:{})});result.rows.forEach(r=>ctx.state.data[id][r.id]=r);ctx.state.pages[id]={rows:[...current.rows,...result.rows],nextCursor:result.nextCursor};ctx.toast('추가 기록 '+result.rows.length+'개를 불러왔습니다.');return showMoreRows(ctx,id);}
  return handleAdminAction(ctx,action,id,target);
 }
 async function showMoreRows(ctx,kind){

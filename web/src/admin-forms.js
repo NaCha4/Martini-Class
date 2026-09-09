@@ -1,7 +1,7 @@
 import { hasPermission, permissionLabels } from '../../functions/src/permissions.js';
 import { openChatUrl } from '../../functions/src/public-links.js';
 import { esc, field, icon, badge, button, date, money, label, modal, textBlock, downloadCSV } from './ui.js';
-import { read,readAll,total,unit } from './admin.js';
+import { read,readAll,total,unit,rosterSemester } from './admin.js';
 const uuid=()=>crypto.randomUUID();
 const val=(f,n)=>String(f.get(n)||'').trim(),num=(f,n)=>Number(f.get(n)||0);
 const localTime=v=>{const d=v?new Date(v):new Date();return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,16);};
@@ -14,8 +14,8 @@ async function save(ctx,op,data){const result=await ctx.api(op,data);if(['saveCo
 function share(title,url){const personal=new URL(url).pathname.startsWith('/r/');modal(title,'<div class="wide prose">'+(personal?'이 링크로 신청 내용 확인과 취소가 가능합니다. 본인에게만 개별 전달해 주세요.':'이 링크를 가진 부원이 행사 내용을 확인하고 신청할 수 있습니다. 부원 공지 채널에 전달해 주세요.')+'</div>'+field('shareUrl','링크',url,{wide:true,readOnly:true,autocomplete:'off',spellcheck:false,hint:'링크 전체를 복사해 전달하세요.'})+'<div class="wide">'+button('링크 복사','copy-link',{icon:'copy'})+'</div>',null);}
 function agendaRow(a={id:uuid(),title:'',notes:'',status:'planned'}){return '<section class="agenda-edit wide"><input type="hidden" name="agendaId" value="'+esc(a.id)+'"><div class="agenda-row-head"><h3>회의 안건</h3>'+button('제거','agenda-remove',{class:'button small ghost',icon:'x'})+'</div>'+field('agendaTitle','안건 제목',a.title,{required:true,maxLength:200})+field('agendaNotes','논의 내용',a.notes,{type:'textarea',rows:3,maxLength:10000})+field('agendaStatus','논의 상태',a.status,{choices:[['planned','논의 예정'],['discussed','논의 완료'],['deferred','보류']]})+'</section>';}
 async function memberEdit(ctx,id){
- const r=await record(ctx,'members',id);
- modal(r?'부원 정보 수정':'부원 등록',field('name','이름',r?.name,{required:true,maxLength:40,autocomplete:'off'})+field('studentId','학번',r?.studentId,{required:true,maxLength:30,autocomplete:'off',spellcheck:false})+field('phone','전화번호',r?.phone,{required:true,type:'tel',inputmode:'tel',maxLength:30,autocomplete:'off',hint:'행사 신청에 사용할 부원 본인의 번호입니다.'})+field('college','단과대학',r?.college,{maxLength:80})+field('department','학과 · 학부',r?.department,{maxLength:80})+field('grade','학년',r?.grade,{maxLength:20})+field('gender','성별',['남성','여성'].includes(r?.gender)?r.gender:'',{choices:[['','선택 안 함'],['남성','남성'],['여성','여성']]})+field('semester','등록 학기',r?.semester||semester(ctx),{required:true})+'<p class="wide help">등록할 부원의 학번과 연락처를 확인해 주세요. 등록 후에는 별도의 회비 납부 확인이 필요하지 않습니다.</p>',async f=>save(ctx,'saveMember',{...meta(r),name:val(f,'name'),studentId:val(f,'studentId'),phone:val(f,'phone'),college:val(f,'college'),department:val(f,'department'),grade:val(f,'grade'),gender:val(f,'gender'),semester:val(f,'semester')}),{wide:true});
+ const term=rosterSemester(ctx),r=await record(ctx,'members',id);
+ modal((r?'부원 정보 수정':'부원 등록')+' · '+term,field('name','이름',r?.name,{required:true,maxLength:40,autocomplete:'off'})+field('studentId','학번',r?.studentId,{required:true,maxLength:30,autocomplete:'off',spellcheck:false})+field('phone','전화번호',r?.phone,{required:true,type:'tel',inputmode:'tel',maxLength:30,autocomplete:'off',hint:'행사 신청에 사용할 부원 본인의 번호입니다.'})+field('college','단과대학',r?.college,{maxLength:80})+field('department','학과 · 학부',r?.department,{maxLength:80})+field('grade','학년',r?.grade,{maxLength:20})+field('gender','성별',['남성','여성'].includes(r?.gender)?r.gender:'',{choices:[['','선택 안 함'],['남성','남성'],['여성','여성']]})+'<p class="wide help">등록할 부원의 학번과 연락처를 확인해 주세요. 등록 후에는 별도의 회비 납부 확인이 필요하지 않습니다.</p>',async f=>save(ctx,'saveMember',{...meta(r),name:val(f,'name'),studentId:val(f,'studentId'),phone:val(f,'phone'),college:val(f,'college'),department:val(f,'department'),grade:val(f,'grade'),gender:val(f,'gender'),semester:term}),{wide:true});
 }
 async function eventEdit(ctx,id){
  const r=await record(ctx,'events',id),start=new Date(Date.now()+7*86400000).toISOString(),end=new Date(Date.now()+7*86400000+7200000).toISOString();
@@ -122,9 +122,16 @@ async function applicationChange(ctx,id,action,attendance){
 async function financeAdd(ctx,applicationId='',refund=false){
  if(!hasPermission(ctx.state.profile,'finance'))throw Error('회비 · 정산 권한이 없습니다.');
  const a=applicationId?await record(ctx,'applications',applicationId):null;
- const events=(await readAll(ctx,'events')).rows,members=(await readAll(ctx,'members')).rows;
+ const events=(await readAll(ctx,'events')).rows,members=(await readAll(ctx,'members',{semester:a?.semester||semester(ctx)})).rows;
  const requestId=uuid(),choices=a?[[refund?'refund':'income',refund?'참가비 환불':'참가비 입금']]:[['income','기타 수입'],['expense','지출'],['dues','학기 회비']];
  const dialog=modal(refund?'환불 완료 기록':'입금 · 지출 기록',field('kind','구분',refund?'refund':'income',{choices})+field('amount','금액 (원)',a?(refund?a.paidAmount-a.refundAmount:a.fee-a.paidAmount):'',{type:'number',min:1,max:a?(refund?a.paidAmount-a.refundAmount:a.fee-a.paidAmount):100000000,required:true})+field('title','내용',a?a.eventTitle+' · '+a.name:'',{required:true,wide:true,maxLength:160})+field('eventId','연결 행사',a?.eventId||'',{choices:a?[[a.eventId,a.eventTitle]]:[['','행사 연결 안 함'],...events.map(e=>[e.id,e.title])]})+field('memberId','회비 납부 부원','',{choices:[['','선택 안 함'],...members.filter(m=>!m.anonymizedAt).map(m=>[m.id,m.name+' · '+m.studentId])]})+field('semester','학기',a?.semester||semester(ctx),{required:true,maxLength:30,readOnly:!!a})+field('note','메모', '',{type:'textarea',wide:true,rows:2,maxLength:2000})+field('confirmed','실제 거래 내역을 확인했습니다',false,{type:'checkbox',required:true,wide:true})+'<p class="wide help">이 기능은 실제 입금·송금·환불을 실행하지 않습니다. 은행에서 처리한 내용을 기록합니다.</p>',async f=>save(ctx,'finance',{requestId,kind:val(f,'kind'),amount:num(f,'amount'),title:val(f,'title'),eventId:a?.eventId||val(f,'eventId'),applicationId:a?.id||'',memberId:val(f,'memberId'),semester:val(f,'semester'),note:val(f,'note')}),{wide:true});
+ let termRequest=0;
+ dialog.querySelector('[name=semester]').addEventListener('change',async e=>{
+  const term=e.target.value.trim(),request=++termRequest,select=dialog.querySelector('[name=memberId]');select.replaceChildren(new Option('선택 안 함',''));select.disabled=true;
+  try{if(!/^20\d{2}-[12]$/.test(term))throw Error('학기를 2026-2 형식으로 입력해 주세요.');const result=await readAll(ctx,'members',{semester:term});if(request!==termRequest)return;result.rows.filter(m=>!m.anonymizedAt).forEach(m=>select.add(new Option(m.name+' · '+m.studentId,m.id)));dialog.querySelector('.form-error').textContent='';}
+  catch(error){if(request===termRequest)dialog.querySelector('.form-error').textContent=error.message;}
+  finally{if(request===termRequest)select.disabled=false;}
+ });
  const update=()=>{const dues=dialog.querySelector('[name=kind]').value==='dues';dialog.querySelector('[name=memberId]').closest('label').hidden=!dues;dialog.querySelector('[name=memberId]').required=dues;};dialog.querySelector('[name=kind]').onchange=update;update();
 }
 async function settingsEdit(ctx){
@@ -165,11 +172,15 @@ async function exportRecords(ctx,kind){
  const rows=ctx.state.pages[kind]?.rows||Object.values(ctx.state.data[kind]||{}),more=!!ctx.state.pages[kind]?.nextCursor;
  modal('자료 내보내기','<p class="wide prose">현재 불러온 기록 <strong>'+rows.length+'건</strong>을 CSV로 내려받습니다. 검색과 상태 필터는 내보내기에 적용되지 않습니다.'+(more?' 전체 기록이 필요하면 목록에서 기록을 더 불러온 뒤 다시 진행해 주세요.':'')+'</p>'+field('reason','사용 목적','',{required:true,wide:true,maxLength:200})+'<p class="wide help">명부 파일은 필요한 담당자에게만 전달하고 사용 후 정리해 주세요.</p>',async f=>{
   await ctx.api('recordExport',{kind,reason:val(f,'reason')});
-  const columns=kind==='members'?['name','studentId','phone','college','department','grade','gender','semester']:['title','status','semester','updatedAt'];
-  downloadCSV('martini-'+kind+'.csv',[columns,...rows.map(r=>columns.map(k=>r[k]))]);
+  const columns=kind==='members'?['name','studentId','phone','college','department','grade','gender']:['title','status','semester','updatedAt'];
+  downloadCSV('martini-'+kind+(kind==='members'?'-'+rosterSemester(ctx):'')+'.csv',[columns,...rows.map(r=>columns.map(k=>r[k]))]);
  });
 }
 export async function handleAdminAction(ctx,action,id,target){
+ if(action==='roster-term'){
+  modal('학기 열기',field('semester','학기',rosterSemester(ctx),{required:true,pattern:'20[0-9]{2}-[12]',hint:'예: 2026-2 또는 2027-1'}),async f=>{const term=val(f,'semester');if(!/^20\d{2}-[12]$/.test(term))throw Error('학기는 2026-2 형식으로 입력해 주세요.');await ctx.navigate('/admin/members?semester='+term,{discard:true});},{submit:'명부 열기'});return;
+ }
+
  if(action==='privacy-preview'){
   const current=ctx.state.settings.semester.split('-').map(Number),semester=ctx.state.privacySemester||(current[1]===2?current[0]+'-1':(current[0]-1)+'-2');
   const plan=await ctx.api('privacyReview',{semester,memberId:id});

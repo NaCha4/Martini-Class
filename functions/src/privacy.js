@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { FieldValue } from 'firebase-admin/firestore';
 import { ensureScope,parse,fail,hash,idSchema } from './domain.js';
 const semesterSchema=z.string().regex(/^20\d{2}-[12]$/);
-export function createPrivacy({db,col,now,clock,audit}){
+export function createPrivacy({db,col,now,clock,audit,roster}){
  const inputSchema=z.object({semester:semesterSchema,memberId:idSchema}).strict();
  async function eligibleTerm(semester,reader=db){
   const settings=(await reader.get(col('settings').doc('club'))).data();
@@ -13,16 +13,17 @@ export function createPrivacy({db,col,now,clock,audit}){
  const readerFor=tx=>tx||{get:target=>target.get()};
  async function collect(input,tx){
   const reader=readerFor(tx);await eligibleTerm(input.semester,reader);
-  const memberRef=col('members').doc(input.memberId),member=await reader.get(memberRef);
-  if(!member.exists)fail('not-found','부원 기록을 찾을 수 없습니다.');
+  const nested=await reader.get(roster.collection(input.semester).doc(input.memberId)),legacy=nested.exists?null:await reader.get(col('members').doc(input.memberId));
+  const member=nested.exists?nested:legacy;
   const applications=await reader.get(col('applications').where('memberId','==',input.memberId));
   const selected=applications.docs.filter(d=>d.data().semester===input.semester);
-  const memberData=member.data(),changes=new Map(),blockers=[];
+  const memberData=member?.data()||{name:'이전 학기 기록'},changes=new Map(),blockers=[];
   const add=(doc,kind)=>changes.set(doc.ref.path,{doc,kind});
-  const removeIdentity=memberData.semester===input.semester;
+  const removeIdentity=nested.exists||memberData.semester===input.semester;
+  const related=nested.exists?selected:applications.docs;
   if(removeIdentity&&!memberData.anonymizedAt)add(member,'member');
-  if(removeIdentity&&applications.docs.some(d=>d.data().semester>input.semester&&!['cancelled','expired'].includes(d.data().status)))blockers.push('다음 학기의 신청이 연결된 명부입니다.');
-  for(const application of (removeIdentity?applications.docs:selected)){
+  if(removeIdentity&&!nested.exists&&applications.docs.some(d=>d.data().semester>input.semester&&!['cancelled','expired'].includes(d.data().status)))blockers.push('다음 학기의 신청이 연결된 명부입니다.');
+  for(const application of (removeIdentity?related:selected)){
    const a=application.data(),event=await reader.get(col('events').doc(a.eventId)),e=event.data();
    if(!e||!['completed','cancelled'].includes(e.status))blockers.push('종료 처리되지 않은 행사가 있습니다.');
    if(a.paidAmount>a.refundAmount&&(e?.status==='cancelled'||['cancelled','expired'].includes(a.status)||a.payment==='refund_pending'))blockers.push('확인해야 할 환불 내역이 있습니다.');
@@ -40,7 +41,7 @@ export function createPrivacy({db,col,now,clock,audit}){
   finances.docs.filter(d=>d.data().semester===input.semester&&!d.data().anonymizedAt).forEach(d=>add(d,'finance'));
   if(removeIdentity){
    const auditRows=await reader.get(col('audit').where('entityId','==',input.memberId));
-   auditRows.docs.filter(d=>!d.data().anonymizedAt).forEach(d=>add(d,'audit'));
+   auditRows.docs.filter(d=>!d.data().anonymizedAt&&(!nested.exists||!d.data().semester||d.data().semester===input.semester)).forEach(d=>add(d,'audit'));
   }
   const records=[...changes.values()].sort((a,b)=>a.doc.ref.path.localeCompare(b.doc.ref.path));
   if(records.length>350)blockers.push('연결 기록이 350개를 초과합니다. 운영 담당자에게 개별 정리를 요청해 주세요.');
@@ -51,11 +52,11 @@ export function createPrivacy({db,col,now,clock,audit}){
  async function candidates(data,who){
   ensureScope(who,'admins',clock());const {semester}=parse(z.object({semester:semesterSchema}).strict(),data);
   await eligibleTerm(semester,readerFor());
-  const [members,applications,finances]=await Promise.all([col('members').where('semester','==',semester).get(),col('applications').where('semester','==',semester).get(),col('finance').where('semester','==',semester).get()]);
+  const [members,applications,finances]=await Promise.all([roster.documents(semester),col('applications').where('semester','==',semester).get(),col('finance').where('semester','==',semester).get()]);
   const rows=new Map();
-  members.docs.filter(d=>!d.data().anonymizedAt).forEach(d=>rows.set(d.id,{id:d.id,name:d.data().name,applications:0,roster:true}));
+  members.filter(d=>!d.data().anonymizedAt).forEach(d=>rows.set(d.id,{id:d.id,name:d.data().name,applications:0,roster:true}));
   applications.docs.filter(d=>!d.data().anonymizedAt).forEach(d=>{const a=d.data();if(!rows.has(a.memberId))rows.set(a.memberId,{id:a.memberId,name:a.name,applications:0,roster:false});rows.get(a.memberId).applications++;});
-  for(const doc of finances.docs){const item=doc.data();if(item.memberId&&!item.anonymizedAt&&!rows.has(item.memberId)){const member=(await col('members').doc(item.memberId).get()).data();rows.set(item.memberId,{id:item.memberId,name:member?.name||'이전 학기 회비 기록',applications:0,roster:false});}}
+  for(const doc of finances.docs){const item=doc.data();if(item.memberId&&!item.anonymizedAt&&!rows.has(item.memberId)){const member=await roster.get(item.memberId,semester);rows.set(item.memberId,{id:item.memberId,name:member?.name||'이전 학기 회비 기록',applications:0,roster:false});}}
   return {rows:[...rows.values()],semester};
  }
  async function review(data,who){

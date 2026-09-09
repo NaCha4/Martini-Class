@@ -194,3 +194,5 @@ td .title-button{text-align:left;line-height:1.6}
 @media(max-width:580px){.privacy-content h2{font-size:20px}.privacy-content{font-size:15px}}
 
 .role-permissions{border:1px solid var(--line);padding:20px;display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}.role-permissions legend{padding:0 8px;font-weight:600}.role-permissions .field{margin:0}
+
+.semester-tree{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 24px;padding-bottom:20px;border-bottom:1px solid var(--line)}.semester-tree a{display:inline-flex;align-items:center;gap:9px;min-height:44px;padding:10px 16px;border:1px solid transparent;border-radius:8px;color:var(--muted);text-decoration:none}.semester-tree a[aria-current="page"]{background:#cbbb8e;color:#181611}.semester-tree a:hover{border-color:#7d7158}.semester-tree svg{width:18px;height:18px}.roster-title{font-size:20px;margin:0 0 16px}

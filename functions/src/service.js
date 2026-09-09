@@ -1,3 +1,4 @@
+import { createRoster, semesterSchema } from './roster.js';
 import { defaultRoles, hasPermission } from './permissions.js';
 import { openChatUrl } from './public-links.js';
 import { z } from 'zod';
@@ -11,6 +12,7 @@ const iso=()=>new Date().toISOString();
 export function createService(db,clock=Date.now){
  const col=name=>db.collection(PREFIX+name);
  const now=()=>new Date(clock()).toISOString();
+ const roster=createRoster(col);
  const snapshot=snap=>snap.exists?{...snap.data(),id:snap.id}:null;
  const clean=record=>{const {linkHash,receiptHash,identityHash,...safe}=record;return safe;};
  async function roleDefinition(id,tx){
@@ -32,7 +34,7 @@ export function createService(db,clock=Date.now){
   if(kind==='applications'&&!hasPermission(who,'finance'))for(const key of ['paidAmount','refundAmount','payment'])delete result[key];
   return result;
  }
- function audit(tx,who,kind,id,action){tx.create(col('audit').doc(),{entityType:kind,entityId:id,action,actor:who.uid,actorName:who.displayName,at:now(),updatedAt:now()});}
+ function audit(tx,who,kind,id,action,semester){tx.create(col('audit').doc(),{entityType:kind,entityId:id,action,actor:who.uid,actorName:who.displayName,at:now(),updatedAt:now(),...(semester?{semester}:{})});}
  // Serialize hot-event transactions within an instance; Firestore still guards cross-instance capacity.
  const eventQueues=new Map(),queueSizes=new Map();
  function serializeEvent(id,run){
@@ -41,7 +43,7 @@ export function createService(db,clock=Date.now){
   const tail=task.catch(()=>{});eventQueues.set(id,tail);
   return task.finally(()=>{queueSizes.set(id,queueSizes.get(id)-1);if(eventQueues.get(id)===tail){eventQueues.delete(id);queueSizes.delete(id);}});
  }
- const privacy=createPrivacy({db,col,now,clock,audit});
+ const privacy=createPrivacy({db,col,now,clock,audit,roster});
  async function throttle(ctx,bucket,limit=30){
   const minute=Math.floor(clock()/60000),ref=col('rateLimits').doc(hash(ctx.ip+':'+bucket+':'+minute));
   await db.runTransaction(async tx=>{const snap=await tx.get(ref);const count=snap.data()?.count||0;if(count>=limit)fail('resource-exhausted','요청이 많습니다. 잠시 후 다시 시도해 주세요.');tx.set(ref,{count:count+1,expiresAt:Timestamp.fromMillis(clock()+3600000)});});
@@ -53,10 +55,10 @@ export function createService(db,clock=Date.now){
   return e;
  }
  async function save(kind,schema,data,who,scope){
-  ensureScope(who,scope,clock());const input=parse(schema,data),id=input.id||(kind==='settings'?'club':col(kind).doc().id),ref=col(kind).doc(id);
+  ensureScope(who,scope,clock());const input=parse(schema,data),id=input.id||(kind==='settings'?'club':col(kind).doc().id),ref=kind==='members'?roster.collection(input.semester).doc(id):col(kind).doc(id);
   const link=kind==='events'&&!input.id?secret():null;
   return db.runTransaction(async tx=>{
-   const old=snapshot(await tx.get(ref));if(input.id&&!old)fail('not-found','기록을 찾을 수 없습니다.');requireRevision(old,input.revision);
+   const old=kind==='members'?await roster.get(id,input.semester,tx):snapshot(await tx.get(ref));if(input.id&&!old)fail('not-found','기록을 찾을 수 없습니다.');requireRevision(old,input.revision);
    if(kind==='settings'&&old===null&&input.revision!==0)fail('aborted','설정을 다시 불러와 주세요.');
    let next={...input,id,revision:(old?.revision||0)+1,createdAt:old?.createdAt||now(),createdBy:old?.createdBy||who.uid,updatedAt:now(),updatedBy:who.uid};
    // Retain legacy settings during ordinary edits; these no longer set dues or retention policy.
@@ -64,14 +66,13 @@ export function createService(db,clock=Date.now){
    if(kind==='members'){
     if(!/^[0-9]{8,15}$/.test(normalizePhone(input.phone)))fail('invalid-argument','전화번호를 확인해 주세요.');
     const key=identity(input.studentId,input.phone);
-    const duplicate=await tx.get(col('members').where('identityHash','==',key));
-    if(duplicate.docs.some(d=>d.id!==id))fail('already-exists','같은 학번·연락처로 등록된 부원이 있습니다.');
-    delete next.duesPaid;delete next.status;
+    await tx.get(col('semesters').doc(input.semester));
+    const duplicate=await roster.find(key,input.semester,tx);
+    if(duplicate.some(d=>d.id!==id))fail('already-exists','이 학기에 같은 학번·연락처로 등록된 부원이 있습니다.');
+    if(old?.anonymizedAt)fail('failed-precondition','개인정보가 정리된 기록은 수정할 수 없습니다. 새 부원으로 등록해 주세요.');
+    delete next.duesPaid;delete next.status;delete next.semester;
     next.identityHash=key;next.phone=normalizePhone(input.phone);
-    const termRef=col('members').doc(id).collection('semesters').doc(input.semester);
-    const term=(await tx.get(termRef)).data();
-
-    tx.set(termRef,{semester:input.semester,updatedAt:now()},{merge:true});
+    tx.set(col('semesters').doc(input.semester),{updatedAt:now()},{merge:true});
    }
    if(kind==='events'){
     validateEvent(input,old?.registered||0);
@@ -103,13 +104,13 @@ export function createService(db,clock=Date.now){
    if(kind==='meetings'&&old?.status==='final'&&!hasPermission(who,'settings'))fail('permission-denied','확정된 회의록은 회장단이 정정할 수 있습니다.');
    tx.set(ref,next);
    if(['meetings','decisions'].includes(kind))tx.create(ref.collection('revisions').doc(String(next.revision).padStart(6,'0')),{...next,revisionActor:who.displayName});
-   audit(tx,who,kind,id,old?'수정':'작성');
-   return {...visible(kind,next,who),...(link?{linkKey:link}:{})};
+   audit(tx,who,kind,id,old?'수정':'작성',kind==='members'?input.semester:undefined);
+   return {...visible(kind,kind==='members'?{...next,semester:input.semester}:next,who),...(link?{linkKey:link}:{})};
   });
  }
  async function read(data,who){
   const allowed=['members','events','applications','finance','inventory','stockMoves','meetings','decisions','content','settings','admins','audit'];
-  const input=parse(z.object({kind:z.enum(allowed),eventId:idSchema.optional(),meetingId:idSchema.optional(),itemId:idSchema.optional(),cursor:idSchema.optional(),parentId:idSchema.optional(),recordId:idSchema.optional(),revisions:z.boolean().optional()}).strict(),data);
+  const input=parse(z.object({kind:z.enum(allowed),semester:semesterSchema.optional(),eventId:idSchema.optional(),meetingId:idSchema.optional(),itemId:idSchema.optional(),cursor:idSchema.optional(),parentId:idSchema.optional(),recordId:idSchema.optional(),revisions:z.boolean().optional()}).strict(),data);
   let scope=input.kind;
   if(scope==='applications'){if(!hasPermission(who,'participants'))fail('permission-denied','참가자 명단 조회 권한이 없습니다.');}
   else if(scope==='settings'){} // Basic operating context is available to signed-in staff.
@@ -117,6 +118,14 @@ export function createService(db,clock=Date.now){
   else if(scope==='members')ensureScope(who,'membersRead',clock());
   else if(scope==='stockMoves')ensureScope(who,'inventory',clock());
   else ensureScope(who,scope,clock());
+  if(input.kind==='members'){
+   if(input.eventId||input.meetingId||input.itemId||input.revisions||input.parentId)fail('invalid-argument','명부는 학기를 선택해 조회해 주세요.');
+   const semester=parse(semesterSchema,input.semester||(await settings())?.semester);
+   if(input.recordId){const record=await roster.get(input.recordId,semester);if(!record)fail('not-found','이 학기의 부원 기록을 찾을 수 없습니다.');return {rows:[visible('members',record,who)],nextCursor:null,semester};}
+   const docs=(await roster.documents(semester)).sort((a,b)=>a.id.localeCompare(b.id)),offset=input.cursor?docs.findIndex(d=>d.id===input.cursor)+1:0;
+   const page=docs.slice(offset,offset+100);
+   return {rows:page.map(d=>visible('members',roster.value(d,semester),who)),nextCursor:offset+100<docs.length?page.at(-1).id:null,semester};
+  }
   if(input.revisions&&!['meetings','decisions'].includes(input.kind))fail('invalid-argument','수정 이력을 조회할 수 없는 항목입니다.');
   if(input.recordId){const record=snapshot(await col(input.kind).doc(input.recordId).get());if(!record)fail('not-found','기록을 찾을 수 없습니다.');return {rows:[visible(input.kind,record,who)],nextCursor:null};}
   let query=col(input.kind);
@@ -154,9 +163,12 @@ export function createService(db,clock=Date.now){
    if((await tx.get(ref)).exists)return {saved:true,duplicate:true};
    let application=null,member=null,applicationRef=null,memberRef=null,eventRecord=null,termRecord=null;
    if(input.applicationId){applicationRef=col('applications').doc(input.applicationId);application=snapshot(await tx.get(applicationRef));if(!application)fail('not-found','신청을 찾을 수 없습니다.');if(input.eventId!==application.eventId)fail('invalid-argument','행사 연결이 일치하지 않습니다.');}
-   if(input.memberId){memberRef=col('members').doc(input.memberId);member=snapshot(await tx.get(memberRef));if(!member)fail('not-found','부원을 찾을 수 없습니다.');}
+   if(input.memberId){member=await roster.get(input.memberId,input.semester,tx);memberRef=roster.collection(input.semester).doc(input.memberId);if(!member)fail('not-found','부원을 찾을 수 없습니다.');}
    if(input.eventId){eventRecord=snapshot(await tx.get(col('events').doc(input.eventId)));if(!eventRecord)fail('not-found','행사를 찾을 수 없습니다.');}
-   if(input.kind==='dues'&&member)termRecord=(await tx.get(memberRef.collection('semesters').doc(input.semester))).data();
+   if(input.kind==='dues'&&member){
+    termRecord=(await tx.get(col('semesters').doc(input.semester).collection('dues').doc(input.memberId))).data();
+    if(!termRecord)termRecord=(await tx.get(col('members').doc(input.memberId).collection('semesters').doc(input.semester))).data();
+   }
    if(input.kind==='refund'){
     if(!application)fail('invalid-argument','환불은 기존 신청의 납부 기록에 연결해 주세요.');
     if((application.refundAmount||0)+input.amount>(application.paidAmount||0))fail('failed-precondition','납부한 금액보다 많이 환불할 수 없습니다.');
@@ -173,7 +185,7 @@ export function createService(db,clock=Date.now){
     if(!member||member.semester!==input.semester)fail('invalid-argument','해당 학기에 등록된 부원을 선택해 주세요.');
     if(termRecord?.duesTransactionId)fail('already-exists','이 부원의 학기 회비 거래가 이미 기록되었습니다.');
 
-    tx.set(memberRef.collection('semesters').doc(input.semester),{semester:input.semester,duesTransactionId:input.requestId,updatedAt:now()},{merge:true});
+    tx.set(col('semesters').doc(input.semester).collection('dues').doc(input.memberId),{duesTransactionId:input.requestId,updatedAt:now()},{merge:true});
    }
    const record={...input,id:input.requestId,actor:who.displayName,createdAt:now(),updatedAt:now()};
    tx.create(ref,record);audit(tx,who,'finance',input.requestId,input.kind);return record;
@@ -187,8 +199,8 @@ export function createService(db,clock=Date.now){
   await throttle({...ctx,ip:identityKey},'apply-member:'+input.eventId,10);
   return serializeEvent(input.eventId,()=>db.runTransaction(async tx=>{
    const event=await verifyEvent(input.eventId,input.key,tx);
-   const members=await tx.get(col('members').where('identityHash','==',identity(input.studentId,input.phone)).limit(2));
-   const member=members.docs.length===1?snapshot(members.docs[0]):null;
+   const members=await roster.find(identity(input.studentId,input.phone),event.semester,tx);
+   const member=members.length===1?members[0]:null;
    if(!member||member.name!==input.name||member.anonymizedAt||member.semester!==event.semester)fail('permission-denied','명부 정보 또는 활동 자격을 확인할 수 없습니다. 운영진에게 문의해 주세요.');
    const id=hash(event.id+':'+member.id),ref=col('applications').doc(id),existing=snapshot(await tx.get(ref));
    if(existing&&matches(input.receiptKey,existing.receiptHash)&&existing.requestId===input.requestId)return {id,status:existing.status};
@@ -218,7 +230,7 @@ export function createService(db,clock=Date.now){
    }
    if(input.action==='accept'){
     if(event.status==='cancelled'||record.status!=='offered'||Date.parse(record.offerExpiresAt)<=clock())fail('failed-precondition','유효한 승급 제안이 없습니다.');
-    const member=snapshot(await tx.get(col('members').doc(record.memberId)));
+    const member=await roster.get(record.memberId,event.semester,tx);
     if(!member||member.anonymizedAt||member.semester!==event.semester)fail('permission-denied','현재 활동 자격을 확인할 수 없습니다. 운영진에게 문의해 주세요.');
     tx.update(ref,{status:'registered',payment:event.fee?'unpaid':'none',updatedAt:now()});return {saved:true};
    }
@@ -242,7 +254,7 @@ export function createService(db,clock=Date.now){
     if(e.status==='cancelled'||a.status!=='registered'||!input.attendance)fail('failed-precondition','참가 등록된 신청만 출석을 처리할 수 있습니다.');
     tx.update(ref,{attendance:input.attendance,updatedAt:now()});
    }else if(input.action==='offer'){
-    const member=snapshot(await tx.get(col('members').doc(a.memberId)));
+    const member=await roster.get(a.memberId,e.semester,tx);
     if(!member||member.anonymizedAt||member.semester!==e.semester)fail('failed-precondition','해당 부원의 활동 자격이 변경되었습니다. 신청을 취소한 뒤 다음 대기자를 확인해 주세요.');
     const queue=await tx.get(col('applications').where('eventId','==',e.id));
     const first=queue.docs.map(snapshot).filter(x=>x.status==='waiting').sort((a,b)=>a.sequence-b.sequence)[0];
@@ -303,6 +315,7 @@ export function createService(db,clock=Date.now){
    });
   }
 
+  if(op==='rosterTerms'){ensureScope(who,'membersRead',clock());const current=(await settings())?.semester;return {rows:[...new Set([...(await roster.terms()),...(semesterSchema.safeParse(current).success?[current]:[])])].sort().reverse()};}
   if(op==='read')return read(data,who);
   if(op==='privacyCandidates')return privacy.candidates(data,who);
   if(op==='privacyReview')return privacy.review(data,who);
@@ -325,7 +338,7 @@ export function createService(db,clock=Date.now){
    const input=parse(z.object({id:idSchema}).strict(),data),a=snapshot(await col('applications').doc(input.id).get());
    if(!a)fail('not-found','신청을 찾을 수 없습니다.');
    if(a.anonymizedAt)return {name:'정보 정리 완료',phone:'',studentId:'',department:''};
-   const m=snapshot(await col('members').doc(a.memberId).get());
+   const m=await roster.get(a.memberId,a.semester);
    return {name:a.name,phone:m?.phone||'',studentId:m?.studentId||'',department:m?.department||''};
   }
   if(op==='rotateReceipt'){
