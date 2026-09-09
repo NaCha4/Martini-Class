@@ -37,10 +37,11 @@ export function createDeletion({db,col,clock,audit}){
    if(input.kind==='finance'){
     if(r.applicationId){
      const aRef=col('applications').doc(r.applicationId),a=(await tx.get(aRef)).data();
-     if(!a||a.deletedAt)fail('failed-precondition','신청 기록이 삭제되어 정산을 변경할 수 없습니다.');
+     // Archived records still own their ledger totals; correcting them must not restore visibility.
+     if(!a)fail('failed-precondition','정산에 연결된 신청 원본을 찾을 수 없습니다.');
      if((r.applicationRequestId&&r.applicationRequestId!==a.requestId)||r.createdAt<a.createdAt)fail('failed-precondition','이후 재신청한 기록이 연결되어 있습니다. 이전 신청의 거래는 삭제할 수 없습니다.');
      const event=(await tx.get(col('events').doc(a.eventId))).data();
-     if(!event||event.deletedAt)fail('failed-precondition','행사 기록이 삭제되어 정산을 변경할 수 없습니다.');
+     if(!event)fail('failed-precondition','정산에 연결된 행사 원본을 찾을 수 없습니다.');
      const paidAmount=(a.paidAmount||0)-(r.kind==='income'?r.amount:0),refundAmount=(a.refundAmount||0)-(r.kind==='refund'?r.amount:0);
      if(paidAmount<0||refundAmount<0||refundAmount>paidAmount)fail('failed-precondition','연결된 환불 기록을 먼저 삭제해 주세요. 납부·환불 합계가 맞아야 합니다.');
      let payment=!a.fee?'none':paidAmount>=a.fee?'paid':'unpaid';

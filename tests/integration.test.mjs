@@ -593,3 +593,51 @@ test('stocked items and linked meetings are protected while empty items and unli
  await service.handle(await deleteInput('meetings','meeting-delete'),owner);
  assert.equal((await service.handle({op:'read',kind:'meetings'},owner)).rows.length,0);
 });
+
+test('archived completed event permits ledger correction without restoring event or public links',async()=>{
+ await db.doc('martini_v2_events/'+event.id).update({fee:10000,paymentInstructions:'가상 납부'});
+ const a=await service.handle(application(1),{ip:'archived-completed'});
+ const pay={op:'finance',requestId:'archive-completed-pay',kind:'income',amount:10000,title:'참가비',eventId:event.id,applicationId:a.id,memberId:'',semester:'2026-2',note:''};
+ await service.handle(pay,finance);
+ await db.doc('martini_v2_events/'+event.id).update({status:'completed'});
+ await service.handle(await deleteInput('events',event.id),owner);
+ const archived=(await db.doc('martini_v2_events/'+event.id).get()).data();
+ const deletion=await deleteInput('finance',pay.requestId);
+ await assert.rejects(service.handle(deletion,education),e=>e.code==='permission-denied');
+ await service.handle(deletion,finance);await service.handle(deletion,finance);
+ const corrected=(await db.doc('martini_v2_applications/'+a.id).get()).data();assert.equal(corrected.paidAmount,0);assert.equal(corrected.payment,'unpaid');
+ assert.deepEqual((await db.doc('martini_v2_events/'+event.id).get()).data(),archived);
+ assert.equal((await service.handle({op:'read',kind:'events'},owner)).rows.length,0);
+ assert.equal((await service.handle({op:'read',kind:'finance'},finance)).rows.length,0);
+ await assert.rejects(service.handle({op:'eventAccess',eventId:event.id,key:'a'.repeat(64)},{ip:'archive-link'}),e=>e.code==='not-found');
+ await service.handle(pay,finance);assert.equal((await db.doc('martini_v2_applications/'+a.id).get()).data().paidAmount,0);
+});
+test('archived event and archived application allow refund then payment correction with totals and deletion state preserved',async()=>{
+ await db.doc('martini_v2_events/'+event.id).update({fee:10000,paymentInstructions:'가상 납부'});
+ const a=await service.handle(application(1),{ip:'archived-refund'});
+ const pay={op:'finance',requestId:'archive-pay',kind:'income',amount:10000,title:'참가비',eventId:event.id,applicationId:a.id,memberId:'',semester:'2026-2',note:''};
+ await service.handle(pay,finance);
+ await service.handle({op:'applicationCommand',id:a.id,action:'cancel',reason:'가상 취소'},owner);
+ await service.handle({...pay,requestId:'archive-refund',kind:'refund'},finance);
+ await service.handle(await deleteInput('applications',a.id),owner);
+ await db.doc('martini_v2_events/'+event.id).update({status:'cancelled'});
+ await service.handle(await deleteInput('events',event.id),owner);
+ const original=(await db.doc('martini_v2_applications/'+a.id).get()).data();
+ await assert.rejects(service.handle(await deleteInput('finance',pay.requestId),finance),e=>e.code==='failed-precondition');
+ await service.handle(await deleteInput('finance','archive-refund'),finance);
+ let current=(await db.doc('martini_v2_applications/'+a.id).get()).data();assert.equal(current.refundAmount,0);assert.equal(current.payment,'refund_pending');assert.equal(current.deletedAt,original.deletedAt);
+ await service.handle(await deleteInput('finance',pay.requestId),finance);
+ current=(await db.doc('martini_v2_applications/'+a.id).get()).data();assert.equal(current.paidAmount,0);assert.equal(current.refundAmount,0);assert.equal(current.deletedAt,original.deletedAt);assert.equal(current.deletedBy,original.deletedBy);assert.equal(current.status,'cancelled');
+ assert.equal((await service.handle({op:'read',kind:'applications',eventId:event.id},owner)).rows.length,0);
+ await assert.rejects(service.handle({op:'receipt',id:a.id,key:'1'.repeat(64),action:'get'},{ip:'archived-private-link'}),e=>e.code==='not-found');
+});
+test('settlement correction still rejects missing originals and a different application request',async()=>{
+ await db.doc('martini_v2_events/'+event.id).update({fee:10000,paymentInstructions:'가상 납부'});
+ const a=await service.handle(application(1),{ip:'missing-original'});
+ const pay={op:'finance',requestId:'original-pay',kind:'income',amount:10000,title:'참가비',eventId:event.id,applicationId:a.id,memberId:'',semester:'2026-2',note:''};await service.handle(pay,finance);
+ const deletion=await deleteInput('finance',pay.requestId),aRef=db.doc('martini_v2_applications/'+a.id),original=(await aRef.get()).data();
+ await aRef.update({requestId:'another-application'});await assert.rejects(service.handle(deletion,finance),e=>e.code==='failed-precondition');
+ await aRef.set(original);await db.doc('martini_v2_events/'+event.id).delete();await assert.rejects(service.handle(deletion,finance),e=>e.code==='failed-precondition');
+ await aRef.delete();await assert.rejects(service.handle(deletion,finance),e=>e.code==='failed-precondition');
+ assert.equal((await db.doc('martini_v2_finance/'+pay.requestId).get()).data().deletedAt,undefined);
+});
