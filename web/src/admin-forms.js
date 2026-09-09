@@ -159,10 +159,17 @@ async function roleEdit(ctx,id){
 async function roleDelete(ctx,id){
  const r=(await ctx.api('listRoles')).rows.find(role=>role.id===id);
  if(!r)throw Error('역할을 찾을 수 없습니다.');
+ if(r.id==='owner')throw Error('회장 역할은 삭제할 수 없습니다.');
  if(r.assigned)throw Error('이 역할을 배정받은 임원의 역할을 먼저 변경해 주세요.');
- modal('역할 삭제','<p class="wide">'+esc(r.name)+' 역할을 삭제합니다.</p>',async()=>save(ctx,'deleteRole',{id:r.id,revision:r.revision}),{submit:'역할 삭제',submitClass:'button danger'});
+ modal('역할 삭제','<p class="wide">'+esc(r.name)+' 역할을 삭제합니다. 삭제한 역할은 임원에게 배정할 수 없으며, 되돌릴 수 없습니다.</p>',async()=>save(ctx,'deleteRole',{id:r.id,revision:r.revision}),{submit:'역할 삭제',submitClass:'button danger'});
 }
 
+async function adminDelete(ctx,id){
+ const r=(await read(ctx,'admins',{recordId:id})).rows[0];
+ if(!r)throw Error('임원을 찾을 수 없습니다.');
+ if(id===ctx.state.profile.uid)throw Error('본인 계정은 삭제할 수 없습니다.');
+ modal('임원 삭제','<p class="wide"><strong>'+esc(r.displayName)+'</strong> 님을 임원 목록에서 삭제합니다. 삭제 후에는 관리자 화면에 접근할 수 없습니다.</p><p class="wide help">부원 명부와 기존 업무 기록은 유지됩니다. 다시 임원으로 등록할 수 있습니다.</p>',async()=>save(ctx,'deleteAdmin',{uid:id,updatedAt:r.updatedAt}),{submit:'임원 삭제',submitClass:'button danger'});
+}
 async function adminEdit(ctx,id){
  const availableRoles=(await ctx.api('listRoles')).rows;
  const r=await record(ctx,'admins',id);
@@ -235,6 +242,7 @@ export async function handleAdminAction(ctx,action,id,target){
  if(action==='role-edit')return roleEdit(ctx,id);
  if(action==='role-delete')return roleDelete(ctx,id);
  if(action==='admin-edit')return adminEdit(ctx,id);
+ if(action==='admin-delete')return adminDelete(ctx,id);
  if(action==='export')return exportRecords(ctx,id);
 }
 export async function handleAdminSubmit(){}

@@ -19,7 +19,7 @@ export function createService(db,clock=Date.now){
   const builtin=defaultRoles.find(r=>r.id===id);
   if(id==='owner')return {...builtin,revision:0};
   const ref=col('roles').doc(id),doc=tx?await tx.get(ref):await ref.get();
-  return doc.exists?{...doc.data(),id,system:!!builtin}:builtin?{...builtin,revision:0}:null;
+  return doc.exists?(doc.data().deletedAt?null:{...doc.data(),id,system:!!builtin}):builtin?{...builtin,revision:0}:null;
  }
  async function admin(ctx){
   if(!ctx.uid)fail('unauthenticated','임원 계정으로 로그인해 주세요.');
@@ -290,7 +290,7 @@ export function createService(db,clock=Date.now){
    ensureScope(who,'admins',clock());
    const stored=await col('roles').get(),assigned=await col('admins').get();
    const map=new Map(defaultRoles.map(r=>[r.id,{...r,revision:0}]));
-   stored.docs.forEach(doc=>{if(doc.id!=='owner')map.set(doc.id,{...doc.data(),id:doc.id,system:defaultRoles.some(r=>r.id===doc.id)});});
+   stored.docs.forEach(doc=>{if(doc.id==='owner')return;if(doc.data().deletedAt)map.delete(doc.id);else map.set(doc.id,{...doc.data(),id:doc.id,system:defaultRoles.some(r=>r.id===doc.id)});});
    return {rows:[...map.values()].map(r=>({...r,assigned:assigned.docs.filter(a=>a.data().role===r.id).length}))};
   }
   if(op==='saveRole'){
@@ -299,20 +299,20 @@ export function createService(db,clock=Date.now){
    return db.runTransaction(async tx=>{
     const old=await roleDefinition(id,tx);if(input.id&&!old)fail('not-found','역할을 찾을 수 없습니다.');
     requireRevision(old,input.revision);
-    const all=await tx.get(col('roles')),names=new Map(defaultRoles.map(r=>[r.id,r.name]));all.docs.forEach(doc=>names.set(doc.id,doc.data().name));
+    const all=await tx.get(col('roles')),names=new Map(defaultRoles.map(r=>[r.id,r.name]));all.docs.forEach(doc=>{if(doc.data().deletedAt)names.delete(doc.id);else names.set(doc.id,doc.data().name);});
     if([...names].some(([key,name])=>key!==id&&name===input.name))fail('already-exists','같은 이름의 역할이 있습니다. 다른 이름을 입력해 주세요.');
     const next={id,name:input.name,permissions:[...new Set(input.permissions)],revision:(old?.revision||0)+1,updatedAt:now()};
     tx.set(col('roles').doc(id),next);audit(tx,who,'roles',id,'역할 권한 설정');return next;
    });
   }
   if(op==='deleteRole'){
-   ensureScope(who,'admins',clock());const input=parse(z.object({id:idSchema,revision:z.number().int().min(1)}).strict(),data);
-   if(defaultRoles.some(r=>r.id===input.id))fail('failed-precondition','기본 역할은 삭제할 수 없습니다.');
+   ensureScope(who,'admins',clock());const input=parse(z.object({id:idSchema,revision:z.number().int().min(0)}).strict(),data);
+   if(input.id==='owner')fail('failed-precondition','회장 역할은 삭제할 수 없습니다.');
    return db.runTransaction(async tx=>{
     const role=await roleDefinition(input.id,tx),assigned=await tx.get(col('admins').where('role','==',input.id));
     if(!role)fail('not-found','역할을 찾을 수 없습니다.');requireRevision(role,input.revision);
     if(!assigned.empty)fail('failed-precondition','이 역할을 배정받은 임원의 역할을 먼저 변경해 주세요.');
-    tx.delete(col('roles').doc(input.id));audit(tx,who,'roles',input.id,'역할 삭제');return {saved:true};
+    if(defaultRoles.some(r=>r.id===input.id))tx.set(col('roles').doc(input.id),{id:input.id,deletedAt:now(),updatedAt:now(),revision:(role.revision||0)+1});else tx.delete(col('roles').doc(input.id));audit(tx,who,'roles',input.id,'역할 삭제');return {saved:true};
    });
   }
 
@@ -364,7 +364,21 @@ export function createService(db,clock=Date.now){
    ensureScope(who,'events',clock());const input=parse(z.object({id:idSchema,reason:z.string().trim().min(1).max(200)}).strict(),data),key=secret(),ref=col('applications').doc(input.id);
    await db.runTransaction(async tx=>{const record=await tx.get(ref);if(!record.exists)fail('not-found','신청을 찾을 수 없습니다.');if(record.data().anonymizedAt)fail('failed-precondition','정보가 정리된 신청에는 확인 링크를 발급할 수 없습니다.');tx.update(ref,{receiptHash:hash(key),updatedAt:now()});audit(tx,who,'applications',input.id,'확인 링크 재발급: '+input.reason);});return {key};
   }
+  if(op==='deleteAdmin'){
+   ensureScope(who,'admins',clock());const input=parse(z.object({uid:idSchema,updatedAt:z.string().datetime()}).strict(),data);
+   if(input.uid===who.uid)fail('failed-precondition','본인 계정은 임원 목록에서 삭제할 수 없습니다.');
+   return db.runTransaction(async tx=>{
+    const assigned=await tx.get(col('admins')),target=assigned.docs.find(d=>d.id===input.uid),actor=assigned.docs.find(d=>d.id===who.uid)?.data();
+    if(!actor?.active||actor.role!=='owner'||Date.parse(actor.expiresAt)<=clock()||!Number.isFinite(Date.parse(actor.expiresAt)))fail('permission-denied','현재 회장 권한을 확인해 주세요.');
+    if(!target)fail('not-found','임원을 찾을 수 없습니다.');
+    if(target.data().updatedAt!==input.updatedAt)fail('aborted','임원 정보가 변경되었습니다. 새로고침한 뒤 다시 확인해 주세요.');
+    const otherOwners=assigned.docs.filter(d=>d.id!==input.uid&&d.data().role==='owner'&&d.data().active&&Date.parse(d.data().expiresAt)>clock());
+    if(target.data().role==='owner'&&!otherOwners.length)fail('failed-precondition','마지막 회장 계정은 삭제할 수 없습니다.');
+    tx.delete(target.ref);audit(tx,who,'admins',input.uid,'임원 삭제 · 관리자 접근 해제');return {saved:true};
+   });
+  }
   if(op==='saveAdmin'){
+
    ensureScope(who,'admins',clock());const input=parse(schemas.admin,data);
    if(input.uid===who.uid&&(!input.active||input.role!=='owner'||Date.parse(input.expiresAt)<=clock()))fail('failed-precondition','본인의 최종 운영 권한을 제거할 수 없습니다.');
    const ref=col('admins').doc(input.uid);

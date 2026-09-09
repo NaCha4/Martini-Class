@@ -477,3 +477,33 @@ test('member notes are detail-only, preserved by older clients and cleared by pr
  await service.handle({op:'privacyAnonymize',...query,fingerprint:preview.fingerprint,confirmation:'2026-2 정리',reason:'보존 종료'},owner);
  assert.equal((await db.doc('martini_v2_semesters/2026-2/members/'+created.id).get()).data().note,'');
 });
+
+test('unused default roles can be deleted without returning through builtin fallbacks',async()=>{
+ const remove={op:'deleteRole',id:'publicity',revision:0};
+ await assert.rejects(service.handle(remove,education),e=>e.code==='permission-denied');
+ await assert.rejects(service.handle({...remove,id:'owner'},owner),e=>e.code==='failed-precondition');
+ await assert.rejects(service.handle({...remove,id:'education'},owner),e=>e.code==='failed-precondition');
+ await assert.rejects(service.handle({...remove,revision:9},owner),e=>e.code==='aborted');
+ await service.handle(remove,owner);
+ assert.equal((await service.handle({op:'listRoles'},owner)).rows.some(r=>r.id==='publicity'),false);
+ await assert.rejects(service.handle({op:'saveAdmin',uid:'new-staff',displayName:'검증',role:'publicity',active:true,expiresAt:time(86400000)},owner),e=>e.code==='invalid-argument');
+ await assert.rejects(service.handle({op:'saveRole',id:'publicity',revision:1,name:'홍보부',permissions:['content']},owner),e=>e.code==='not-found');
+ await assert.rejects(service.handle(remove,owner),e=>e.code==='not-found');
+ const replacement=await service.handle({op:'saveRole',revision:0,name:'홍보부',permissions:['content']},owner);
+ assert.notEqual(replacement.id,'publicity');
+});
+
+test('admin deletion revokes access, preserves history and guards self, stale and unauthorized requests',async()=>{
+ const input={op:'deleteAdmin',uid:'education',updatedAt:stamp};
+ await assert.rejects(service.handle(input,finance),e=>e.code==='permission-denied');
+ await assert.rejects(service.handle({...input,uid:'owner'},owner),e=>e.code==='failed-precondition');
+ await assert.rejects(service.handle({...input,updatedAt:time(-1000)},owner),e=>e.code==='aborted');
+ await service.handle(input,owner);
+ assert.equal((await db.doc('martini_v2_admins/education').get()).exists,false);
+ assert.equal((await db.doc('martini_v2_events/event-one').get()).exists,true);
+ await assert.rejects(service.handle({op:'profile'},education),e=>e.code==='permission-denied');
+ await assert.rejects(service.handle(input,owner),e=>e.code==='not-found');
+ const history=await db.collection('martini_v2_audit').where('entityId','==','education').get();assert.equal(history.size,1);
+ await service.handle({op:'saveAdmin',uid:'education',displayName:'다시 등록',role:'education',active:true,expiresAt:time(86400000)},owner);
+ assert.equal((await service.handle({op:'profile'},education)).role,'education');
+});
