@@ -197,16 +197,16 @@ export function createService(db,clock=Date.now){
   });
  }
  async function apply(data,ctx){
-  const input=parse(z.object({eventId:idSchema,key:token,name:z.string().trim().min(1).max(40),studentId:z.string().trim().min(1).max(30),phone:z.string().min(8).max(30),answers:z.array(z.string().trim().max(500)).max(3),consent:z.literal(true),requestId:requestKey,receiptKey:token}).strict(),data);
+  const input=parse(z.object({eventId:idSchema,key:token,name:z.string().trim().min(1).max(40),studentId:z.string().trim().min(1).max(30),phone:z.string().min(8).max(30).optional(),answers:z.array(z.string().trim().max(500)).max(3),consent:z.literal(true),requestId:requestKey,receiptKey:token}).strict(),data);
   // Identity buckets preserve shared-campus-network access; shard the aggregate IP guard.
-  const identityKey=identity(input.studentId,input.phone);
+  const identityKey=hash(input.studentId.trim().toLowerCase());
   await throttle(ctx,'apply-ip:'+input.eventId+':'+(parseInt(identityKey.slice(0,4),16)%32),30);
   await throttle({...ctx,ip:identityKey},'apply-member:'+input.eventId,10);
   return serializeEvent(input.eventId,()=>db.runTransaction(async tx=>{
    const event=await verifyEvent(input.eventId,input.key,tx);
-   const members=await roster.find(identity(input.studentId,input.phone),event.semester,tx);
+   const members=(await roster.findStudent(input.studentId,event.semester,tx)).filter(m=>m.name===input.name);
    const member=members.length===1?members[0]:null;
-   if(!member||member.name!==input.name||member.anonymizedAt||member.removedAt||member.semester!==event.semester)fail('permission-denied','명부 정보 또는 활동 자격을 확인할 수 없습니다. 운영진에게 문의해 주세요.');
+   if(!member||(input.phone!==undefined&&normalizePhone(input.phone)!==normalizePhone(member.phone))||member.name!==input.name||member.anonymizedAt||member.removedAt||member.semester!==event.semester)fail('permission-denied','명부 정보 또는 활동 자격을 확인할 수 없습니다. 운영진에게 문의해 주세요.');
    const id=hash(event.id+':'+member.id),ref=col('applications').doc(id),prior=await tx.get(ref),existing=prior.exists?{...prior.data(),id}:null;
    if(existing&&matches(input.receiptKey,existing.receiptHash)&&existing.requestId===input.requestId)return {id,status:existing.status};
    if(existing&&!['cancelled','expired'].includes(existing.status))fail('already-exists','이미 신청한 행사입니다. 신청할 때 받은 확인 링크를 이용해 주세요.');

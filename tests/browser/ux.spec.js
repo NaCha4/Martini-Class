@@ -278,7 +278,7 @@ test('unfinished application survives cancelled links and browser Back until nav
   const eventUrl = page.url();
   await form.locator('[name=name]').fill('신청서 작성 중');
   await form.locator('[name=studentId]').fill('202600001');
-  await form.locator('[name=phone]').fill('01000000001');
+
   await form.locator('[name=consent]').check();
 
   const navigateToAbout = async () => {
@@ -293,7 +293,7 @@ test('unfinished application survives cancelled links and browser Back until nav
   const expectDraft = async () => {
     await expect(form.locator('[name=name]')).toHaveValue('신청서 작성 중');
     await expect(form.locator('[name=studentId]')).toHaveValue('202600001');
-    await expect(form.locator('[name=phone]')).toHaveValue('01000000001');
+    await expect(form.locator('[name=phone]')).toHaveCount(0);
     await expect(form.locator('[name=consent]')).toBeChecked();
   };
   const warning = page.getByRole('dialog', { name: '신청서 작성을 그만둘까요?' });
@@ -327,6 +327,6 @@ test('unfinished application survives cancelled links and browser Back until nav
   await expect(form).toBeVisible();
   await expect(form.locator('[name=name]')).toHaveValue('');
   await expect(form.locator('[name=studentId]')).toHaveValue('');
-  await expect(form.locator('[name=phone]')).toHaveValue('');
+  await expect(form.locator('[name=phone]')).toHaveCount(0);
   await expect(form.locator('[name=consent]')).not.toBeChecked();
 });

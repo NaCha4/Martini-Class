@@ -16,8 +16,8 @@ export function createRoster(col){
   const r=reader(tx),nested=await r.get(collection(semester)),legacy=await r.get(col('members').where('semester','==',semester));
   const docs=new Map(legacy.docs.map(d=>[d.id,d]));nested.docs.forEach(d=>docs.set(d.id,d));return [...docs.values()];
  }
- async function find(key,semester,tx){
-  const r=reader(tx),nested=await r.get(collection(semester).where('identityHash','==',key)),legacy=await r.get(col('members').where('identityHash','==',key));
+ async function find(key,semester,tx,field='identityHash'){
+  const r=reader(tx),nested=await r.get(collection(semester).where(field,'==',key)),legacy=await r.get(col('members').where(field,'==',key));
   const docs=new Map(nested.docs.map(d=>[d.id,value(d,semester)]));
   for(const d of legacy.docs){if(d.data().semester!==semester||docs.has(d.id))continue;const current=await r.get(collection(semester).doc(d.id));if(!current.exists)docs.set(d.id,value(d,semester));}
   return [...docs.values()];
@@ -26,5 +26,5 @@ export function createRoster(col){
   const [stored,legacy]=await Promise.all([col('semesters').get(),col('members').select('semester').get()]);
   return [...new Set([...stored.docs.map(d=>d.id),...legacy.docs.map(d=>d.data().semester)])].filter(s=>semesterSchema.safeParse(s).success).sort().reverse();
  }
- return {collection,get,documents,find,terms,value};
+ return {collection,get,documents,find,findStudent:(studentId,semester,tx)=>find(studentId,semester,tx,'studentId'),terms,value};
 }

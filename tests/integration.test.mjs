@@ -641,3 +641,13 @@ test('settlement correction still rejects missing originals and a different appl
  await aRef.delete();await assert.rejects(service.handle(deletion,finance),e=>e.code==='failed-precondition');
  assert.equal((await db.doc('martini_v2_finance/'+pay.requestId).get()).data().deletedAt,undefined);
 });
+
+test('applications accept name and student ID without a phone and reject ambiguous or wrong identities',async()=>{
+ const input=application(1);delete input.phone;
+ await assert.rejects(service.handle({...input,name:'다른 이름'},{ip:'no-phone'}),e=>e.code==='permission-denied');
+ const first=await service.handle(input,{ip:'no-phone'});assert.equal(first.status,'registered');
+ const again=await service.handle(input,{ip:'no-phone'});assert.equal(again.id,first.id);
+ await assert.rejects(service.handle({...input,requestId:'other-attempt',receiptKey:'e'.repeat(64)},{ip:'no-phone'}),e=>e.code==='already-exists');
+ const second=application(2);delete second.phone;await db.doc('martini_v2_members/ambiguous').set({...member(2),id:'ambiguous',phone:'01099999999'});
+ await assert.rejects(service.handle(second,{ip:'no-phone-two'}),e=>e.code==='permission-denied');
+});
