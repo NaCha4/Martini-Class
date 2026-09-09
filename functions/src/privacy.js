@@ -74,7 +74,7 @@ export function createPrivacy({db,col,now,clock,audit,roster}){
    if(!plan.records.length)return {saved:true,counts:plan.counts};
    for(const {doc,kind} of plan.records){
     const patch={anonymizedAt:now(),updatedAt:now()};
-    if(kind==='member')Object.assign(patch,{name:'정보 정리 완료',studentId:'',phone:'',college:'',department:'',grade:'',gender:'',identityHash:FieldValue.delete(),status:FieldValue.delete(),duesPaid:FieldValue.delete(),revision:(doc.data().revision||0)+1});
+    if(kind==='member')Object.assign(patch,{name:'정보 정리 완료',studentId:'',phone:'',college:'',department:'',grade:'',gender:'',note:'',identityHash:FieldValue.delete(),status:FieldValue.delete(),duesPaid:FieldValue.delete(),revision:(doc.data().revision||0)+1});
     if(kind==='application')Object.assign(patch,{name:'정보 정리 완료',answers:[],receiptHash:FieldValue.delete(),requestId:FieldValue.delete()});
     if(kind==='finance')Object.assign(patch,{title:'개인정보 정리 · '+doc.data().kind,note:''});
     if(kind==='audit')Object.assign(patch,{action:'개인정보 정리 전 운영 변경'});

@@ -14,8 +14,8 @@ async function save(ctx,op,data){const result=await ctx.api(op,data);if(['saveCo
 function share(title,url){const personal=new URL(url).pathname.startsWith('/r/');modal(title,'<div class="wide prose">'+(personal?'이 링크로 신청 내용 확인과 취소가 가능합니다. 본인에게만 개별 전달해 주세요.':'이 링크를 가진 부원이 행사 내용을 확인하고 신청할 수 있습니다. 부원 공지 채널에 전달해 주세요.')+'</div>'+field('shareUrl','링크',url,{wide:true,readOnly:true,autocomplete:'off',spellcheck:false,hint:'링크 전체를 복사해 전달하세요.'})+'<div class="wide">'+button('링크 복사','copy-link',{icon:'copy'})+'</div>',null);}
 function agendaRow(a={id:uuid(),title:'',notes:'',status:'planned'}){return '<section class="agenda-edit wide"><input type="hidden" name="agendaId" value="'+esc(a.id)+'"><div class="agenda-row-head"><h3>회의 안건</h3>'+button('제거','agenda-remove',{class:'button small ghost',icon:'x'})+'</div>'+field('agendaTitle','안건 제목',a.title,{required:true,maxLength:200})+field('agendaNotes','논의 내용',a.notes,{type:'textarea',rows:3,maxLength:10000})+field('agendaStatus','논의 상태',a.status,{choices:[['planned','논의 예정'],['discussed','논의 완료'],['deferred','보류']]})+'</section>';}
 async function memberEdit(ctx,id){
- const term=rosterSemester(ctx),r=await record(ctx,'members',id);
- modal((r?'부원 정보 수정':'부원 등록')+' · '+term,field('name','이름',r?.name,{required:true,maxLength:40,autocomplete:'off'})+field('studentId','학번',r?.studentId,{required:true,maxLength:30,autocomplete:'off',spellcheck:false})+field('phone','전화번호',r?.phone,{required:true,type:'tel',inputmode:'tel',maxLength:30,autocomplete:'off',hint:'행사 신청에 사용할 부원 본인의 번호입니다.'})+field('college','단과대학',r?.college,{maxLength:80})+field('department','학과 · 학부',r?.department,{maxLength:80})+field('grade','학년',r?.grade,{maxLength:20})+field('gender','성별',['남성','여성'].includes(r?.gender)?r.gender:'',{choices:[['','선택 안 함'],['남성','남성'],['여성','여성']]})+'<p class="wide help">등록할 부원의 학번과 연락처를 확인해 주세요. 등록 후에는 별도의 회비 납부 확인이 필요하지 않습니다.</p>',async f=>save(ctx,'saveMember',{...meta(r),name:val(f,'name'),studentId:val(f,'studentId'),phone:val(f,'phone'),college:val(f,'college'),department:val(f,'department'),grade:val(f,'grade'),gender:val(f,'gender'),semester:term}),{wide:true});
+ const term=rosterSemester(ctx),r=id?(await read(ctx,'members',{recordId:id})).rows[0]:null;
+ modal((r?'부원 정보 수정':'부원 등록')+' · '+term,field('name','이름',r?.name,{required:true,maxLength:40,autocomplete:'off'})+field('studentId','학번',r?.studentId,{required:true,maxLength:30,autocomplete:'off',spellcheck:false})+field('phone','전화번호',r?.phone,{required:true,type:'tel',inputmode:'tel',maxLength:30,autocomplete:'off',hint:'행사 신청에 사용할 부원 본인의 번호입니다.'})+field('college','단과대학',r?.college,{maxLength:80})+field('department','학과 · 학부',r?.department,{maxLength:80})+field('grade','학년',r?.grade,{maxLength:20})+field('gender','성별',['남성','여성'].includes(r?.gender)?r.gender:'',{choices:[['','선택 안 함'],['남성','남성'],['여성','여성']]})+field('note','부원 메모',r?.note,{type:'textarea',wide:true,rows:4,maxLength:3000,hint:'이름을 눌러 상세 화면을 열었을 때만 표시됩니다. 명부 목록과 CSV에는 포함되지 않습니다.'})+'<p class="wide help">등록할 부원의 학번과 연락처를 확인해 주세요. 등록 후에는 별도의 회비 납부 확인이 필요하지 않습니다.</p>',async f=>save(ctx,'saveMember',{...meta(r),name:val(f,'name'),studentId:val(f,'studentId'),phone:val(f,'phone'),college:val(f,'college'),department:val(f,'department'),grade:val(f,'grade'),gender:val(f,'gender'),note:val(f,'note'),semester:term}),{wide:true});
 }
 async function eventEdit(ctx,id){
  const r=await record(ctx,'events',id),start=new Date(Date.now()+7*86400000).toISOString(),end=new Date(Date.now()+7*86400000+7200000).toISOString();
@@ -187,6 +187,19 @@ export async function handleAdminAction(ctx,action,id,target){
   modal('개인정보 정리 · '+plan.name,'<div class="wide prose">'+esc(semester)+' 학기 · 명부 '+plan.counts.member+'건, 신청 및 재신청 이력 '+plan.counts.application+'건, 정산 '+plan.counts.finance+'건, 변경 이력 '+plan.counts.audit+'건을 정리합니다. 금액·참가 집계·연결 관계는 유지됩니다.</div>'+
    (plan.blockers.length?'<div class="wide notice-warning">'+plan.blockers.map(esc).join('<br>')+'</div>':field('reason','정리 사유','학기 보존 기한 종료',{required:true,wide:true,maxLength:200})+field('confirmation','확인 문구: '+semester+' 정리','',{required:true,wide:true})+'<p class="wide help">저장하면 즉시 적용됩니다. 복구할 수 없으므로 대상과 정산 내역을 먼저 확인해 주세요.</p>'),
    plan.blockers.length?null:async f=>save(ctx,'privacyAnonymize',{semester,memberId:id,fingerprint:plan.fingerprint,confirmation:val(f,'confirmation'),reason:val(f,'reason')}),{submit:'개인정보 영구 정리',submitClass:'button danger',wide:true});return;
+ }
+ if(action==='member-view'){
+  const r=(await read(ctx,'members',{recordId:id})).rows[0];
+  modal('부원 정보 · '+r.name,'<div class="wide detail-grid"><p>학기<br><strong>'+esc(rosterSemester(ctx))+'</strong></p><p>학번<br><strong>'+esc(r.studentId)+'</strong></p><p>전화번호<br><strong>'+esc(r.phone)+'</strong></p><p>소속<br><strong>'+esc([r.college,r.department].filter(Boolean).join(' · ')||'미입력')+'</strong></p></div><section class="wide"><h3>부원 메모</h3>'+textBlock(r.note||'작성된 메모가 없습니다.')+'</section>'+(!r.removedAt&&!r.anonymizedAt?'<div class="wide">'+button('정보 · 메모 수정','member-edit',{id:r.id,class:'button secondary'})+'</div>':''),null,{wide:true});return;
+ }
+ if(action==='member-remove'||action==='member-restore'){
+
+  const term=rosterSemester(ctx),r=await record(ctx,'members',id),remove=action==='member-remove';
+  if(!r)throw Error('명부를 다시 불러와 주세요.');
+  modal(remove?'학기 명부에서 제거':'학기 명부에 복구','<p class="wide"><strong>'+esc(r.name)+'</strong> · '+esc(term)+'</p><p class="wide help">'+(remove?'이 학기의 명부와 인원 집계에서 제외합니다. 다른 학기 정보와 기존 행사 신청·정산 기록은 그대로 유지됩니다. 새 행사 신청과 대기 승급은 제한되며, 제거한 부원 목록에서 복구할 수 있습니다.':'이 학기의 명부와 행사 신청 자격을 복구합니다. 기존 학생 ID와 기록 연결을 유지합니다.')+'</p>',async()=>{
+   await ctx.api(remove?'removeMember':'restoreMember',{id:r.id,semester:term,revision:r.revision});delete ctx.state.data.members;delete ctx.state.pages.members;
+   ctx.toast(remove?'이 학기 명부에서 제거했습니다.':'이 학기 명부에 복구했습니다.');await ctx.render();
+  },{submit:remove?'명부에서 제거':'명부에 복구',submitClass:remove?'button danger':'button'});return;
  }
  if(action==='member-edit')return memberEdit(ctx,id);
  if(action==='event-edit')return eventEdit(ctx,id);

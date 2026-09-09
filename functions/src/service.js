@@ -3,7 +3,7 @@ import { defaultRoles, hasPermission } from './permissions.js';
 import { openChatUrl } from './public-links.js';
 import { z } from 'zod';
 import { createPrivacy } from './privacy.js';
-import { Timestamp } from 'firebase-admin/firestore';
+import { Timestamp, FieldValue } from 'firebase-admin/firestore';
 import { schemas, parse, fail, ensureScope, hash, secret, identity, normalizePhone, validateEvent, allocate, changeStock, stockTotal, matches, publicEvent, requireRevision, occupied, idSchema, roles } from './domain.js';
 const PREFIX='martini_v2_';
 const token=z.string().regex(/^[a-f0-9]{64}$/);
@@ -69,9 +69,10 @@ export function createService(db,clock=Date.now){
     await tx.get(col('semesters').doc(input.semester));
     const duplicate=await roster.find(key,input.semester,tx);
     if(duplicate.some(d=>d.id!==id))fail('already-exists','이 학기에 같은 학번·연락처로 등록된 부원이 있습니다.');
+    if(old?.removedAt)fail('failed-precondition','제거한 부원 목록에서 복구한 뒤 수정해 주세요.');
     if(old?.anonymizedAt)fail('failed-precondition','개인정보가 정리된 기록은 수정할 수 없습니다. 새 부원으로 등록해 주세요.');
     delete next.duesPaid;delete next.status;delete next.semester;
-    next.identityHash=key;next.phone=normalizePhone(input.phone);
+    next.identityHash=key;next.phone=normalizePhone(input.phone);next.note=input.note??old?.note??'';
     tx.set(col('semesters').doc(input.semester),{updatedAt:now()},{merge:true});
    }
    if(kind==='events'){
@@ -110,7 +111,7 @@ export function createService(db,clock=Date.now){
  }
  async function read(data,who){
   const allowed=['members','events','applications','finance','inventory','stockMoves','meetings','decisions','content','settings','admins','audit'];
-  const input=parse(z.object({kind:z.enum(allowed),semester:semesterSchema.optional(),eventId:idSchema.optional(),meetingId:idSchema.optional(),itemId:idSchema.optional(),cursor:idSchema.optional(),parentId:idSchema.optional(),recordId:idSchema.optional(),revisions:z.boolean().optional()}).strict(),data);
+  const input=parse(z.object({kind:z.enum(allowed),semester:semesterSchema.optional(),removed:z.boolean().optional(),eventId:idSchema.optional(),meetingId:idSchema.optional(),itemId:idSchema.optional(),cursor:idSchema.optional(),parentId:idSchema.optional(),recordId:idSchema.optional(),revisions:z.boolean().optional()}).strict(),data);
   let scope=input.kind;
   if(scope==='applications'){if(!hasPermission(who,'participants'))fail('permission-denied','참가자 명단 조회 권한이 없습니다.');}
   else if(scope==='settings'){} // Basic operating context is available to signed-in staff.
@@ -121,10 +122,10 @@ export function createService(db,clock=Date.now){
   if(input.kind==='members'){
    if(input.eventId||input.meetingId||input.itemId||input.revisions||input.parentId)fail('invalid-argument','명부는 학기를 선택해 조회해 주세요.');
    const semester=parse(semesterSchema,input.semester||(await settings())?.semester);
-   if(input.recordId){const record=await roster.get(input.recordId,semester);if(!record)fail('not-found','이 학기의 부원 기록을 찾을 수 없습니다.');return {rows:[visible('members',record,who)],nextCursor:null,semester};}
-   const docs=(await roster.documents(semester)).sort((a,b)=>a.id.localeCompare(b.id)),offset=input.cursor?docs.findIndex(d=>d.id===input.cursor)+1:0;
+   if(input.recordId){const record=await roster.get(input.recordId,semester);if(!record||!!record.removedAt!==!!input.removed)fail('not-found','이 학기의 부원 기록을 찾을 수 없습니다.');return {rows:[visible('members',record,who)],nextCursor:null,semester};}
+   const docs=(await roster.documents(semester)).filter(d=>!!d.data().removedAt===!!input.removed).sort((a,b)=>a.id.localeCompare(b.id)),offset=input.cursor?docs.findIndex(d=>d.id===input.cursor)+1:0;
    const page=docs.slice(offset,offset+100);
-   return {rows:page.map(d=>visible('members',roster.value(d,semester),who)),nextCursor:offset+100<docs.length?page.at(-1).id:null,semester};
+   return {rows:page.map(d=>{const {note,...row}=visible('members',roster.value(d,semester),who);return row;}),nextCursor:offset+100<docs.length?page.at(-1).id:null,semester};
   }
   if(input.revisions&&!['meetings','decisions'].includes(input.kind))fail('invalid-argument','수정 이력을 조회할 수 없는 항목입니다.');
   if(input.recordId){const record=snapshot(await col(input.kind).doc(input.recordId).get());if(!record)fail('not-found','기록을 찾을 수 없습니다.');return {rows:[visible(input.kind,record,who)],nextCursor:null};}
@@ -201,7 +202,7 @@ export function createService(db,clock=Date.now){
    const event=await verifyEvent(input.eventId,input.key,tx);
    const members=await roster.find(identity(input.studentId,input.phone),event.semester,tx);
    const member=members.length===1?members[0]:null;
-   if(!member||member.name!==input.name||member.anonymizedAt||member.semester!==event.semester)fail('permission-denied','명부 정보 또는 활동 자격을 확인할 수 없습니다. 운영진에게 문의해 주세요.');
+   if(!member||member.name!==input.name||member.anonymizedAt||member.removedAt||member.semester!==event.semester)fail('permission-denied','명부 정보 또는 활동 자격을 확인할 수 없습니다. 운영진에게 문의해 주세요.');
    const id=hash(event.id+':'+member.id),ref=col('applications').doc(id),existing=snapshot(await tx.get(ref));
    if(existing&&matches(input.receiptKey,existing.receiptHash)&&existing.requestId===input.requestId)return {id,status:existing.status};
    if(existing&&!['cancelled','expired'].includes(existing.status))fail('already-exists','이미 신청한 행사입니다. 신청할 때 받은 확인 링크를 이용해 주세요.');
@@ -231,7 +232,7 @@ export function createService(db,clock=Date.now){
    if(input.action==='accept'){
     if(event.status==='cancelled'||record.status!=='offered'||Date.parse(record.offerExpiresAt)<=clock())fail('failed-precondition','유효한 승급 제안이 없습니다.');
     const member=await roster.get(record.memberId,event.semester,tx);
-    if(!member||member.anonymizedAt||member.semester!==event.semester)fail('permission-denied','현재 활동 자격을 확인할 수 없습니다. 운영진에게 문의해 주세요.');
+    if(!member||member.anonymizedAt||member.removedAt||member.semester!==event.semester)fail('permission-denied','현재 활동 자격을 확인할 수 없습니다. 운영진에게 문의해 주세요.');
     tx.update(ref,{status:'registered',payment:event.fee?'unpaid':'none',updatedAt:now()});return {saved:true};
    }
    if(input.action==='cancel'||input.action==='decline'){
@@ -255,7 +256,7 @@ export function createService(db,clock=Date.now){
     tx.update(ref,{attendance:input.attendance,updatedAt:now()});
    }else if(input.action==='offer'){
     const member=await roster.get(a.memberId,e.semester,tx);
-    if(!member||member.anonymizedAt||member.semester!==e.semester)fail('failed-precondition','해당 부원의 활동 자격이 변경되었습니다. 신청을 취소한 뒤 다음 대기자를 확인해 주세요.');
+    if(!member||member.anonymizedAt||member.removedAt||member.semester!==e.semester)fail('failed-precondition','해당 부원의 활동 자격이 변경되었습니다. 신청을 취소한 뒤 다음 대기자를 확인해 주세요.');
     const queue=await tx.get(col('applications').where('eventId','==',e.id));
     const first=queue.docs.map(snapshot).filter(x=>x.status==='waiting').sort((a,b)=>a.sequence-b.sequence)[0];
     if(e.status==='cancelled'||a.status!=='waiting'||first?.id!==a.id||e.registered>=e.capacity)fail('failed-precondition','빈자리와 대기 순서를 확인해 주세요.');
@@ -315,6 +316,24 @@ export function createService(db,clock=Date.now){
    });
   }
 
+  if(op==='removeMember'||op==='restoreMember'){
+   ensureScope(who,'members',clock());
+   const input=parse(z.object({id:idSchema,semester:semesterSchema,revision:z.number().int().min(1)}).strict(),data),remove=op==='removeMember';
+   return db.runTransaction(async tx=>{
+    const nested=await tx.get(roster.collection(input.semester).doc(input.id));
+    const doc=nested.exists?nested:await tx.get(col('members').doc(input.id));
+    if(!doc.exists||(!nested.exists&&doc.data().semester!==input.semester))fail('not-found','이 학기의 부원을 찾을 수 없습니다.');
+    const old=doc.data();
+    if(!!old.removedAt===remove)return {saved:true,duplicate:true};
+    requireRevision(old,input.revision);
+    if(!remove&&old.anonymizedAt)fail('failed-precondition','개인정보가 정리된 부원은 복구할 수 없습니다.');
+    await tx.get(col('semesters').doc(input.semester));
+    tx.update(doc.ref,{removedAt:remove?now():FieldValue.delete(),removedBy:remove?who.uid:FieldValue.delete(),revision:old.revision+1,updatedAt:now(),updatedBy:who.uid});
+    tx.set(col('semesters').doc(input.semester),{updatedAt:now()},{merge:true});
+    audit(tx,who,'members',input.id,remove?'학기 명부에서 제거':'학기 명부에 복구',input.semester);
+    return {saved:true};
+   });
+  }
   if(op==='rosterTerms'){ensureScope(who,'membersRead',clock());const current=(await settings())?.semester;return {rows:[...new Set([...(await roster.terms()),...(semesterSchema.safeParse(current).success?[current]:[])])].sort().reverse()};}
   if(op==='read')return read(data,who);
   if(op==='privacyCandidates')return privacy.candidates(data,who);

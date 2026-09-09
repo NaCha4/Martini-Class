@@ -406,3 +406,74 @@ test('migration refuses conflicting ledger links and preserves an edited nested 
  await migrateRoster(db,{apply:true});
  assert.equal((await db.doc('martini_v2_semesters/2026-2/members/member-1').get()).data().name,'수정된 이름');
 });
+
+
+test('removing a semester member hides roster and prevents new applications but preserves history and other semesters',async()=>{
+ const a=await service.handle(application(1),{ip:'remove-legacy'});
+ await db.doc('martini_v2_semesters/2027-1/members/member-1').set({...member(1),name:'다음 학기'});
+ await db.doc('martini_v2_finance/keep-ledger').set({memberId:'member-1',semester:'2026-2',amount:30000,title:'회비',updatedAt:stamp});
+ const appBefore=(await db.doc('martini_v2_applications/'+a.id).get()).data();
+ const input={op:'removeMember',id:'member-1',semester:'2026-2',revision:1};
+ await assert.rejects(service.handle(input,education),e=>e.code==='permission-denied');
+ await assert.rejects(service.handle({...input,semester:'2025-2'},owner),e=>e.code==='not-found');
+ await assert.rejects(service.handle({...input,revision:9},owner),e=>e.code==='aborted');
+ await service.handle(input,owner);assert.equal((await service.handle(input,owner)).duplicate,true);
+ assert.equal((await service.handle({op:'read',kind:'members',semester:'2026-2'},owner)).rows.some(m=>m.id==='member-1'),false);
+ assert.equal((await service.handle({op:'read',kind:'members',semester:'2026-2',removed:true},owner)).rows[0].id,'member-1');
+ assert.equal((await service.handle({op:'read',kind:'members',semester:'2027-1'},owner)).rows[0].name,'다음 학기');
+ await assert.rejects(service.handle(application(1),{ip:'removed'}),e=>e.code==='permission-denied');
+ assert.deepEqual((await db.doc('martini_v2_applications/'+a.id).get()).data(),appBefore);
+ assert.equal((await db.doc('martini_v2_finance/keep-ledger').get()).data().amount,30000);
+ assert.equal((await service.handle({op:'participantContact',id:a.id},education)).phone,member(1).phone);
+ await service.handle({...input,op:'restoreMember',revision:2},owner);
+ assert.equal((await service.handle(application(1),{ip:'restored'})).id,a.id);
+ await assert.rejects(service.handle(input,owner),e=>e.code==='aborted');
+});
+
+test('removed nested member cannot be edited, duplicated or offered a seat and can be restored',async()=>{
+ await migrateRoster(db,{apply:true});
+ const first=await service.handle(application(1),{ip:'first'}),waiting=await service.handle(application(2),{ip:'waiting'});
+ const input={op:'removeMember',semester:'2026-2',id:'member-2',revision:1};
+ await service.handle(input,owner);
+ await service.handle({op:'receipt',id:first.id,key:'1'.repeat(64),action:'cancel'},{ip:'first'});
+ await assert.rejects(service.handle({op:'applicationCommand',id:waiting.id,action:'offer',offerExpiresAt:time(3600000),reason:'자리 제안'},owner),e=>e.code==='failed-precondition');
+ await assert.rejects(service.handle({op:'saveMember',id:'member-2',revision:2,semester:'2026-2',name:member(2).name,studentId:member(2).studentId,phone:member(2).phone},owner),e=>e.code==='failed-precondition');
+ await assert.rejects(service.handle({op:'saveMember',semester:'2026-2',name:member(2).name,studentId:member(2).studentId,phone:member(2).phone},owner),e=>e.code==='already-exists');
+ await service.handle({...input,op:'restoreMember',revision:2},owner);
+ await service.handle({op:'applicationCommand',id:waiting.id,action:'offer',offerExpiresAt:time(3600000),reason:'자리 제안'},owner);
+ await service.handle({...input,revision:3},owner);
+ await assert.rejects(service.handle({op:'receipt',id:waiting.id,key:'2'.repeat(64),action:'accept'},{ip:'waiting'}),e=>e.code==='permission-denied');
+ const stored=(await db.doc('martini_v2_semesters/2026-2/members/member-2').get()).data();assert.ok(stored.removedAt);assert.equal(stored.semester,undefined);
+});
+
+test('removed roster remains eligible for privacy cleanup and anonymized identities cannot be restored',async()=>{
+ await migrateRoster(db,{apply:true});
+ await service.handle({op:'removeMember',id:'member-1',semester:'2026-2',revision:1},owner);
+ await db.doc('martini_v2_settings/club').update({semester:'2027-1'});
+ assert.ok((await service.handle({op:'privacyCandidates',semester:'2026-2'},owner)).rows.some(r=>r.id==='member-1'));
+ const query={semester:'2026-2',memberId:'member-1'},review=await service.handle({op:'privacyReview',...query},owner);
+ await service.handle({op:'privacyAnonymize',...query,fingerprint:review.fingerprint,confirmation:'2026-2 정리',reason:'보존 종료'},owner);
+ await assert.rejects(service.handle({op:'restoreMember',id:'member-1',semester:'2026-2',revision:3},owner),e=>e.code==='failed-precondition');
+});
+
+
+test('member notes are detail-only, preserved by older clients and cleared by privacy cleanup',async()=>{
+ const input={op:'saveMember',revision:0,name:'메모 검증',studentId:'NOTE2026',phone:'01012349876',semester:'2026-2',note:'임원 전용 메모 <script>example</script>'};
+ await assert.rejects(service.handle({...input,note:'x'.repeat(3001)},owner),e=>e.code==='invalid-argument');
+ const created=await service.handle(input,owner);
+ const list=await service.handle({op:'read',kind:'members',semester:'2026-2'},owner);assert.equal('note' in list.rows.find(r=>r.id===created.id),false);
+ const detail={op:'read',kind:'members',semester:'2026-2',recordId:created.id};
+ assert.equal((await service.handle(detail,owner)).rows[0].note,input.note);
+ await assert.rejects(service.handle(detail,education),e=>e.code==='permission-denied');
+ const {note,...oldClient}=input;await service.handle({...oldClient,id:created.id,revision:1,grade:'3'},owner);
+ assert.equal((await service.handle(detail,owner)).rows[0].note,input.note);
+ const a=await service.handle({...application(1),name:input.name,studentId:input.studentId,phone:input.phone},{ip:'note-test'});
+ assert.equal('note' in await service.handle({op:'participantContact',id:a.id},education),false);
+ assert.equal(JSON.stringify(await service.handle({op:'receipt',id:a.id,key:'1'.repeat(64)},{ip:'note-receipt'})).includes(input.note),false);
+ await service.handle({op:'removeMember',id:created.id,semester:'2026-2',revision:2},owner);
+ assert.equal('note' in (await service.handle({op:'read',kind:'members',semester:'2026-2',removed:true},owner)).rows[0],false);
+ await db.doc('martini_v2_settings/club').update({semester:'2027-1'});await service.handle(await eventEditInput({status:'completed'}),owner);
+ const query={semester:'2026-2',memberId:created.id},preview=await service.handle({op:'privacyReview',...query},owner);
+ await service.handle({op:'privacyAnonymize',...query,fingerprint:preview.fingerprint,confirmation:'2026-2 정리',reason:'보존 종료'},owner);
+ assert.equal((await db.doc('martini_v2_semesters/2026-2/members/'+created.id).get()).data().note,'');
+});
