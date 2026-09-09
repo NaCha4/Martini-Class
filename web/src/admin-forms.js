@@ -192,14 +192,13 @@ export async function handleAdminAction(ctx,action,id,target){
   const r=(await read(ctx,'members',{recordId:id})).rows[0];
   modal('부원 정보 · '+r.name,'<div class="wide detail-grid"><p>학기<br><strong>'+esc(rosterSemester(ctx))+'</strong></p><p>학번<br><strong>'+esc(r.studentId)+'</strong></p><p>전화번호<br><strong>'+esc(r.phone)+'</strong></p><p>소속<br><strong>'+esc([r.college,r.department].filter(Boolean).join(' · ')||'미입력')+'</strong></p></div><section class="wide"><h3>부원 메모</h3>'+textBlock(r.note||'작성된 메모가 없습니다.')+'</section>'+(!r.removedAt&&!r.anonymizedAt?'<div class="wide">'+button('정보 · 메모 수정','member-edit',{id:r.id,class:'button secondary'})+'</div>':''),null,{wide:true});return;
  }
- if(action==='member-remove'||action==='member-restore'){
-
-  const term=rosterSemester(ctx),r=await record(ctx,'members',id),remove=action==='member-remove';
+ if(action==='member-remove'){
+  const term=rosterSemester(ctx),r=await record(ctx,'members',id);
   if(!r)throw Error('명부를 다시 불러와 주세요.');
-  modal(remove?'학기 명부에서 제거':'학기 명부에 복구','<p class="wide"><strong>'+esc(r.name)+'</strong> · '+esc(term)+'</p><p class="wide help">'+(remove?'이 학기의 명부와 인원 집계에서 제외합니다. 다른 학기 정보와 기존 행사 신청·정산 기록은 그대로 유지됩니다. 새 행사 신청과 대기 승급은 제한되며, 제거한 부원 목록에서 복구할 수 있습니다.':'이 학기의 명부와 행사 신청 자격을 복구합니다. 기존 학생 ID와 기록 연결을 유지합니다.')+'</p>',async()=>{
-   await ctx.api(remove?'removeMember':'restoreMember',{id:r.id,semester:term,revision:r.revision});delete ctx.state.data.members;delete ctx.state.pages.members;
-   ctx.toast(remove?'이 학기 명부에서 제거했습니다.':'이 학기 명부에 복구했습니다.');await ctx.render();
-  },{submit:remove?'명부에서 제거':'명부에 복구',submitClass:remove?'button danger':'button'});return;
+  modal('학기 명부에서 제거','<p class="wide"><strong>'+esc(r.name)+'</strong> · '+esc(term)+'</p><p class="wide help">이 학기의 명부와 인원 집계에서 제외합니다. 다른 학기 정보와 기존 행사 신청·정산 기록은 그대로 유지됩니다. 새 행사 신청과 대기 승급은 제한됩니다.</p>',async()=>{
+   await ctx.api('removeMember',{id:r.id,semester:term,revision:r.revision});delete ctx.state.data.members;delete ctx.state.pages.members;
+   ctx.toast('이 학기 명부에서 제거했습니다.');await ctx.render();
+  },{submit:'명부에서 제거',submitClass:'button danger'});return;
  }
  if(action==='member-edit')return memberEdit(ctx,id);
  if(action==='event-edit')return eventEdit(ctx,id);
