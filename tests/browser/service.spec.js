@@ -45,12 +45,12 @@ test('meeting agendas decisions revisions and navigation',async({page})=>{
  await login(page);await page.goto('/admin/meetings');await page.getByRole('button',{name:'회의 기록하기'}).click();
  const title='브라우저 운영회의 '+unique();
  await page.locator('[name=title]').fill(title);await page.locator('[name=body]').fill('교육 일정과 재료 준비를 논의했습니다.');
- await page.locator('[name=agendaTitle]').fill('교육 준비');await page.locator('[name=agendaNotes]').fill('진과 토닉워터 재고를 확인합니다.');await saveModal(page,'회의록 저장');
+ await page.getByRole('button',{name:'안건 추가',exact:true}).click();await page.locator('[name=agendaTitle]').fill('교육 준비');await page.locator('[name=agendaNotes]').fill('진과 토닉워터 재고를 확인합니다.');await saveModal(page,'회의록 저장');
  await page.getByRole('button',{name:title,exact:true}).click();await page.getByRole('button',{name:'결정 · 할 일 추가'}).click();
  await page.locator('[name=title]').fill('재료 확인 '+title);await page.locator('[name=type]').selectOption('action');await page.locator('[name=owner]').fill('교육부');
- const agenda=await page.locator('[name=agendaId] option').nth(1).getAttribute('value');await page.locator('[name=agendaId]').selectOption(agenda);await saveModal(page);
+ const agenda=await page.locator('[name=agendaId] option').nth(1).getAttribute('value');await page.locator('[name=agendaId]').selectOption(agenda);await saveModal(page,'기록 저장');
  await page.getByRole('button',{name:title,exact:true}).click();await expect(page.getByRole('dialog').getByText('재료 확인 '+title,{exact:true})).toBeVisible();
- await page.getByRole('button',{name:'회의록 수정',exact:true}).click();await page.locator('[name=body]').fill('담당자를 지정하고 준비를 시작했습니다.');await saveModal(page,'회의록 저장');
+ await page.getByRole('dialog').getByRole('button',{name:'회의록 수정',exact:true}).click();await page.locator('[name=body]').fill('담당자를 지정하고 준비를 시작했습니다.');await saveModal(page,'회의록 저장');
  await page.getByRole('button',{name:title,exact:true}).click();await page.getByRole('button',{name:'수정 이력',exact:true}).click();await expect(page.getByRole('dialog')).toContainText('버전 2');
  await page.goBack();await expect(page.getByRole('dialog')).toHaveCount(0);
 });
@@ -71,4 +71,18 @@ test('member dues ledger and admin sections',async({page})=>{
  const id=await page.locator('[name=memberId] option').filter({hasText:name}).getAttribute('value');await page.locator('[name=memberId]').selectOption(id);await page.locator('[name=confirmed]').check();await saveModal(page);
  await expect(page.getByText(name+' 회비',{exact:true})).toBeVisible();
  for(const route of ['decisions','content','settings','admins','privacy','audit']){await page.goto('/admin/'+route);await expect(page.locator('h1')).toBeVisible();expect(await page.locator('.connection-page').count()).toBe(0);expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBeTruthy();}
+});
+
+test('meeting drafts, agenda order and direct task progress preserve content',async({page})=>{
+ await login(page);await page.goto('/admin/meetings');
+ const title='간단 초안 '+unique();await page.getByRole('button',{name:'회의 기록하기',exact:true}).first().click();await page.locator('[name=title]').fill(title);await saveModal(page,'회의록 저장');
+ const entry=page.locator('.meeting-entry').filter({hasText:title});await entry.getByRole('button',{name:'회의록 수정',exact:true}).click();
+ await page.getByRole('button',{name:'안건 추가',exact:true}).click();await page.locator('[name=agendaTitle]').fill('첫 번째 안건');
+ await page.getByRole('button',{name:'안건 추가',exact:true}).click();await page.locator('[name=agendaTitle]').nth(1).fill('두 번째 안건');
+ await page.locator('.agenda-edit').nth(1).getByRole('button',{name:'위로',exact:true}).click();await expect(page.locator('[name=agendaTitle]').first()).toHaveValue('두 번째 안건');await saveModal(page,'회의록 저장');
+ await entry.getByRole('button',{name:title,exact:true}).click();await expect(page.locator('.agenda-view section').first()).toContainText('두 번째 안건');
+ await page.locator('.agenda-view section').first().getByRole('button',{name:'이 안건에서 할 일 만들기'}).click();await expect(page.locator('[name=title]')).toHaveValue('두 번째 안건');const task='할 일 '+unique();await page.locator('[name=title]').fill(task);await page.getByLabel('담당자 · 부서',{exact:true}).fill('교육부');await page.locator('[name=body]').fill('완료 기준을 보존합니다.');await saveModal(page,'기록 저장');
+ await page.goto('/admin/decisions');const card=page.locator('.work-card').filter({hasText:task});await card.getByRole('button',{name:'진행 시작',exact:true}).click();await expect(card.getByRole('button',{name:'완료',exact:true})).toBeVisible();await card.getByRole('button',{name:'완료',exact:true}).click();await expect(card.getByRole('button',{name:'다시 열기',exact:true})).toBeVisible();await card.getByRole('button',{name:'다시 열기',exact:true}).click();await expect(card.getByRole('button',{name:'진행 시작',exact:true})).toBeVisible();await expect(card).toContainText('완료 기준을 보존합니다.');await expect(card).toContainText('교육부');
+ await page.getByRole('searchbox').fill(task);await expect(page.locator('.work-card:visible')).toHaveCount(1);
+ await card.getByRole('button',{name:'수정',exact:true}).click();await page.locator('[name=body]').fill('저장하지 않은 변경');await page.getByRole('dialog').getByRole('button',{name:'닫기',exact:true}).last().click();await expect(page.getByText('작성 중인 내용이 있습니다',{exact:true})).toBeVisible();await page.getByRole('button',{name:'계속 작성',exact:true}).click();await expect(page.locator('[name=body]')).toHaveValue('저장하지 않은 변경');
 });
