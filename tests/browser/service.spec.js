@@ -32,7 +32,7 @@ test('event creation application rejection and cancellation',async({page,browser
  const linkField=page.locator('[name=shareUrl]');await expect(linkField).toBeVisible();const link=await linkField.inputValue(),before=page.url();
  await linkField.press('Enter');await expect(linkField).toBeVisible();expect(page.url()).toBe(before);expect(new URL(page.url()).search).toBe('');
  const guest=await browser.newContext({viewport:page.viewportSize()});const p=await guest.newPage();
- await p.goto(link);await p.locator('[name=name]').fill('가상부원 다');await p.locator('[name=studentId]').fill('202600003');await p.locator('[name=phone]').fill('01000000003');await p.locator('[name=consent]').check();
+ await p.goto(link);await p.locator('[name=name]').fill('명부에 없는 사람');await p.locator('[name=studentId]').fill('202600003');await p.locator('[name=phone]').fill('01000000003');await p.locator('[name=consent]').check();
  await p.getByRole('button',{name:'신청하기',exact:true}).click();await expect(p.locator('.form-error')).toContainText('활동 자격');
  await p.locator('[name=name]').fill('가상부원 가');await p.locator('[name=studentId]').fill('202600001');await p.locator('[name=phone]').fill('01000000001');
  await p.getByRole('button',{name:'신청하기',exact:true}).click();await expect(p.getByRole('heading',{name:'내 신청 확인',exact:true})).toBeVisible();
@@ -66,7 +66,7 @@ test('inventory receiving opening remaining and persisted history',async({page})
 });
 test('member dues ledger and admin sections',async({page})=>{
  await login(page);await page.goto('/admin/members');await page.getByRole('button',{name:'부원 등록'}).click();const name='브라우저 부원 '+unique();
- await page.locator('[name=name]').fill(name);await page.locator('[name=studentId]').fill('TEST'+unique());await page.locator('[name=phone]').fill('01012345678');await page.locator('[name=duesPaid]').check();await saveModal(page);
+ await page.locator('[name=name]').fill(name);await page.locator('[name=studentId]').fill('TEST'+unique());await page.locator('[name=phone]').fill('01012345678');await expect(page.locator('[name=duesPaid]')).toHaveCount(0);await expect(page.getByRole('dialog').locator('[name=status]')).toHaveCount(0);await saveModal(page);
  await page.goto('/admin/finance');await page.getByRole('button',{name:'수입 · 지출 기록'}).click();await page.locator('[name=kind]').selectOption('dues');await expect(page.locator('[name=amount]')).toHaveValue('');await page.locator('[name=amount]').fill('17000');await page.locator('[name=title]').fill(name+' 회비');
  const id=await page.locator('[name=memberId] option').filter({hasText:name}).getAttribute('value');await page.locator('[name=memberId]').selectOption(id);await page.locator('[name=confirmed]').check();await saveModal(page);
  await expect(page.getByText(name+' 회비',{exact:true})).toBeVisible();

@@ -36,8 +36,8 @@ test('simultaneous last-seat submissions never overbook; duplicate retry does no
  const retry=await service.handle(application(1),{ip:'member-0'});assert.equal(retry.id,results[0].id);
  assert.equal((await db.collection('martini_v2_applications').get()).size,6);
 });
-test('unpaid and forged identity fail with generic eligibility message, links do not expose roster',async()=>{
- await assert.rejects(service.handle(application(8),{ip:'unpaid'}),e=>e.code==='permission-denied');
+test('registered members do not need dues flags; forged identity fails and links do not expose roster',async()=>{
+ assert.equal((await service.handle(application(8),{ip:'registered'})).status,'registered');
  await assert.rejects(service.handle(application(1,{name:'다른 사람'}),{ip:'forged'}),e=>e.code==='permission-denied');
  await assert.rejects(service.handle({op:'eventAccess',eventId:event.id,key:'b'.repeat(64)},{ip:'wrong-key'}),e=>e.code==='not-found');
  const e=await service.handle({op:'eventAccess',eventId:event.id,key:'a'.repeat(64)},{ip:'valid-key'});assert.equal('linkHash' in e,false);assert.equal('members' in e,false);
@@ -105,12 +105,12 @@ test('direct client Firestore access fails for guests and password-authenticated
  }finally{await env.cleanup();}
 });
 
-test('new unpaid roster entries are allowed for execution; term rollover requires fresh dues verification',async()=>{
+test('roster registration and semester edits do not require dues or activity state',async()=>{
  await db.doc('martini_v2_admins/execution').set({role:'execution',active:true,displayName:'집행부',expiresAt:time(864000000)});
  const input={op:'saveMember',revision:0,name:'신규 가상',studentId:'202699999',phone:'01099999999',college:'',department:'',grade:'',gender:'',semester:'2026-2',status:'active',duesPaid:false};
- const result=await service.handle(input,{uid:'execution'});assert.equal(result.duesPaid,false);
+ const result=await service.handle(input,{uid:'execution'});assert.equal('duesPaid' in result,false);assert.equal('status' in result,false);
  const current=member(1);delete current.id;delete current.identityHash;delete current.createdAt;delete current.updatedAt;delete current.createdBy;delete current.updatedBy;
- await assert.rejects(service.handle({op:'saveMember',...current,id:'member-1',semester:'2027-1'},owner),e=>e.code==='failed-precondition');
+ assert.equal((await service.handle({op:'saveMember',...current,id:'member-1',semester:'2027-1'},owner)).semester,'2027-1');
 });
 test('stocked units cannot change and meeting agenda links cannot be orphaned',async()=>{
  await assert.rejects(service.handle({op:'saveItem',id:'gin',revision:1,name:'가상 진',category:'spirit',unit:'bottle',size:1000,location:'A',minimum:0,note:''},owner),e=>e.code==='failed-precondition');
@@ -158,15 +158,15 @@ test('manually confirmed dues can be entered once and retain their ledger link a
  const ref=db.doc('martini_v2_members/member-1'),{identityHash,createdAt,updatedAt,createdBy,updatedBy,...editable}=(await ref.get()).data();
  await service.handle({op:'saveMember',...editable,grade:'2'},finance);
  assert.equal((await ref.collection('semesters').doc(event.semester).get()).data().duesTransactionId,'dues-once');
- await assert.rejects(service.handle({op:'saveMember',...editable,revision:editable.revision+1,duesPaid:false},finance),e=>e.code==='failed-precondition');
+ await service.handle({op:'saveMember',...editable,revision:editable.revision+1,duesPaid:false},finance);assert.equal((await ref.get()).data().duesPaid,undefined);
 });
 test('waitlist offers recheck eligibility and can be declined after the normal cancellation deadline',async()=>{
  const first=await service.handle(application(1),{ip:'1'}),second=await service.handle(application(2),{ip:'2'});
  await service.handle(application(3),{ip:'3'});await service.handle({op:'receipt',id:first.id,key:'1'.repeat(64),action:'cancel'},{ip:'1'});
  const ref=db.doc('martini_v2_members/member-2'),offer={op:'applicationCommand',id:second.id,action:'offer',offerExpiresAt:time(3600000),reason:'빈자리 안내'};
- await ref.update({status:'inactive'});await assert.rejects(service.handle(offer,owner),e=>e.code==='failed-precondition');
- await ref.update({status:'active'});await service.handle(offer,owner);
- await ref.update({duesPaid:false});await assert.rejects(service.handle({op:'receipt',id:second.id,key:'2'.repeat(64),action:'accept'},{ip:'2'}),e=>e.code==='permission-denied');
+ await ref.update({semester:'2025-2'});await assert.rejects(service.handle(offer,owner),e=>e.code==='failed-precondition');
+ await ref.update({semester:'2026-2'});await service.handle(offer,owner);
+ await ref.update({semester:'2025-2'});await assert.rejects(service.handle({op:'receipt',id:second.id,key:'2'.repeat(64),action:'accept'},{ip:'2'}),e=>e.code==='permission-denied');
  await db.doc('martini_v2_events/'+event.id).update({cancelUntil:time(-1000)});
  const decline={op:'receipt',id:second.id,key:'2'.repeat(64),action:'decline'};
  await service.handle(decline,{ip:'2'});await service.handle(decline,{ip:'2'});
@@ -270,7 +270,7 @@ test('dues record actual positive payments without a preset amount and keep auth
  await assert.rejects(service.handle({...input,amount:-1},finance),e=>e.code==='invalid-argument');
  const result=await service.handle(input,finance);
  assert.equal(result.amount,17000);
- assert.equal((await db.doc('martini_v2_members/member-8').get()).data().duesPaid,true);
+ assert.equal((await db.doc('martini_v2_members/member-8').get()).data().duesPaid,false);
  assert.equal((await service.handle(input,finance)).duplicate,true);
  await assert.rejects(service.handle({...input,requestId:'duplicate-dues'},finance),e=>e.code==='already-exists');
  await db.doc('martini_v2_settings/club').delete();
@@ -282,4 +282,59 @@ test('current-semester cleanup remains blocked even with a historical end date',
  await db.doc('martini_v2_settings/club').update({semesterEndsAt:time(-1000)});
  await assert.rejects(service.handle({op:'privacyCandidates',semester:'2026-2'},owner),e=>e.code==='failed-precondition');
  await assert.rejects(service.handle({op:'privacyReview',semester:'2026-2',memberId:'member-1'},owner),e=>e.code==='failed-precondition');
+});
+
+test('custom roles can be created, assigned, updated and safely removed only by the owner',async()=>{
+ const roleInput={op:'saveRole',revision:0,name:'바 운영팀',permissions:['inventory']};
+ await assert.rejects(service.handle(roleInput,finance),e=>e.code==='permission-denied');
+ await assert.rejects(service.handle({...roleInput,permissions:['admins']},owner),e=>e.code==='invalid-argument');
+ await assert.rejects(service.handle({...roleInput,id:'owner'},owner),e=>e.code==='failed-precondition');
+ const role=await service.handle(roleInput,owner),who={uid:'custom-staff',ip:'custom'};
+ await assert.rejects(service.handle(roleInput,owner),e=>e.code==='already-exists');
+ await assert.rejects(service.handle({...roleInput,name:'회장'},owner),e=>e.code==='already-exists');
+ const assignment={op:'saveAdmin',uid:who.uid,displayName:'가상 담당자',role:role.id,active:true,expiresAt:time(86400000)};
+ await service.handle(assignment,owner);
+ const profile=await service.handle({op:'profile'},who);assert.equal(profile.roleName,'바 운영팀');assert.deepEqual(profile.permissions,['inventory']);
+ await service.handle({op:'read',kind:'inventory'},who);
+ await assert.rejects(service.handle({op:'read',kind:'finance'},who),e=>e.code==='permission-denied');
+ await assert.rejects(service.handle({...roleInput,id:role.id,revision:1,permissions:['finance']},who),e=>e.code==='permission-denied');
+ await assert.rejects(service.handle({op:'deleteRole',id:role.id,revision:1},owner),e=>e.code==='failed-precondition');
+ const updated=await service.handle({...roleInput,id:role.id,revision:1,permissions:['finance']},owner);
+ await assert.rejects(service.handle({...roleInput,id:role.id,revision:1},owner),e=>e.code==='aborted');
+ await service.handle({op:'read',kind:'finance'},who);
+ await service.handle({op:'read',kind:'members'},who);
+ await service.handle({op:'read',kind:'events'},who);
+ await assert.rejects(service.handle({op:'read',kind:'inventory'},who),e=>e.code==='permission-denied');
+ await assert.rejects(service.handle({...assignment,role:'missing-role'},owner),e=>e.code==='invalid-argument');
+ await service.handle({...assignment,role:'education'},owner);
+ await service.handle({op:'deleteRole',id:role.id,revision:updated.revision},owner);
+ await assert.rejects(service.handle(assignment,owner),e=>e.code==='invalid-argument');
+ await assert.rejects(service.handle({...assignment,uid:'owner',role:'education'},owner),e=>e.code==='failed-precondition');
+});
+
+test('financial details are omitted from event staff reads including direct record and unfiltered lists',async()=>{
+ const a=await service.handle(application(1),{ip:'1'});
+ await db.doc('martini_v2_applications/'+a.id).update({payment:'paid',paidAmount:12000,refundAmount:2000});
+ for(const query of [{kind:'applications'},{kind:'applications',recordId:a.id},{kind:'applications',eventId:event.id}]){
+  const staff=(await service.handle({op:'read',...query},education)).rows.find(r=>r.id===a.id);
+  for(const key of ['payment','paidAmount','refundAmount'])assert.equal(key in staff,false);
+  const accountant=(await service.handle({op:'read',...query},finance)).rows.find(r=>r.id===a.id);
+  assert.equal(accountant.paidAmount,12000);assert.equal(accountant.refundAmount,2000);
+ }
+ for(const role of ['owner','chair','finance','education','execution','publicity']){
+  if(!['owner','finance','education'].includes(role))await db.doc('martini_v2_admins/'+role).set({role,active:true,displayName:role,expiresAt:time(86400000)});
+  if(['owner','chair','finance'].includes(role))await service.handle({op:'read',kind:'finance'},{uid:role});
+  else await assert.rejects(service.handle({op:'read',kind:'finance'},{uid:role}),e=>e.code==='permission-denied');
+ }
+});
+
+test('membership without payment and activity flags qualifies, unsupported gender is rejected',async()=>{
+ const base={op:'saveMember',revision:0,name:'등록 부원',studentId:'20269999',phone:'01098765432',college:'',department:'',grade:'',gender:'여성',semester:'2026-2'};
+ await assert.rejects(service.handle({...base,gender:'기타'},owner),e=>e.code==='invalid-argument');
+ const m=await service.handle(base,owner);
+ assert.equal('status' in m,false);assert.equal('duesPaid' in m,false);
+ const a=await service.handle({...application(1),name:m.name,studentId:m.studentId,phone:m.phone,requestId:'new-registered-member'},{ip:'new'});
+ assert.equal(a.status,'registered');
+ const stored=(await db.doc('martini_v2_members/'+m.id).get()).data();
+ assert.equal('status' in stored,false);assert.equal('duesPaid' in stored,false);
 });

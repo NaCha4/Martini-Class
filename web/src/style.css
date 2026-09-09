@@ -192,3 +192,5 @@ td .title-button{text-align:left;line-height:1.6}
 .join-guide>p{color:var(--muted)}
 .join-guide>.button,.join-guide>.notice-warning{margin-top:24px}
 @media(max-width:580px){.privacy-content h2{font-size:20px}.privacy-content{font-size:15px}}
+
+.role-permissions{border:1px solid var(--line);padding:20px;display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}.role-permissions legend{padding:0 8px;font-weight:600}.role-permissions .field{margin:0}
