@@ -1,3 +1,5 @@
+import privacyContent from './content/privacy.html?raw';
+import { openChatUrl } from '../../functions/src/public-links.js';
 import { esc, icon, textBlock, field, badge, button, date, money, label, empty, modal } from './ui.js';
 const publicLinks=[['/about','소개'],['/activities','활동'],['/notices','공지'],['/join','가입 안내']];
 function header(home=false){
@@ -34,12 +36,16 @@ export async function renderPublic(ctx){
  if(path==='/')return home();
  if(parts[0]==='e'&&parts.length===2)return eventPage(ctx,parts[1]);
  if(parts[0]==='r'&&parts.length===2)return receiptPage(ctx,parts[1]);
+ if(path==='/privacy')return shell('<section class="page-intro"><span class="eyebrow">개인정보</span><h1>개인정보 처리방침</h1></section>'+privacyContent);
  const info=await publicInfo(ctx),conf=info.settings;
- if(info.unavailable&&['/notices','/join','/privacy'].includes(path))return shell('<section class="page-intro"><h1>안내를 불러오지 못했습니다.</h1><p>잠시 후 다시 시도해 주세요.</p><a href="'+esc(path)+'" class="button secondary">다시 불러오기</a></section>');
+ if(info.unavailable&&['/notices','/join'].includes(path))return shell('<section class="page-intro"><h1>안내를 불러오지 못했습니다.</h1><p>잠시 후 다시 시도해 주세요.</p><a href="'+esc(path)+'" class="button secondary">다시 불러오기</a></section>');
  if(path==='/about')return shell('<section class="page-intro"><span class="eyebrow">동아리 소개</span><h1>한양대학교 ERICA<br>칵테일 동아리, 마티니.</h1><p>'+esc(conf?.intro||'마티니는 함께 칵테일을 배우고 만들어보며 자연스럽게 가까워지는 동아리입니다.')+'</p></section><div class="public-two-col"><section class="panel padded"><h2>처음이어도 괜찮아요.</h2><p>재료와 도구를 알아가는 교육부터 서로의 취향을 나누는 친목 모임까지, 함께 경험하는 시간을 만들어갑니다.</p></section><section class="panel padded"><h2>우리의 공간</h2><p>'+esc(conf?.location||'동아리방에서 교육과 모임을 준비합니다.')+'</p><p>회장단·교육부·집행부·총무부·홍보부가 함께 운영합니다.</p></section></div>');
  if(path==='/activities')return shell('<section class="page-intro"><span class="eyebrow">활동 안내</span><h1>교육과 모임</h1><p>교육과 행사 일정은 부원 공지로 안내합니다.<br>전달받은 신청 링크에서 자세한 내용을 확인하고 참여할 수 있습니다.</p></section><div class="public-two-col"><section class="panel padded">'+icon('martini')+'<h2>칵테일 교육</h2><p>도구와 재료를 익히고 직접 만들어보는 실습. 회차별 자세한 안내는 부원에게 전달되는 행사 링크에서 확인할 수 있습니다.</p></section><section class="panel padded">'+icon('users-round')+'<h2>총회와 친목 모임</h2><p>새 학기를 함께 시작하고 일상의 이야기를 나누는 시간. 개강총회와 다양한 모임을 준비합니다.</p></section></div><section class="public-records"><h2>활동 이야기</h2>'+contentCards(info.content.filter(c=>c.type==='activity'))+'</section>');
- if(path==='/join')return shell('<section class="page-intro"><span class="eyebrow">가입 안내</span><h1>마티니와 함께하기</h1><p>칵테일에 대한 관심으로 충분합니다.<br>가입 신청과 회비 확인 후 운영진이 활동 안내를 전해드립니다.</p></section><section class="panel padded join-guide"><ol><li><strong>가입 신청</strong><p>기존 가입 신청서에 정보를 작성해 주세요.</p></li><li><strong>회비 안내 확인</strong><p>총무부가 회비 납부를 확인합니다. 임원도 동일하게 학기 회비를 납부합니다.</p></li><li><strong>함께 활동하기</strong><p>승인이 완료되면 교육과 행사 신청 링크를 안내받습니다.</p></li></ol>'+(conf?.joinUrl?'<a class="button" href="'+esc(conf.joinUrl)+'" target="_blank" rel="noopener noreferrer" aria-label="가입 신청서 열기 (새 탭)">가입 신청서 열기 '+icon('arrow-up-right')+'</a>':'<div class="notice-warning">가입 신청 주소는 운영진에게 문의해 주세요.</div>')+'<p class="help">문의: '+esc(conf?.contact||'동아리 운영진')+'</p></section>');
- if(path==='/privacy')return shell('<section class="page-intro"><span class="eyebrow">개인정보</span><h1>개인정보 안내</h1></section><section class="panel padded">'+textBlock(conf?.privacy||'행사 신청 시 이름·학번·전화번호로 명부와 활동 자격을 확인합니다. 입력한 개인정보와 신청 기록은 한 학기 기준으로 관리합니다. 자세한 처리 안내와 문의처는 운영진에게 확인해 주세요.')+'</section>');
+ if(path==='/join'){
+  const chat=openChatUrl(conf?.joinUrl);
+  return shell('<section class="page-intro"><span class="eyebrow">가입 안내</span><h1>마티니와 함께하기</h1><p>카카오톡 오픈채팅으로 찾아와 주세요.<br>운영진이 가입 방법과 활동을 안내해 드립니다.</p></section><section class="panel padded join-guide"><h2>오픈채팅에서 만나요.</h2><p>궁금한 점도 편하게 물어보세요.</p>'+(chat?'<a class="button" href="'+esc(chat)+'" target="_blank" rel="noopener noreferrer" aria-label="가입 오픈채팅 열기 (새 탭)">가입 오픈채팅 열기 '+icon('arrow-up-right')+'</a>':'<p class="notice-warning" role="status">가입 오픈채팅을 준비 중입니다. 링크가 등록되면 여기에서 바로 연결됩니다.</p>')+'</section>');
+ }
+
  if(path==='/notices')return shell('<section class="page-intro"><span class="eyebrow">동아리 소식</span><h1>공지사항</h1></section>'+contentCards(info.content.filter(c=>c.type==='notice')));
  if(path==='/events')return shell('<section class="page-intro"><span class="eyebrow">부원 안내</span><h1>행사 신청은 전달받은 링크에서.</h1><p>부원 공지에서 행사 신청 링크를 열어주세요.<br>별도 회원가입이나 로그인 없이 신청할 수 있습니다.</p></section>');
  return shell('<section class="page-intro"><h1>페이지를 찾을 수 없습니다.</h1><a href="/" data-nav class="button">홈으로 돌아가기</a></section>');

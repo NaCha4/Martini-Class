@@ -67,7 +67,7 @@ test('inventory receiving opening remaining and persisted history',async({page})
 test('member dues ledger and admin sections',async({page})=>{
  await login(page);await page.goto('/admin/members');await page.getByRole('button',{name:'부원 등록'}).click();const name='브라우저 부원 '+unique();
  await page.locator('[name=name]').fill(name);await page.locator('[name=studentId]').fill('TEST'+unique());await page.locator('[name=phone]').fill('01012345678');await page.locator('[name=duesPaid]').check();await saveModal(page);
- await page.goto('/admin/finance');await page.getByRole('button',{name:'수입 · 지출 기록'}).click();await page.locator('[name=kind]').selectOption('dues');await page.locator('[name=title]').fill(name+' 회비');
+ await page.goto('/admin/finance');await page.getByRole('button',{name:'수입 · 지출 기록'}).click();await page.locator('[name=kind]').selectOption('dues');await expect(page.locator('[name=amount]')).toHaveValue('');await page.locator('[name=amount]').fill('17000');await page.locator('[name=title]').fill(name+' 회비');
  const id=await page.locator('[name=memberId] option').filter({hasText:name}).getAttribute('value');await page.locator('[name=memberId]').selectOption(id);await page.locator('[name=confirmed]').check();await saveModal(page);
  await expect(page.getByText(name+' 회비',{exact:true})).toBeVisible();
  for(const route of ['decisions','content','settings','admins','privacy','audit']){await page.goto('/admin/'+route);await expect(page.locator('h1')).toBeVisible();expect(await page.locator('.connection-page').count()).toBe(0);expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBeTruthy();}

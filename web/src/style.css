@@ -179,3 +179,16 @@ td .title-button{text-align:left;line-height:1.6}
     .sidebar nav::-webkit-scrollbar-corner{background:transparent}
   }
 }
+
+/* Original privacy policy, preserved as a static document. */
+.privacy-content{max-width:840px;color:var(--muted);font-size:16px;line-height:1.9;overflow-wrap:anywhere}
+.privacy-content>section+section{margin-top:36px;padding-top:32px;border-top:1px solid var(--line)}
+.privacy-content h2{font-size:23px;line-height:1.5;color:var(--text);margin-bottom:18px}
+.privacy-content h3{font-size:17px;color:var(--text);margin:22px 0 10px}
+.privacy-content p+p{margin-top:12px}
+.privacy-content ul{padding-left:24px;margin:14px 0}
+.privacy-content li+li{margin-top:5px}
+.join-guide>h2{font-size:24px;margin-bottom:12px}
+.join-guide>p{color:var(--muted)}
+.join-guide>.button,.join-guide>.notice-warning{margin-top:24px}
+@media(max-width:580px){.privacy-content h2{font-size:20px}.privacy-content{font-size:15px}}

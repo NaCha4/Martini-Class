@@ -7,7 +7,7 @@ export function createPrivacy({db,col,now,clock,audit}){
  async function eligibleTerm(semester,reader=db){
   const settings=(await reader.get(col('settings').doc('club'))).data();
   if(!settings||!/^20\d{2}-[12]$/.test(settings.semester)||semester>settings.semester)fail('failed-precondition','현재 학기와 정리할 학기를 확인해 주세요.');
-  if(semester===settings.semester&&(!settings.semesterEndsAt||Date.parse(settings.semesterEndsAt)>clock()))fail('failed-precondition','현재 학기의 보존 검토 기준일이 아직 지나지 않았습니다.');
+  if(semester===settings.semester)fail('failed-precondition','현재 학기의 정보는 정리할 수 없습니다. 이전 학기 기록을 선택해 주세요.');
  }
  // Firestore and transactions expose different get interfaces.
  const readerFor=tx=>tx||{get:target=>target.get()};

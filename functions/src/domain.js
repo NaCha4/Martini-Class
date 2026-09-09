@@ -1,3 +1,4 @@
+import { openChatUrl } from './public-links.js';
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { z } from 'zod';
 export class Problem extends Error { constructor(code,message){super(message);this.code=code;} }
@@ -23,7 +24,7 @@ export const schemas={
  meeting:z.object({...meta,title:required(160),date:iso,location:text(200),attendees:z.array(text(80)).max(30),status:z.enum(['draft','in_progress','final']),semester:required(30),body:text(30000),agendas:z.array(z.object({id:idSchema,title:required(200),notes:text(10000),status:z.enum(['planned','discussed','deferred'])}).strict()).max(30)}).strict(),
  decision:z.object({...meta,title:required(160),body:text(10000),type:z.enum(['decision','action']),meetingId:idSchema.or(z.literal('')),agendaId:idSchema.or(z.literal('')).default(''),owner:text(80),dueAt:iso.or(z.literal('')),status:z.enum(['proposed','approved','in_progress','done','deferred']),semester:required(30)}).strict(),
  content:z.object({...meta,title:required(160),body:text(16000),type:z.enum(['notice','activity']),published:z.boolean(),semester:required(30)}).strict(),
- settings:z.object({...meta,semester:required(30),semesterEndsAt:iso,duesAmount:z.number().int().min(0).max(1000000),joinUrl:z.union([z.literal(''),z.url().startsWith('https://')]),contact:text(200),intro:required(2000),location:required(200),privacy:text(8000),bankInstructions:text(1500)}).strict(),
+ settings:z.object({...meta,semester:required(30),semesterEndsAt:iso.optional(),duesAmount:z.number().int().min(0).max(1000000).optional(),joinUrl:z.string().max(500).refine(value=>value===''||!!openChatUrl(value),{message:'카카오톡 오픈채팅 주소를 확인해 주세요.'}),contact:text(200),intro:required(2000),location:required(200),privacy:text(8000).optional(),bankInstructions:text(1500).optional()}).strict(),
  admin:z.object({uid:idSchema,displayName:required(80),role:z.enum(roles),active:z.boolean(),expiresAt:iso}).strict(),
  transaction:z.object({requestId:idSchema,kind:z.enum(['income','expense','refund','dues']),amount:z.number().int().min(1).max(100000000),title:required(160),eventId:idSchema.or(z.literal('')).default(''),applicationId:idSchema.or(z.literal('')).default(''),memberId:idSchema.or(z.literal('')).default(''),note:text(2000).default(''),semester:required(30)}).strict(),
  stock:z.object({id:idSchema,revision:z.number().int().min(1),requestId:idSchema,action:z.enum(['receive','use','open','remaining','adjustRemaining','count','move']),amount:z.number().min(0).max(100000).default(0),bottleId:idSchema.optional(),percent:z.number().int().min(0).max(100).multipleOf(10).optional(),location:text(100).optional(),reason:required(500),eventId:idSchema.or(z.literal('')).default('')}).strict()

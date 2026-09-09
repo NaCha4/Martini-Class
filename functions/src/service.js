@@ -1,3 +1,4 @@
+import { openChatUrl } from './public-links.js';
 import { z } from 'zod';
 import { createPrivacy } from './privacy.js';
 import { Timestamp } from 'firebase-admin/firestore';
@@ -39,6 +40,8 @@ export function createService(db,clock=Date.now){
    const old=snapshot(await tx.get(ref));if(input.id&&!old)fail('not-found','기록을 찾을 수 없습니다.');requireRevision(old,input.revision);
    if(kind==='settings'&&old===null&&input.revision!==0)fail('aborted','설정을 다시 불러와 주세요.');
    let next={...input,id,revision:(old?.revision||0)+1,createdAt:old?.createdAt||now(),createdBy:old?.createdBy||who.uid,updatedAt:now(),updatedBy:who.uid};
+   // Retain legacy settings during ordinary edits; these no longer set dues or retention policy.
+   if(kind==='settings'&&old)for(const key of ['duesAmount','semesterEndsAt','privacy','bankInstructions'])if(!(key in next)&&key in old)next[key]=old[key];
    if(kind==='members'){
     if(!/^[0-9]{8,15}$/.test(normalizePhone(input.phone)))fail('invalid-argument','전화번호를 확인해 주세요.');
     const key=identity(input.studentId,input.phone);
@@ -56,7 +59,7 @@ export function createService(db,clock=Date.now){
     validateEvent(input,old?.registered||0);
     if(old?.status==='cancelled'&&input.status!=='cancelled')fail('failed-precondition','취소된 행사는 다시 열 수 없습니다. 새 행사를 만들어 주세요.');
     const conf=snapshot(await tx.get(col('settings').doc('club')));
-    if(input.status==='open'&&(!conf?.contact||!conf?.privacy))fail('failed-precondition','운영 설정에서 문의처와 개인정보 안내를 먼저 작성해 주세요.');
+    if(input.status==='open'&&(!conf||(!conf.contact&&!openChatUrl(conf.joinUrl))))fail('failed-precondition','운영 설정에서 동아리 문의 채널 또는 가입 오픈채팅 링크를 먼저 입력해 주세요.');
     if(old?.sequence>0&&(old.fee!==input.fee||old.semester!==input.semester))fail('failed-precondition','신청 이력이 있는 행사의 참가비·학기는 변경할 수 없습니다.');
     next={...next,registered:old?.registered||0,waiting:old?.waiting||0,sequence:old?.sequence||0,linkHash:link?hash(link):old.linkHash};
     if(old&&old.status!=='cancelled'&&input.status==='cancelled'){
@@ -134,7 +137,6 @@ export function createService(db,clock=Date.now){
    if(input.memberId){memberRef=col('members').doc(input.memberId);member=snapshot(await tx.get(memberRef));if(!member)fail('not-found','부원을 찾을 수 없습니다.');}
    if(input.eventId){eventRecord=snapshot(await tx.get(col('events').doc(input.eventId)));if(!eventRecord)fail('not-found','행사를 찾을 수 없습니다.');}
    if(input.kind==='dues'&&member)termRecord=(await tx.get(memberRef.collection('semesters').doc(input.semester))).data();
-   const conf= input.kind==='dues' ? (await tx.get(col('settings').doc('club'))).data() : null;
    if(input.kind==='refund'){
     if(!application)fail('invalid-argument','환불은 기존 신청의 납부 기록에 연결해 주세요.');
     if((application.refundAmount||0)+input.amount>(application.paidAmount||0))fail('failed-precondition','납부한 금액보다 많이 환불할 수 없습니다.');
@@ -150,7 +152,6 @@ export function createService(db,clock=Date.now){
    if(input.kind==='dues'){
     if(!member||member.semester!==input.semester)fail('invalid-argument','해당 학기에 등록된 부원을 선택해 주세요.');
     if(termRecord?.duesTransactionId)fail('already-exists','이 부원의 학기 회비 거래가 이미 기록되었습니다.');
-    if(!conf||input.amount!==conf.duesAmount||conf.duesAmount===0)fail('failed-precondition','운영 설정의 학기 회비 금액과 일치해야 합니다.');
     tx.update(memberRef,{duesPaid:true,revision:member.revision+1,updatedAt:now()});
     tx.set(memberRef.collection('semesters').doc(input.semester),{semester:input.semester,status:member.status,duesPaid:true,duesTransactionId:input.requestId,updatedAt:now()},{merge:true});
    }

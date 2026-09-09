@@ -11,3 +11,11 @@ test('identity normalizes phone formatting but does not merge different members'
 test('receipt capability and optimistic revision checks reject invalid access',()=>{assert.equal(matches('a'.repeat(64),hash('a'.repeat(64))),true);assert.equal(matches('b'.repeat(64),hash('a'.repeat(64))),false);assert.throws(()=>requireRevision({revision:2},1));});
 
 test('malformed staff expiration fails closed',()=>{assert.throws(()=>ensureScope({role:'owner',active:true,expiresAt:'not-a-date'},'finance',now));});
+
+
+test('joining links accept only HTTPS Kakao open-chat rooms',async()=>{
+ const {openChatUrl}=await import('../functions/src/public-links.js');
+ assert.equal(openChatUrl('https://open.kakao.com/o/testClub'),'https://open.kakao.com/o/testClub');
+ assert.equal(openChatUrl('https://open.kakao.com/o/testClub/?from=site'),'https://open.kakao.com/o/testClub/?from=site');
+ for(const value of ['',undefined,'http://open.kakao.com/o/testClub','javascript:alert(1)','https://open.kakao.com.evil.example/o/testClub','https://open.kakao.com@evil.example/o/testClub','https://evil.example@open.kakao.com/o/testClub','https://open.kakao.com:444/o/testClub','https://open.kakao.com/','https://example.com/form'])assert.equal(openChatUrl(value),'');
+});

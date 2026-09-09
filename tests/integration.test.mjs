@@ -237,3 +237,49 @@ test('anonymized application records cannot reveal current-member contact or rec
  const contact=await service.handle({op:'participantContact',id:a.id},education);assert.equal(contact.phone,'');assert.equal(contact.studentId,'');
  await assert.rejects(service.handle({op:'rotateReceipt',id:a.id,reason:'재발급 시도'},owner),e=>e.code==='failed-precondition');
 });
+
+
+test('operating settings can be created without dues, dates or editable privacy text',async()=>{
+ await db.doc('martini_v2_settings/club').delete();
+ const input={op:'saveSettings',revision:0,semester:'2026-2',location:'동아리방',contact:'',joinUrl:'https://open.kakao.com/o/testClub',intro:'가상 동아리 소개'};
+ await assert.rejects(service.handle(input,education),e=>e.code==='permission-denied');
+ const result=await service.handle(input,owner);
+ for(const key of ['duesAmount','semesterEndsAt','privacy','bankInstructions'])assert.equal(key in result,false);
+ assert.equal(result.joinUrl,input.joinUrl);
+ const publicInfo=await service.handle({op:'publicRead'},{ip:'join-settings'});
+ assert.equal(publicInfo.settings.joinUrl,input.joinUrl);
+ await service.handle(await eventEditInput({status:'open'}),owner);
+ await assert.rejects(service.handle({...input,id:'club',revision:result.revision,joinUrl:'https://example.com/form'},owner),e=>e.code==='invalid-argument');
+ await service.handle({...input,id:'club',revision:result.revision,joinUrl:''},owner);
+ await assert.rejects(service.handle(await eventEditInput({status:'open'}),owner),e=>e.code==='failed-precondition');
+});
+
+test('editing public settings preserves historical values without requiring them',async()=>{
+ await db.doc('martini_v2_settings/club').update({semesterEndsAt:time(-1000),bankInstructions:'이전 안내'});
+ const input={op:'saveSettings',id:'club',revision:1,semester:'2026-2',location:'동아리방',contact:'가상 문의',joinUrl:'',intro:'가상 소개'};
+ const result=await service.handle(input,owner);
+ assert.equal(result.duesAmount,30000);
+ assert.equal(result.semesterEndsAt,time(-1000));
+ await assert.rejects(service.handle(input,owner),e=>e.code==='aborted');
+});
+
+test('dues record actual positive payments without a preset amount and keep authorization and duplicate guards',async()=>{
+ const input={op:'finance',requestId:'actual-dues',kind:'dues',amount:17000,title:'실제 입금 확인',memberId:'member-8',semester:'2026-2',note:''};
+ await assert.rejects(service.handle(input,education),e=>e.code==='permission-denied');
+ await assert.rejects(service.handle({...input,amount:0},finance),e=>e.code==='invalid-argument');
+ await assert.rejects(service.handle({...input,amount:-1},finance),e=>e.code==='invalid-argument');
+ const result=await service.handle(input,finance);
+ assert.equal(result.amount,17000);
+ assert.equal((await db.doc('martini_v2_members/member-8').get()).data().duesPaid,true);
+ assert.equal((await service.handle(input,finance)).duplicate,true);
+ await assert.rejects(service.handle({...input,requestId:'duplicate-dues'},finance),e=>e.code==='already-exists');
+ await db.doc('martini_v2_settings/club').delete();
+ const withoutConfig=await service.handle({...input,requestId:'no-preset-dues',memberId:'member-7',amount:12000},finance);
+ assert.equal(withoutConfig.amount,12000);
+});
+
+test('current-semester cleanup remains blocked even with a historical end date',async()=>{
+ await db.doc('martini_v2_settings/club').update({semesterEndsAt:time(-1000)});
+ await assert.rejects(service.handle({op:'privacyCandidates',semester:'2026-2'},owner),e=>e.code==='failed-precondition');
+ await assert.rejects(service.handle({op:'privacyReview',semester:'2026-2',memberId:'member-1'},owner),e=>e.code==='failed-precondition');
+});
