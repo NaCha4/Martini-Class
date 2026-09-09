@@ -45,6 +45,10 @@ function toolbar(kind,choices=[],extra=''){
  const inventory=kind==='inventory',config={events:['행사 이름 · 장소','행사'],members:['이름 · 학번 · 연락처 · 학과','부원'],inventory:['품목 이름 · 보관 위치','품목'],meetings:['회의 이름 · 안건 · 내용','회의'],decisions:['제목 · 내용 · 담당자','결정 · 할 일'],finance:['내용 · 메모','정산'],content:['제목 · 내용','게시글'],admins:['이름 · 역할','임원'],audit:['작업 · 처리자','변경 이력'],applications:['신청자 이름','신청자']}[kind]||['이름 · 내용','목록'];
  return '<div class="toolbar"><label class="search-box">'+icon('search')+'<input type="search" data-search placeholder="'+config[0]+' 검색" aria-label="'+config[1]+' 검색" autocomplete="off" spellcheck="false" aria-describedby="filtered-count"></label>'+(choices.length?'<select data-filter aria-label="'+(inventory?'분류':'상태')+' 필터"><option value="all">전체 '+(inventory?'분류':'상태')+'</option>'+choices.map(c=>'<option value="'+c+'">'+esc(label(c))+'</option>').join('')+'</select>':'')+extra+'<span id="filtered-count" class="muted" role="status" aria-live="polite" aria-atomic="true"></span></div>';
 }
+function managementActions(kind,id,allowDelete=true){
+ const title=kind==='role'?'역할':'임원';
+ return '<div class="management-actions"><button type="button" class="icon-button" data-action="'+kind+'-edit" data-id="'+esc(id)+'" aria-label="수정" title="'+title+' 수정">'+icon('wrench')+'</button>'+(allowDelete?'<button type="button" class="icon-button management-delete-button" data-action="'+kind+'-delete" data-id="'+esc(id)+'" aria-label="삭제" title="'+title+' 삭제">'+icon('x')+'</button>':'<span class="help">내 계정</span>')+'</div>';
+}
 function table(headers,rows){return '<div class="table-wrap"><table><thead><tr>'+headers.map(h=>'<th scope="col">'+h+'</th>').join('')+'</tr></thead><tbody>'+rows.join('')+'</tbody></table></div>';}
 function row(record,search,cells,headers,status=record.status){return '<tr data-searchable="'+esc(search)+'" data-status="'+esc(status||'')+'">'+cells.map((cell,i)=>'<td data-label="'+esc(headers[i])+'">'+cell+'</td>').join('')+'</tr>';}
 function next(ctx,kind){return ctx.state.pages?.[kind]?.nextCursor?'<div class="pagination">'+button('기록 100개 더 보기','load-more',{id:kind,class:'button secondary'})+'</div>':'';}
@@ -80,7 +84,7 @@ async function list(ctx,kind){
  if(kind==='roles'){
   const result=await ctx.api('listRoles'),roles=result.rows;ctx.state.roles=roles;
   const heads=['역할','사용할 수 있는 업무','배정 인원','관리'];
-  return heading('','역할 관리','역할을 만들고 업무 권한을 정한 뒤 임원에게 배정합니다.',button('역할 만들기','role-edit',{icon:'plus'}))+table(heads,roles.map(r=>row(r,r.name,[esc(r.name),r.permissions.map(p=>esc(permissionLabels[p]||'역할·임원 관리')).join(' · '),r.assigned+'명',r.id==='owner'?'<span class="help">필수 관리 권한 유지</span>':button('수정','role-edit',{id:r.id,class:'button small secondary'})+button('삭제','role-delete',{id:r.id,class:'button small secondary'})],heads)))+'<p class="help">회비·정산 권한은 기본적으로 회장·부회장·재무부에만 부여됩니다. 권한을 수정하면 배정된 임원 모두에게 적용됩니다. 회장을 제외한 역할은 삭제할 수 있으며, 배정 인원이 있으면 먼저 다른 역할로 변경해야 합니다.</p>';
+  return heading('','역할 관리','역할을 만들고 업무 권한을 정한 뒤 임원에게 배정합니다.',button('역할 만들기','role-edit',{icon:'plus'}))+table(heads,roles.map(r=>row(r,r.name,['<span class="role-name">'+esc(r.name)+'</span>',r.permissions.map(p=>esc(permissionLabels[p]||'역할·임원 관리')).join(' · '),r.assigned+'명',r.id==='owner'?'<span class="help">필수 관리 권한 유지</span>':managementActions('role',r.id)],heads)))+'<p class="help">회비·정산 권한은 기본적으로 회장·부회장·재무부에만 부여됩니다. 권한을 수정하면 배정된 임원 모두에게 적용됩니다. 회장을 제외한 역할은 삭제할 수 있으며, 배정 인원이 있으면 먼저 다른 역할로 변경해야 합니다.</p>';
  }
 
  const {rows}=['finance','members'].includes(kind)?await readAll(ctx,kind):await read(ctx,kind);
@@ -128,7 +132,7 @@ async function list(ctx,kind){
  if(kind==='admins'){
   const roleRows=(await ctx.api('listRoles')).rows,roleName=id=>roleRows.find(r=>r.id===id)?.name||id;
   const heads=['임원','부서 · 권한','임기 종료','상태','관리'];
-  return heading('THE TEAM','임원 권한','Firebase Authentication에 존재하는 계정 UID를 임원으로 등록합니다.',button('임원 등록','admin-edit',{icon:'user-plus'}))+toolbar(kind)+table(heads,rows.map(a=>row(a,a.displayName+' '+a.role,[esc(a.displayName),esc(roleName(a.role)),date(a.expiresAt),a.active?'사용 가능':'중지',button('수정','admin-edit',{id:a.id,class:'button small secondary'})+(a.id!==ctx.state.profile.uid?button('삭제','admin-delete',{id:a.id,class:'button small secondary'}):'<span class="help">내 계정</span>')],heads)));
+  return heading('THE TEAM','임원 권한','Firebase Authentication에 존재하는 계정 UID를 임원으로 등록합니다.',button('임원 등록','admin-edit',{icon:'user-plus'}))+toolbar(kind)+table(heads,rows.map(a=>row(a,a.displayName+' '+a.role,[esc(a.displayName),'<span class="role-name">'+esc(roleName(a.role))+'</span>',date(a.expiresAt),a.active?'사용 가능':'중지',managementActions('admin',a.id,a.id!==ctx.state.profile.uid)],heads)));
  }
  if(kind==='audit'){
   const heads=['작업','대상','처리자','시각'];
