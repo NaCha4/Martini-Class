@@ -528,3 +528,68 @@ test('spending plans are finance-only, do not spend on save, and execute atomica
  const unused=await service.handle({...input,title:'취소할 구매',dueDate:''},finance);
  await service.handle({op:'deleteBudget',id:unused.id,revision:1},finance);assert.equal((await db.doc('martini_v2_budgets/'+unused.id).get()).exists,false);assert.equal((await db.collection('martini_v2_finance').get()).size,1);
 });
+
+const deleteInput=async(kind,id)=>{const r=(await db.doc('martini_v2_'+kind+'/'+id).get()).data();return {op:'deleteRecord',kind,id,updatedAt:r.updatedAt,...(r.revision!==undefined?{revision:r.revision}:{}),confirmed:true};};
+test('deletion enforces scope, confirmation, concurrency and immutable history boundaries',async()=>{
+ await db.doc('martini_v2_content/post').set({...meta,title:'삭제할 공지',type:'notice',body:'내용',semester:'2026-2',published:true});
+ const input=await deleteInput('content','post');
+ await assert.rejects(service.handle(input,education),e=>e.code==='permission-denied');
+ await assert.rejects(service.handle({...input,confirmed:false},owner),e=>e.code==='invalid-argument');
+ await assert.rejects(service.handle({...input,revision:0},owner),e=>e.code==='aborted');
+ await assert.rejects(service.handle({...input,kind:'audit'},owner),e=>e.code==='invalid-argument');
+ await service.handle(input,owner);await service.handle(input,owner);
+ assert.equal((await service.handle({op:'read',kind:'content'},owner)).rows.length,0);
+ await assert.rejects(service.handle({op:'read',kind:'content',recordId:'post'},owner),e=>e.code==='not-found');
+ assert.equal((await service.handle({op:'publicRead'},{ip:'deleted-post'})).content.length,0);
+ assert.equal((await db.doc('martini_v2_content/post').get()).data().body,'내용');
+ assert.equal((await db.collection('martini_v2_audit').where('entityId','==','post').get()).size,1);
+});
+test('event and application deletion require closed participation and revoke capability links',async()=>{
+ await assert.rejects(service.handle(await deleteInput('events',event.id),owner),e=>e.code==='failed-precondition');
+ const a=await service.handle(application(1),{ip:'delete-app'});
+ await assert.rejects(service.handle(await deleteInput('applications',a.id),owner),e=>e.code==='failed-precondition');
+ await service.handle({op:'applicationCommand',id:a.id,action:'cancel',reason:'삭제 테스트'},owner);
+ await service.handle(await deleteInput('applications',a.id),owner);
+ await assert.rejects(service.handle({op:'receipt',id:a.id,key:'1'.repeat(64),action:'get'},{ip:'deleted-receipt'}),e=>e.code==='not-found');
+ assert.equal((await service.handle({op:'read',kind:'applications',eventId:event.id},owner)).rows.length,0);
+ await db.doc('martini_v2_events/'+event.id).update({status:'cancelled'});
+ await service.handle(await deleteInput('events',event.id),owner);
+ await assert.rejects(service.handle({op:'eventAccess',eventId:event.id,key:'a'.repeat(64)},{ip:'deleted-event'}),e=>e.code==='not-found');
+});
+test('deleting a financial record reverses payment and refund amounts once in safe order',async()=>{
+ await db.doc('martini_v2_events/'+event.id).update({fee:10000,paymentInstructions:'가상 납부'});
+ const a=await service.handle(application(1),{ip:'deletion-payment'});
+ const pay={op:'finance',requestId:'delete-pay',kind:'income',amount:10000,title:'참가비',eventId:event.id,applicationId:a.id,memberId:'',semester:'2026-2',note:''};
+ await service.handle(pay,finance);
+ await service.handle({...pay,requestId:'delete-refund',kind:'refund',amount:3000},finance);
+ await assert.rejects(service.handle(await deleteInput('finance','delete-pay'),finance),e=>e.code==='failed-precondition');
+ const refund=await deleteInput('finance','delete-refund');await service.handle(refund,finance);await service.handle(refund,finance);
+ let stored=(await db.doc('martini_v2_applications/'+a.id).get()).data();assert.equal(stored.refundAmount,0);assert.equal(stored.paidAmount,10000);assert.equal(stored.payment,'paid');
+ await service.handle(await deleteInput('finance','delete-pay'),finance);
+ await service.handle(pay,finance);
+ stored=(await db.doc('martini_v2_applications/'+a.id).get()).data();assert.equal(stored.paidAmount,0);assert.equal(stored.payment,'unpaid');
+ assert.equal((await service.handle({op:'read',kind:'finance'},finance)).rows.length,0);
+});
+test('dues deletion permits a new corrected record and plan expense deletion restores the plan',async()=>{
+ const dues={op:'finance',requestId:'dues-delete',kind:'dues',amount:30000,title:'회비',memberId:'member-1',semester:'2026-2',note:'',eventId:'',applicationId:''};
+ await service.handle(dues,finance);await service.handle(await deleteInput('finance',dues.requestId),finance);
+ await service.handle({...dues,requestId:'corrected-dues',amount:25000},finance);
+ assert.equal((await db.doc('martini_v2_semesters/2026-2/dues/member-1').get()).data().duesTransactionId,'corrected-dues');
+ const plan=await service.handle({op:'saveBudget',revision:0,title:'재료 구매',amount:10000,dueDate:'',note:'',semester:'2026-2'},finance);
+ await service.handle({op:'executeBudget',id:plan.id,revision:1,amount:9000,confirmed:true},finance);
+ const executed=(await db.doc('martini_v2_budgets/'+plan.id).get()).data();
+ await service.handle(await deleteInput('finance',executed.transactionId),finance);
+ const restored=(await db.doc('martini_v2_budgets/'+plan.id).get()).data();assert.equal(restored.status,'planned');assert.equal(restored.transactionId,undefined);assert.equal(restored.actualAmount,undefined);
+});
+test('stocked items and linked meetings are protected while empty items and unlinked records can be deleted',async()=>{
+ await assert.rejects(service.handle(await deleteInput('inventory','gin'),education),e=>e.code==='failed-precondition');
+ await db.doc('martini_v2_inventory/gin').update({quantity:0});
+ await service.handle(await deleteInput('inventory','gin'),education);
+ await assert.rejects(service.handle({op:'stock',id:'gin',revision:2,requestId:'deleted-stock',action:'receive',amount:1,reason:'삭제 뒤 입고'},education),e=>e.code==='not-found');
+ await db.doc('martini_v2_meetings/meeting-delete').set({...meta,title:'회의',status:'draft',agendas:[]});
+ await db.doc('martini_v2_decisions/decision-delete').set({...meta,title:'결정',meetingId:'meeting-delete'});
+ await assert.rejects(service.handle(await deleteInput('meetings','meeting-delete'),owner),e=>e.code==='failed-precondition');
+ await service.handle(await deleteInput('decisions','decision-delete'),owner);
+ await service.handle(await deleteInput('meetings','meeting-delete'),owner);
+ assert.equal((await service.handle({op:'read',kind:'meetings'},owner)).rows.length,0);
+});

@@ -3,6 +3,7 @@ import { defaultRoles, hasPermission } from './permissions.js';
 import { openChatUrl } from './public-links.js';
 import { z } from 'zod';
 import { createPrivacy } from './privacy.js';
+import { createDeletion } from './deletion.js';
 import { Timestamp, FieldValue } from 'firebase-admin/firestore';
 import { schemas, parse, fail, ensureScope, hash, secret, identity, normalizePhone, validateEvent, allocate, changeStock, stockTotal, matches, publicEvent, requireRevision, occupied, idSchema, roles } from './domain.js';
 const PREFIX='martini_v2_';
@@ -13,7 +14,7 @@ export function createService(db,clock=Date.now){
  const col=name=>db.collection(PREFIX+name);
  const now=()=>new Date(clock()).toISOString();
  const roster=createRoster(col);
- const snapshot=snap=>snap.exists?{...snap.data(),id:snap.id}:null;
+ const snapshot=snap=>snap.exists&&!snap.data().deletedAt?{...snap.data(),id:snap.id}:null;
  const clean=record=>{const {linkHash,receiptHash,identityHash,...safe}=record;return safe;};
  async function roleDefinition(id,tx){
   const builtin=defaultRoles.find(r=>r.id===id);
@@ -35,6 +36,7 @@ export function createService(db,clock=Date.now){
   return result;
  }
  function audit(tx,who,kind,id,action,semester){tx.create(col('audit').doc(),{entityType:kind,entityId:id,action,actor:who.uid,actorName:who.displayName,at:now(),updatedAt:now(),...(semester?{semester}:{})});}
+ const deleteRecord=createDeletion({db,col,clock,audit});
  // Serialize hot-event transactions within an instance; Firestore still guards cross-instance capacity.
  const eventQueues=new Map(),queueSizes=new Map();
  function serializeEvent(id,run){
@@ -101,7 +103,7 @@ export function createService(db,clock=Date.now){
    }
    if(kind==='meetings'&&old){
     const linked=await tx.get(col('decisions').where('meetingId','==',id));
-    if(linked.docs.some(s=>s.data().agendaId&&!input.agendas.some(a=>a.id===s.data().agendaId)))fail('failed-precondition','결정에 연결된 안건은 먼저 연결을 변경한 뒤 제거해 주세요.');
+    if(linked.docs.some(s=>!s.data().deletedAt&&s.data().agendaId&&!input.agendas.some(a=>a.id===s.data().agendaId)))fail('failed-precondition','결정에 연결된 안건은 먼저 연결을 변경한 뒤 제거해 주세요.');
    }
    if(kind==='meetings'&&old?.status==='final'&&!hasPermission(who,'settings'))fail('permission-denied','확정된 회의록은 회장단이 정정할 수 있습니다.');
    tx.set(ref,next);
@@ -140,13 +142,13 @@ export function createService(db,clock=Date.now){
   // Query by one equality without a compound index; sort bounded event result locally.
   if(input.eventId){
    const result=await query.limit(501).get();
-   return {rows:result.docs.slice(0,500).map(s=>visible(input.kind,{...s.data(),id:s.id},who)).sort((a,b)=>(a.sequence||0)-(b.sequence||0)),nextCursor:null,truncated:result.size>500};
+   return {rows:result.docs.slice(0,500).filter(s=>!s.data().deletedAt).map(s=>visible(input.kind,{...s.data(),id:s.id},who)).sort((a,b)=>(a.sequence||0)-(b.sequence||0)),nextCursor:null,truncated:result.size>500};
   }
   // Equality-filtered histories paginate by document ID to avoid composite indexes.
   query=query.orderBy(input.meetingId||input.itemId?'__name__':'updatedAt',input.meetingId||input.itemId?'asc':'desc').limit(101);
   if(input.cursor){const cursor=await (input.revisions?col(input.kind).doc(input.parentId).collection('revisions'):col(input.kind)).doc(input.cursor).get();if(cursor.exists)query=query.startAfter(cursor);}
   const result=await query.get(),docs=result.docs.slice(0,100);
-  return {rows:docs.map(s=>visible(input.kind,{...s.data(),id:s.id},who)),nextCursor:result.size>100?docs.at(-1).id:null};
+  return {rows:docs.filter(s=>!s.data().deletedAt).map(s=>visible(input.kind,{...s.data(),id:s.id},who)),nextCursor:result.size>100?docs.at(-1).id:null};
  }
  async function stock(data,who){
   ensureScope(who,'inventory',clock());const input=parse(schemas.stock,data),ref=col('inventory').doc(input.id),moveRef=col('stockMoves').doc(input.requestId);
@@ -154,7 +156,7 @@ export function createService(db,clock=Date.now){
    const [s,previous]=await tx.getAll(ref,moveRef);
    if(previous.exists)return previous.data();
    const item=snapshot(s);if(!item)fail('not-found','재고 품목을 찾을 수 없습니다.');requireRevision(item,input.revision);
-   if(input.eventId){const event=await tx.get(col('events').doc(input.eventId));if(!event.exists)fail('not-found','연결할 행사를 찾을 수 없습니다.');}
+   if(input.eventId){const event=await tx.get(col('events').doc(input.eventId));if(!snapshot(event))fail('not-found','연결할 행사를 찾을 수 없습니다.');}
    const next={...changeStock(item,input),revision:item.revision+1,updatedAt:now(),updatedBy:who.uid};
    const move={...input,itemId:item.id,itemName:item.name,before:stockTotal(item),after:stockTotal(next),beforeQuantity:item.quantity,afterQuantity:next.quantity,actor:who.displayName,createdAt:now(),updatedAt:now()};
    tx.set(ref,next);tx.create(moveRef,move);audit(tx,who,'inventory',item.id,input.action);return next;
@@ -190,7 +192,7 @@ export function createService(db,clock=Date.now){
 
     tx.set(col('semesters').doc(input.semester).collection('dues').doc(input.memberId),{duesTransactionId:input.requestId,updatedAt:now()},{merge:true});
    }
-   const record={...input,id:input.requestId,actor:who.displayName,createdAt:now(),updatedAt:now()};
+   const record={...input,id:input.requestId,...(application?{applicationRequestId:application.requestId}:{}),actor:who.displayName,createdAt:now(),updatedAt:now()};
    tx.create(ref,record);audit(tx,who,'finance',input.requestId,input.kind);return record;
   });
  }
@@ -205,7 +207,7 @@ export function createService(db,clock=Date.now){
    const members=await roster.find(identity(input.studentId,input.phone),event.semester,tx);
    const member=members.length===1?members[0]:null;
    if(!member||member.name!==input.name||member.anonymizedAt||member.removedAt||member.semester!==event.semester)fail('permission-denied','명부 정보 또는 활동 자격을 확인할 수 없습니다. 운영진에게 문의해 주세요.');
-   const id=hash(event.id+':'+member.id),ref=col('applications').doc(id),existing=snapshot(await tx.get(ref));
+   const id=hash(event.id+':'+member.id),ref=col('applications').doc(id),prior=await tx.get(ref),existing=prior.exists?{...prior.data(),id}:null;
    if(existing&&matches(input.receiptKey,existing.receiptHash)&&existing.requestId===input.requestId)return {id,status:existing.status};
    if(existing&&!['cancelled','expired'].includes(existing.status))fail('already-exists','이미 신청한 행사입니다. 신청할 때 받은 확인 링크를 이용해 주세요.');
    if(existing&&(existing.paidAmount||0)>(existing.refundAmount||0))fail('failed-precondition','이전 신청의 환불 처리를 먼저 확인해 주세요.');
@@ -260,7 +262,7 @@ export function createService(db,clock=Date.now){
     const member=await roster.get(a.memberId,e.semester,tx);
     if(!member||member.anonymizedAt||member.removedAt||member.semester!==e.semester)fail('failed-precondition','해당 부원의 활동 자격이 변경되었습니다. 신청을 취소한 뒤 다음 대기자를 확인해 주세요.');
     const queue=await tx.get(col('applications').where('eventId','==',e.id));
-    const first=queue.docs.map(snapshot).filter(x=>x.status==='waiting').sort((a,b)=>a.sequence-b.sequence)[0];
+    const first=queue.docs.map(snapshot).filter(x=>x?.status==='waiting').sort((a,b)=>a.sequence-b.sequence)[0];
     if(e.status==='cancelled'||a.status!=='waiting'||first?.id!==a.id||e.registered>=e.capacity)fail('failed-precondition','빈자리와 대기 순서를 확인해 주세요.');
     if(!input.offerExpiresAt||Date.parse(input.offerExpiresAt)<=clock()||Date.parse(input.offerExpiresAt)>Date.parse(e.startsAt))fail('invalid-argument','응답 기한은 현재 이후, 행사 시작 이전으로 정해 주세요.');
     tx.update(ref,{status:'offered',offerExpiresAt:input.offerExpiresAt,updatedAt:now()});
@@ -338,6 +340,7 @@ export function createService(db,clock=Date.now){
   }
   if(op==='rosterTerms'){ensureScope(who,'membersRead',clock());const current=(await settings())?.semester;return {rows:[...new Set([...(await roster.terms()),...(semesterSchema.safeParse(current).success?[current]:[])])].sort().reverse()};}
   if(op==='read')return read(data,who);
+  if(op==='deleteRecord')return deleteRecord(data,who);
   if(op==='privacyCandidates')return privacy.candidates(data,who);
   if(op==='privacyReview')return privacy.review(data,who);
   if(op==='privacyAnonymize')return privacy.anonymize(data,who);
@@ -352,7 +355,7 @@ export function createService(db,clock=Date.now){
    const schema=op==='executeBudget'?z.object({id:idSchema,revision:z.number().int().min(1),amount:z.number().int().min(1).max(100000000),confirmed:z.literal(true)}).strict():z.object({id:idSchema,revision:z.number().int().min(1)}).strict();
    const input=parse(schema,data),ref=col('budgets').doc(input.id);
    return db.runTransaction(async tx=>{
-    const doc=await tx.get(ref),plan=doc.data();if(!plan)fail('not-found','지출 계획을 찾을 수 없습니다.');
+    const doc=await tx.get(ref),plan=snapshot(doc);if(!plan)fail('not-found','지출 계획을 찾을 수 없습니다.');
     if(plan.status==='executed'){if(op==='executeBudget')return {saved:true,duplicate:true};fail('failed-precondition','집행 완료한 계획은 삭제할 수 없습니다.');}
     requireRevision(plan,input.revision);
     if(op==='deleteBudget'){tx.delete(ref);audit(tx,who,'budgets',input.id,'지출 계획 삭제',plan.semester);return {saved:true};}
@@ -379,7 +382,7 @@ export function createService(db,clock=Date.now){
   }
   if(op==='rotateReceipt'){
    ensureScope(who,'events',clock());const input=parse(z.object({id:idSchema,reason:z.string().trim().min(1).max(200)}).strict(),data),key=secret(),ref=col('applications').doc(input.id);
-   await db.runTransaction(async tx=>{const record=await tx.get(ref);if(!record.exists)fail('not-found','신청을 찾을 수 없습니다.');if(record.data().anonymizedAt)fail('failed-precondition','정보가 정리된 신청에는 확인 링크를 발급할 수 없습니다.');tx.update(ref,{receiptHash:hash(key),updatedAt:now()});audit(tx,who,'applications',input.id,'확인 링크 재발급: '+input.reason);});return {key};
+   await db.runTransaction(async tx=>{const record=await tx.get(ref);if(!snapshot(record))fail('not-found','신청을 찾을 수 없습니다.');if(record.data().anonymizedAt)fail('failed-precondition','정보가 정리된 신청에는 확인 링크를 발급할 수 없습니다.');tx.update(ref,{receiptHash:hash(key),updatedAt:now()});audit(tx,who,'applications',input.id,'확인 링크 재발급: '+input.reason);});return {key};
   }
   if(op==='deleteAdmin'){
    ensureScope(who,'admins',clock());const input=parse(z.object({uid:idSchema,updatedAt:z.string().datetime()}).strict(),data);

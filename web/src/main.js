@@ -3,7 +3,7 @@ import { api, auth, onAuthStateChanged } from './firebase.js';
 import { esc, icon, refreshIcons, toast, modal, closeModal, formSignature, captureFocus, restoreFocus, busyControl, showFormError } from './ui.js';
 import { renderPublic, publicAction, publicSubmit } from './public.js';
 import { renderAdmin, adminAction, adminSubmit, sortMemberRows } from './admin.js';
-export const state={profile:null,user:null,authReady:false,data:{},settings:{},search:'',filter:'all'};
+export const state={profile:null,user:null,authReady:false,data:{},settings:{},search:'',filter:'all',eventType:'all'};
 export const ctx={state,api,toast,navigate,render};
 const app=document.querySelector('#app');
 let renderNumber=0,rendering=false,trackedForm=null,navigating=false;
@@ -11,7 +11,7 @@ let currentIndex=Number(history.state?.martiniIndex||0),currentUrl=location.path
 const positions=new Map();
 history.replaceState({...history.state,martiniIndex:currentIndex},'');
 history.scrollRestoration='manual';
-function rememberPosition(){positions.set(currentIndex,{scroll:scrollY,search:state.search,filter:state.filter});}
+function rememberPosition(){positions.set(currentIndex,{scroll:scrollY,search:state.search,filter:state.filter,eventType:state.eventType});}
 function dirtyApplication(){return trackedForm?.node.isConnected&&formSignature(trackedForm.node)!==trackedForm.signature;}
 async function mayLeave() {
   if(document.querySelector('form[data-form][aria-busy=true]')){toast('요청을 처리하고 있습니다. 완료될 때까지 기다려 주세요.');return false;}
@@ -33,7 +33,7 @@ export async function navigate(path,{discard=false,replace=false}={}) {
     if(!replace)currentIndex++;
     history[replace?'replaceState':'pushState']({martiniIndex:currentIndex},'',path);
     currentUrl=location.pathname+location.search+location.hash;
-    state.search='';state.filter='all';
+    state.search='';state.filter='all';state.eventType='all';
     await render({focus:true,scroll:0});
     return true;
   } finally {navigating=false;}
@@ -49,7 +49,7 @@ window.addEventListener('popstate',async event=>{
   }
   currentIndex=destination;currentUrl=destinationUrl;
   const remembered=positions.get(currentIndex);
-  state.search=remembered?.search||'';state.filter=remembered?.filter||'all';
+  state.search=remembered?.search||'';state.filter=remembered?.filter||'all';state.eventType=remembered?.eventType||'all';
   await render({focus:true,scroll:remembered?.scroll||0});
 });
 window.addEventListener('beforeunload',event=>{
@@ -77,8 +77,8 @@ document.addEventListener('click',async event=>{
   }
   const target=event.target.closest('[data-action]');if(!target)return;
   if(target.dataset.action==='reset-filters'){
-    state.search='';state.filter='all';const search=app.querySelector('[data-search]'),filter=app.querySelector('[data-filter]');
-    if(search)search.value='';if(filter)filter.value='all';filterRows();search?.focus({preventScroll:true});return;
+    state.search='';state.filter='all';state.eventType='all';const search=app.querySelector('[data-search]'),filter=app.querySelector('[data-filter]');
+    if(search)search.value='';if(filter)filter.value='all';const type=app.querySelector('[data-event-type]');if(type)type.value='all';filterRows();search?.focus({preventScroll:true});return;
   }
   if(rendering&&!target.closest('dialog'))return;
   const key=target.dataset.action+':'+(target.dataset.id||'');
@@ -126,24 +126,27 @@ document.addEventListener('input',event=>{
 });
 document.addEventListener('change',event=>{
   if(event.target.matches('input,select,textarea'))clearInvalid(event.target);
+  if(event.target.matches('[data-event-type]')){state.eventType=event.target.value;filterRows();}
   if(event.target.matches('[data-filter]')){state.filter=event.target.value;filterRows();}
   if(event.target.matches('[data-member-sort]'))sortMemberRows(ctx,event.target);
 });
 function filterRows(){
   const rows=Array.from(app.querySelectorAll('[data-searchable]'));let count=0;
   const query=state.search.trim().toLocaleLowerCase('ko-KR');
-  rows.forEach(el=>{const show=el.dataset.searchable.toLocaleLowerCase('ko-KR').includes(query)&&(state.filter==='all'||el.dataset.status===state.filter);el.hidden=!show;if(show)count++;});
+  const eventType=app.querySelector('[data-event-type]')?state.eventType:'all';
+  const filtered=!!query||state.filter!=='all'||eventType!=='all';
+  rows.forEach(el=>{const show=query.split(/\s+/).every(word=>el.dataset.searchable.toLocaleLowerCase('ko-KR').includes(word))&&(state.filter==='all'||el.dataset.status===state.filter)&&(eventType==='all'||el.dataset.type===eventType);el.hidden=!show;if(show)count++;});
   app.querySelectorAll('.work-lane').forEach(lane=>{lane.querySelector('h2 span').textContent=lane.querySelectorAll('.work-card:not([hidden])').length;});
   const counter=app.querySelector('#filtered-count'),toolbar=app.querySelector('.toolbar:has([data-search])');
   if(counter)counter.textContent='불러온 '+rows.length+'건 중 '+count+'건';
   if(!toolbar)return;
   let reset=toolbar.querySelector('[data-action=reset-filters]');
   if(!reset){reset=document.createElement('button');reset.type='button';reset.dataset.action='reset-filters';reset.className='button ghost filter-reset';reset.textContent='초기화';toolbar.append(reset);}
-  reset.hidden=!query&&state.filter==='all';
+  reset.hidden=!filtered;
   let noResults=app.querySelector('#filter-empty');
   if(!noResults){noResults=document.createElement('section');noResults.id='filter-empty';noResults.className='empty filter-empty';noResults.innerHTML=icon('search')+'<h3>조건에 맞는 항목이 없습니다</h3><p>검색어를 줄이거나 상태 필터를 바꿔 보세요.</p><button type="button" class="button secondary" data-action="reset-filters">검색 조건 초기화</button>';toolbar.after(noResults);refreshIcons();}
-  noResults.hidden=!!count||(!query&&state.filter==='all');
-  const list=rows[0]?.closest('.table-wrap,.event-grid,.meeting-grid,.meeting-list,.work-board');if(list)list.hidden=!count&&!!(query||state.filter!=='all');
+  noResults.hidden=!!count||!filtered;
+  const list=rows[0]?.closest('.table-wrap,.event-grid,.meeting-grid,.meeting-list,.work-board');if(list)list.hidden=!count&&filtered;
 }
 export async function render({focus=false,scroll}={}) {
   const current=++renderNumber,savedFocus=captureFocus(),savedScroll=scrollY;
@@ -161,7 +164,7 @@ export async function render({focus=false,scroll}={}) {
     if(current!==renderNumber)return;
     app.innerHTML=html;refreshIcons();
     const search=app.querySelector('[data-search]'),filter=app.querySelector('[data-filter]');
-    if(search)search.value=state.search;if(filter)filter.value=state.filter;filterRows();
+    if(search)search.value=state.search;if(filter)filter.value=state.filter;const type=app.querySelector('[data-event-type]');if(type)type.value=state.eventType;filterRows();
     document.title=location.pathname==='/'?'Martini · 마티니':(app.querySelector('h1')?.textContent||'마티니')+' · Martini';
     const application=app.querySelector('form[data-form=apply]');
     trackedForm=application?{node:application,signature:formSignature(application)}:null;

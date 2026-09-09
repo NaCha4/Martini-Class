@@ -22,18 +22,21 @@ async function memberEdit(ctx,id){
 }
 async function eventEdit(ctx,id){
  const r=await record(ctx,'events',id),start=new Date(Date.now()+7*86400000).toISOString(),end=new Date(Date.now()+7*86400000+7200000).toISOString();
- const dialog=modal(r?'행사 편집':'새 행사 만들기',field('title','행사 이름',r?.title,{required:true,wide:true,maxLength:120})+
+ const dialog=modal(r?'행사 편집':'새 행사 만들기',editorSection('1. 기본 정보','어떤 활동인지 먼저 알려주세요. 소개와 준비물은 신청 화면에 표시됩니다.',field('title','행사 이름',r?.title,{required:true,wide:true,maxLength:120,placeholder:'예: 9월 칵테일 기초 교육'})+
  field('type','활동 유형',r?.type||'meeting',{choices:['meeting','class','social','workshop','other']})+field('semester','학기',r?.semester||semester(ctx),{required:true,maxLength:30,readOnly:!!r?.sequence,hint:r?.sequence?'신청 이력이 있어 학기를 변경할 수 없습니다.':'예: 2026-2'})+
  field('description','소개 · 준비물',r?.description,{type:'textarea',wide:true,rows:4,maxLength:8000})+
- field('location','장소',r?.location||ctx.state.settings.location||'동아리방',{required:true,maxLength:200})+field('owner','진행 담당',r?.owner||'집행부',{maxLength:80})+'<h3 class="wide">행사 · 신청 일정</h3>'+
+ field('location','장소',r?.location||ctx.state.settings.location||'동아리방',{required:true,maxLength:200})+field('owner','진행 담당',r?.owner||'기획부',{maxLength:80}))+
+ editorSection('2. 행사 · 신청 일정','행사 시간과 신청 기간을 구분해 입력하세요. 모든 시간은 현재 기기의 시간대 기준입니다.',
  field('startsAt','행사 시작',localTime(r?.startsAt||start),{type:'datetime-local',required:true})+field('endsAt','행사 종료',localTime(r?.endsAt||end),{type:'datetime-local',required:true})+
  field('opensAt','신청 시작',localTime(r?.opensAt),{type:'datetime-local',required:true})+field('closesAt','신청 마감',localTime(r?.closesAt||new Date(Date.now()+6*86400000)),{type:'datetime-local',required:true})+
- field('cancelUntil','자율 취소 마감',localTime(r?.cancelUntil||new Date(Date.now()+6*86400000)),{type:'datetime-local',required:true})+field('capacity','정원',r?.capacity||20,{type:'number',min:1,max:500,required:true})+
- field('fee','참가비 (원)',r?.fee||0,{type:'number',min:0,max:1000000,required:true,readOnly:!!r?.sequence,hint:r?.sequence?'신청 이력이 있어 참가비를 변경할 수 없습니다.':'무료 행사는 0원으로 입력하세요.'})+field('status','모집 상태',r?.status||'draft',{choices:r?.status==='cancelled'?['cancelled']:['draft','open','closed','completed','cancelled']})+'<p class="wide help" data-event-status-help></p>'+field('confirmCancellation','행사와 모든 신청을 취소하며, 이 행사를 다시 열 수 없음을 확인했습니다',false,{type:'checkbox',wide:true})+
+ field('cancelUntil','자율 취소 마감',localTime(r?.cancelUntil||new Date(Date.now()+6*86400000)),{type:'datetime-local',required:true,wide:true}))+
+ editorSection('3. 정원 · 참가비','참가비와 취소 기준은 신청 전에 부원에게 안내됩니다.',field('capacity','정원',r?.capacity||20,{type:'number',min:1,max:500,required:true})+
+ field('fee','참가비 (원)',r?.fee||0,{type:'number',min:0,max:1000000,required:true,readOnly:!!r?.sequence,hint:r?.sequence?'신청 이력이 있어 참가비를 변경할 수 없습니다.':'무료 행사는 0원으로 입력하세요.'})+
  field('waitlist','정원 초과 시 대기 신청 허용',r?.waitlist??true,{type:'checkbox',wide:true})+
- '<h3 class="wide">신청 · 납부 안내</h3>'+field('questions','추가 질문 (줄마다 1개, 최대 3개)',r?.questions?.join('\n')||'',{type:'textarea',wide:true,rows:3,maxLength:602,hint:'질문 하나당 200자까지 입력할 수 있습니다. 질문이 없으면 비워두세요.'})+
  field('paymentInstructions','납부 안내',r?.paymentInstructions||'',{type:'textarea',wide:true,rows:2,maxLength:1000})+
- field('policy','취소 · 환불 안내',r?.policy||'취소 마감 전에는 확인 링크에서 취소할 수 있습니다. 마감 이후 취소와 환불은 운영진에게 문의해 주세요.',{type:'textarea',wide:true,required:true,rows:3,maxLength:2000}),
+ field('policy','취소 · 환불 안내',r?.policy||'취소 마감 전에는 확인 링크에서 취소할 수 있습니다. 마감 이후 취소와 환불은 운영진에게 문의해 주세요.',{type:'textarea',wide:true,required:true,rows:3,maxLength:2000}))+
+ '<details class="editor-options wide"'+(r?.questions?.length?' open':'')+'><summary>추가 질문 · 선택 사항</summary><div class="editor-fields">'+field('questions','추가 질문 (줄마다 1개, 최대 3개)',r?.questions?.join('\n')||'',{type:'textarea',wide:true,rows:3,maxLength:602,hint:'등록한 질문은 신청자가 필수로 답해야 합니다. 필요한 질문만 추가하세요. 질문 하나당 200자까지 입력할 수 있습니다.'})+'</div></details>'+
+ editorSection('4. 모집 상태 확인','초안으로 먼저 저장한 뒤 준비가 끝나면 모집 중으로 변경하세요.',field('status','모집 상태',r?.status||'draft',{choices:r?.status==='cancelled'?['cancelled']:['draft','open','closed','completed','cancelled'],wide:true})+'<p class="wide help" data-event-status-help></p>'+field('confirmCancellation','행사와 모든 신청을 취소하며, 이 행사를 다시 열 수 없음을 확인했습니다',false,{type:'checkbox',wide:true})),
  async f=>{
   const starts=Date.parse(val(f,'startsAt')),ends=Date.parse(val(f,'endsAt')),opens=Date.parse(val(f,'opensAt')),closes=Date.parse(val(f,'closesAt')),cancel=Date.parse(val(f,'cancelUntil'));
   if(starts>=ends)throw Error('행사 종료는 시작 이후로 정해 주세요.');
@@ -203,6 +206,18 @@ async function exportRecords(ctx,kind){
  });
 }
 export async function handleAdminAction(ctx,action,id,target){
+ if(action==='record-delete'){
+  const kind=target.dataset.kind,titles={events:'행사',applications:'참가 신청',finance:'입출금 기록',inventory:'품목',meetings:'회의록',decisions:'결정 · 할 일',content:'게시글'};
+  if(!titles[kind])throw Error('삭제할 항목을 확인해 주세요.');
+  const r=(await read(ctx,kind,{recordId:id})).rows[0];
+  const effects={events:'행사 목록과 신청 링크에서 제외됩니다. 진행 중인 행사는 먼저 취소하거나 완료하고, 미납·대기·환불을 정리해 주세요. 연결된 신청·정산 이력은 보관됩니다.',applications:'취소·만료된 신청만 삭제할 수 있습니다. 환불이 남아 있으면 먼저 처리해 주세요. 개인 확인 링크는 사용할 수 없게 됩니다.',finance:'장부에서 제외하고 잔액을 다시 계산합니다. 연결된 납부·환불 금액과 회비 기록도 함께 정정됩니다. 집행한 지출 계획은 예정 상태로 돌아갑니다. 실제 송금·환불은 실행하지 않습니다.',inventory:'품목 목록에서 제외됩니다. 보유 수량은 먼저 사용·폐기·실사로 정리해야 합니다. 입출고 이력은 보관됩니다.',meetings:'회의록 목록에서 제외됩니다. 연결된 결정·할 일은 먼저 회의 연결을 해제하거나 삭제해 주세요.',decisions:'결정·할 일 목록에서 제외됩니다. 연결된 회의 내용은 변경하지 않습니다.',content:'목록과 홈페이지에서 게시글이 내려갑니다.'};
+  modal(titles[kind]+' 삭제','<div class="wide delete-impact"><strong>'+esc(r.title||r.name||titles[kind])+'</strong><p>'+effects[kind]+'</p>'+(kind==='finance'?'<p>삭제 금액: <strong>'+money(r.amount)+'</strong> · '+esc(label(r.kind))+'</p>':'')+'</div><p class="wide help">삭제 이력과 원본은 정산·운영 기록을 위해 보관합니다. 개인정보 영구 정리는 학기말 정보 정리에서 진행합니다.</p>'+field('confirmed','삭제 대상과 영향을 확인했습니다',false,{type:'checkbox',required:true,wide:true}),async()=>{
+   await ctx.api('deleteRecord',{kind,id,updatedAt:r.updatedAt,...(r.revision!==undefined?{revision:r.revision}:{}),confirmed:true});
+   ctx.state.data={};ctx.state.pages={};delete ctx.state.publicInfo;
+   if(kind==='events'&&location.pathname.replace(/\/+$/,'')==='/admin/events/'+id)await ctx.navigate('/admin/events',{discard:true});else await ctx.render();
+   ctx.toast(titles[kind]+'을 삭제했습니다.');
+  },{submit:'삭제',submitClass:'button danger',busyText:'삭제 중…'});return;
+ }
  if(action==='roster-term'){
   modal('학기 열기',field('semester','학기',rosterSemester(ctx),{required:true,pattern:'20[0-9]{2}-[12]',hint:'예: 2026-2 또는 2027-1'}),async f=>{const term=val(f,'semester');if(!/^20\d{2}-[12]$/.test(term))throw Error('학기는 2026-2 형식으로 입력해 주세요.');await ctx.navigate('/admin/members?semester='+term,{discard:true});},{submit:'명부 열기'});return;
  }
