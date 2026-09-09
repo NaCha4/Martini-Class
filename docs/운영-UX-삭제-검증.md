@@ -2,7 +2,7 @@
 
 ## [1] 브랜치와 Git 상태
 
-기능 브랜치: `codex/operations-ux-delete`. 기존 회의록 작업은 보존했으며 해당 작업이 main에 반영된 뒤 그 위에서 진행했다. 최종 커밋과 배포 상태는 아래 배포 기록에 남긴다.
+기능 브랜치: `codex/operations-ux-delete`. 기존 회의록 작업은 보존했으며 해당 작업이 main에 반영된 뒤 그 위에서 진행했다. 구현 커밋 `3472646`을 main에 fast-forward 반영하고 origin/main에 push했다. 최종 작업 브랜치는 main이다.
 
 ## [2] 비밀 정보와 권한 점검
 
@@ -49,8 +49,9 @@
 - 통합 테스트 46개 통과: 권한·동시성·중복 방지·정원·정산·삭제·자료 연결·개인정보 정리 포함.
 - 기존 서비스·UX 브라우저 검증 28개 중 장부 접힘에 따른 2개 실패를 수정하고 해당 2개 재실행 통과. 나머지 26개 통과.
 - 새 메뉴 탐색·필터 복원·삭제 확인·장부 잔액 검증 6개 통과(PC·모바일).
-- 신청서 바로가기 이후 접근 URL과 포커스를 유지하는 검증을 추가했다.
+- 신청서 바로가기 이후 접근 URL과 포커스를 유지하는 검증을 추가하고 PC·모바일 2개를 재실행해 통과했다. 브라우저 검증은 중복 재실행을 제외하면 총 34개 시나리오다.
 - 빌드·구문·diff 공백·비밀 정보 검사 통과. PC·모바일 행사 화면 스크린샷 확인.
+- Callable HTTP smoke 통과. 공개 사이트와 Firebase Hosting의 운영 화면 HTML은 HTTP 200이며 JS·CSS의 SHA-256이 로컬 빌드와 일치한다.
 
 ## [7] 수행하지 않은 작업
 
@@ -58,17 +59,21 @@
 
 ## [8] 승인 및 수동 작업
 
-2026-09-09 프로젝트 지침의 기존 main 반영·GitHub Pages·Firebase 배포 승인을 적용한다. 추가 운영 데이터 삭제 승인을 가정하지 않는다. 실제 기록 삭제는 운영진이 X 버튼에서 대상과 영향을 확인하고 실행한다.
+2026-09-09 프로젝트 지침의 기존 main 반영·GitHub Pages·Firebase 배포 승인을 적용한다. 추가 운영 데이터 삭제 승인을 가정하지 않는다. 실제 기록 삭제는 운영진이 X 버튼에서 대상과 영향을 확인하고 실행한다. 기능 사용을 위해 추가 수동 작업은 필요하지 않다. Artifact Registry 이미지 정리 정책은 기존 미설정 상태를 유지했으며, 필요하면 별도 인프라 변경 승인 후 설정할 수 있다.
 
 ## [9] 병합·배포 체크리스트
 
 - [x] 기능 브랜치에서 변경하고 기존 작업 보존
 - [x] 비밀 검사와 서버·브라우저 검증
 - [x] 연결 자료 및 회계 합계 검사
-- [ ] Firebase Functions를 클라이언트보다 먼저 배포
-- [ ] Firebase Hosting과 GitHub Pages 산출물 배포
-- [ ] main 반영 및 배포 상태 확인
+- [x] Firebase Functions를 클라이언트보다 먼저 배포
+- [x] Firebase Hosting과 GitHub Pages 산출물 배포
+- [x] main 반영 및 배포 상태 확인
 
 ## 배포 기록
 
-검증을 마친 뒤 배포 결과를 기록한다.
+- Firebase Functions `martini-v2:martiniApi`, `asia-northeast3`: Successful update operation 확인. CLI는 함수 업데이트 성공 후 Artifact Registry 이미지 정리 정책 미설정으로 종료 코드 1을 반환했다. `--force`나 정리 정책 설정 명령은 실행하지 않았다. 함수 업데이트 실패와 구분한다.
+- Firebase Hosting `martini-class-d4d69`: release complete / Deploy complete 확인.
+- GitHub Pages 실행 `34347643431`: 구현 커밋 `34726468dc9705fc657a1b2872643cfa02bcefff`, success 확인.
+- `https://hyu-martini.site/admin/events/`와 `https://martini-class-d4d69.web.app/admin/events/`: HTTP 200, 새 JS `index-DIElWUuH.js`와 CSS `index-x3nRl0J1.css`의 파일 해시 일치 확인.
+- 실제 로그인 사용자 세션으로 운영 자료를 삭제하는 테스트는 하지 않았다. 삭제 동작은 로컬 에뮬레이터에서 검증했다.
