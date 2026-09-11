@@ -3,7 +3,7 @@ import { api, auth, onAuthStateChanged } from './firebase.js';
 import { esc, icon, refreshIcons, toast, modal, closeModal, formSignature, captureFocus, restoreFocus, busyControl, showFormError } from './ui.js';
 import { renderPublic, publicAction, publicSubmit } from './public.js';
 import { renderAdmin, adminAction, adminSubmit, sortMemberRows } from './admin.js';
-import { decisionEventId, decisionBoardUrl } from './decision-events.js';
+import { decisionCategoryId, decisionBoardUrl } from './decision-categories.js';
 export const state={profile:null,user:null,authReady:false,data:{},settings:{},search:'',filter:'all',eventType:'all'};
 export const ctx={state,api,toast,navigate,render};
 const app=document.querySelector('#app');
@@ -138,10 +138,10 @@ document.addEventListener('change',async event=>{
   if(event.target.matches('[data-event-type]')){state.eventType=event.target.value;filterRows();}
   if(event.target.matches('[data-filter]')){state.filter=event.target.value;filterRows();}
   if(event.target.matches('[data-member-sort]'))sortMemberRows(ctx,event.target);
-  if(event.target.matches('[data-decision-event]')){
-    const control=event.target,previous=decisionEventId();control.disabled=true;
+  if(event.target.matches('[data-decision-category]')){
+    const control=event.target,previous=decisionCategoryId();control.disabled=true;
     try{if(!await navigate(decisionBoardUrl(control.value)))control.value=previous;}
-    catch(error){control.value=previous;toast(error.message||'행사를 불러오지 못했습니다.');}
+    catch(error){control.value=previous;toast(error.message||'카테고리를 불러오지 못했습니다.');}
     finally{control.disabled=false;}
   }
 });

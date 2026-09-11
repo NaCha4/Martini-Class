@@ -5,6 +5,7 @@ import { openChatUrl } from './public-links.js';
 import { z } from 'zod';
 import { createPrivacy } from './privacy.js';
 import { createDeletion } from './deletion.js';
+import { createDecisionCategories } from './decision-categories.js';
 import { Timestamp, FieldValue } from 'firebase-admin/firestore';
 import { schemas, parse, fail, ensureScope, hash, secret, identity, normalizePhone, validateEvent, allocate, changeStock, stockTotal, matches, publicEvent, requireRevision, occupied, idSchema, roles } from './domain.js';
 const PREFIX='martini_v2_';
@@ -39,6 +40,7 @@ export function createService(db,clock=Date.now){
  }
  function audit(tx,who,kind,id,action,semester){tx.create(col('audit').doc(),{entityType:kind,entityId:id,action,actor:who.uid,actorName:who.displayName,at:now(),updatedAt:now(),...(semester?{semester}:{})});}
  const deleteRecord=createDeletion({db,col,clock,audit});
+ const decisionCategories=createDecisionCategories({db,col,clock,now,audit});
  // Serialize hot-event transactions within an instance; Firestore still guards cross-instance capacity.
  const eventQueues=new Map(),queueSizes=new Map();
  function serializeEvent(id,run){
@@ -100,9 +102,18 @@ export function createService(db,clock=Date.now){
     next={...next,quantity:old?.quantity||0,bottles:old?.bottles||{}};
    }
    if(kind==='decisions'){
-    // Older clients omit eventId; preserve their existing event connection.
+    // Keep category selection when older clients omit the new field.
+    next.categoryId=input.categoryId??old?.categoryId??'';
+    if(next.categoryId){
+     const category=await tx.get(col('decisionCategories').doc(next.categoryId));
+     if(!category.exists||category.data().deletedAt){
+      if(next.categoryId!==old?.categoryId)fail('not-found','카테고리가 삭제되었습니다. 다른 카테고리를 선택해 주세요.');
+      next.categoryId='';
+     }
+    }
+    // Transitional support for an already-open older client; the new UI ignores eventId.
     next.eventId=input.eventId??old?.eventId??'';
-    if(next.eventId){
+    if(input.categoryId===undefined&&input.eventId&&next.eventId){
      const event=await tx.get(col('events').doc(next.eventId));
      if(!event.exists||event.data().deletedAt&&next.eventId!==old?.eventId)fail('not-found','연결할 행사를 찾을 수 없습니다.');
     }
@@ -315,6 +326,9 @@ export function createService(db,clock=Date.now){
   const who=await admin(ctx);
   if(op==='profile')return {uid:who.uid,displayName:who.displayName,role:who.role,roleName:who.roleName,permissions:who.permissions,expiresAt:who.expiresAt};
 
+  if(['decisionCategories','createDecisionCategory','deleteDecisionCategory'].includes(op))return decisionCategories(op,data,who);
+
+  // Kept for already-open clients during server-first deployment.
   if(op==='decisionEvents'){
    ensureScope(who,'decisions',clock());
    const input=parse(z.object({cursor:idSchema.optional()}).strict(),data);
