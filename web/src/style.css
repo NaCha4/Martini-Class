@@ -223,3 +223,5 @@ td .title-button{text-align:left;line-height:1.6}
 .receipt-account{margin:0 0 1.25rem;padding:0 0 1.25rem;border-bottom:1px solid var(--line)}
 .receipt-account .account-owner{margin-bottom:.4rem;overflow-wrap:anywhere}.account-owner span{margin-inline:.35rem;color:var(--muted)}.receipt-account .account-fee{margin:.5rem 0 1rem}
 .account-number{font-variant-numeric:tabular-nums;overflow-wrap:anywhere;user-select:all}
+
+.attendance-select{min-width:100px;max-width:140px;min-height:44px;padding:8px 30px 8px 12px}.attendance-select[aria-busy=true]{opacity:.6}
