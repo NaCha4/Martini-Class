@@ -697,3 +697,16 @@ test('short links resolve existing keys, remain scoped and revoke after rotation
  await db.doc('martini_v2_events/'+event.id).update({deletedAt:stamp});
  await assert.rejects(resolve('e',rotated.linkKey),e=>e.code==='not-found');
 });
+
+test('event bank account persists, supports legacy edits, and appears on private receipt',async()=>{
+ await service.handle(await eventEditInput({accountNumber:'123-456-789',fee:10000,paymentInstructions:'가상 은행 / 동아리'}),owner);
+ const a=await service.handle(application(1),{ip:'member'});
+ const receipt=await service.handle({op:'receipt',id:a.id,key:'1'.repeat(64),action:'get'},{ip:'member'});
+ assert.equal(receipt.event.accountNumber,'123-456-789');
+ const legacy=await eventEditInput({title:'수정 행사'});delete legacy.accountNumber;await service.handle(legacy,owner);
+ assert.equal((await db.doc('martini_v2_events/'+event.id).get()).data().accountNumber,'123-456-789');
+ await assert.rejects(service.handle(await eventEditInput({accountNumber:'<script>'}),owner),e=>e.code==='invalid-argument');
+ await assert.rejects(service.handle(await eventEditInput({accountNumber:'1'.repeat(61)}),owner),e=>e.code==='invalid-argument');
+ await service.handle(await eventEditInput({accountNumber:''}),owner);
+ assert.equal((await db.doc('martini_v2_events/'+event.id).get()).data().accountNumber,'');
+});

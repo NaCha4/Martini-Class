@@ -79,6 +79,7 @@ export function createService(db,clock=Date.now){
    }
    if(kind==='budgets'){if(old?.status==='executed')fail('failed-precondition','집행 완료한 계획은 수정할 수 없습니다.');next.status='planned';}
    if(kind==='events'){
+    next.accountNumber=input.accountNumber??old?.accountNumber??'';
     validateEvent(input,old?.registered||0);
     if(old?.status==='cancelled'&&input.status!=='cancelled')fail('failed-precondition','취소된 행사는 다시 열 수 없습니다. 새 행사를 만들어 주세요.');
     const conf=snapshot(await tx.get(col('settings').doc('club')));
