@@ -99,6 +99,14 @@ export function createService(db,clock=Date.now){
     if(old&&stockTotal(old)>0&&(old.unit!==input.unit||old.size!==input.size))fail('failed-precondition','재고가 있는 품목의 단위·규격은 변경할 수 없습니다. 다른 규격은 새 품목으로 등록해 주세요.');
     next={...next,quantity:old?.quantity||0,bottles:old?.bottles||{}};
    }
+   if(kind==='decisions'){
+    // Older clients omit eventId; preserve their existing event connection.
+    next.eventId=input.eventId??old?.eventId??'';
+    if(next.eventId){
+     const event=await tx.get(col('events').doc(next.eventId));
+     if(!event.exists||event.data().deletedAt&&next.eventId!==old?.eventId)fail('not-found','연결할 행사를 찾을 수 없습니다.');
+    }
+   }
    if(kind==='decisions'&&input.meetingId){
     const meeting=snapshot(await tx.get(col('meetings').doc(input.meetingId)));
     if(!meeting)fail('not-found','연결할 회의를 찾을 수 없습니다.');
@@ -143,12 +151,13 @@ export function createService(db,clock=Date.now){
   if(input.itemId)query=query.where('itemId','==',input.itemId);
   if(input.eventId)query=query.where('eventId','==',input.eventId);
   // Query by one equality without a compound index; sort bounded event result locally.
-  if(input.eventId){
+  if(input.eventId&&input.kind!=='decisions'){
    const result=await query.limit(501).get();
    return {rows:result.docs.slice(0,500).filter(s=>!s.data().deletedAt).map(s=>visible(input.kind,{...s.data(),id:s.id},who)).sort((a,b)=>(a.sequence||0)-(b.sequence||0)),nextCursor:null,truncated:result.size>500};
   }
   // Equality-filtered histories paginate by document ID to avoid composite indexes.
-  query=query.orderBy(input.meetingId||input.itemId?'__name__':'updatedAt',input.meetingId||input.itemId?'asc':'desc').limit(101);
+  const byId=input.meetingId||input.itemId||input.kind==='decisions'&&input.eventId;
+  query=query.orderBy(byId?'__name__':'updatedAt',byId?'asc':'desc').limit(101);
   if(input.cursor){const cursor=await (input.revisions?col(input.kind).doc(input.parentId).collection('revisions'):col(input.kind)).doc(input.cursor).get();if(cursor.exists)query=query.startAfter(cursor);}
   const result=await query.get(),docs=result.docs.slice(0,100);
   return {rows:docs.filter(s=>!s.data().deletedAt).map(s=>visible(input.kind,{...s.data(),id:s.id},who)),nextCursor:result.size>100?docs.at(-1).id:null};
@@ -305,6 +314,16 @@ export function createService(db,clock=Date.now){
   if(op==='receipt')return receipt(data,ctx);
   const who=await admin(ctx);
   if(op==='profile')return {uid:who.uid,displayName:who.displayName,role:who.role,roleName:who.roleName,permissions:who.permissions,expiresAt:who.expiresAt};
+
+  if(op==='decisionEvents'){
+   ensureScope(who,'decisions',clock());
+   const input=parse(z.object({cursor:idSchema.optional()}).strict(),data);
+   let query=col('events').orderBy('__name__').select('title','semester','status','startsAt','deletedAt').limit(101);
+   if(input.cursor)query=query.startAfter(input.cursor);
+   const result=await query.get(),docs=result.docs.slice(0,100);
+   // Decision staff need event labels, not participant, financial, or access-link data.
+   return {rows:docs.map(d=>({id:d.id,title:d.data().title||'이름 없는 행사',semester:d.data().semester||'',status:d.data().status||'draft',startsAt:d.data().startsAt||'',archived:!!d.data().deletedAt})),nextCursor:result.size>100?docs.at(-1).id:null};
+  }
 
   if(op==='listRoles'){
    ensureScope(who,'admins',clock());
