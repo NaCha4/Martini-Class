@@ -120,11 +120,11 @@ async function history(ctx,kind,id){
 async function applicationManage(ctx,id){
  const a=await record(ctx,'applications',id),e=await record(ctx,'events',a.eventId),contact=await ctx.api('participantContact',{id});
  const showFinance=hasPermission(ctx.state.profile,'finance'),canEvent=!a.anonymizedAt&&hasPermission(ctx.state.profile,'events'),canFinance=!a.anonymizedAt&&showFinance;
- modal(a.name+' · 신청 처리','<p class="wide help">'+esc(contact.department)+' · '+esc(contact.studentId)+' · '+esc(contact.phone||'연락처 없음')+'</p><div class="wide record-meta">'+badge(a.status)+(showFinance?badge(a.payment):'')+badge(a.attendance)+'</div><div class="wide detail-grid"><p>참가비<br><strong>'+money(a.fee)+'</strong></p>'+(showFinance?'<p>납부 확인<br><strong>'+money(a.paidAmount)+'</strong></p><p>환불 확인<br><strong>'+money(a.refundAmount)+'</strong></p>':'')+'</div><div class="wide">'+a.answers.map((answer,i)=>'<h4>'+esc(e.questions[i]||'질문 '+(i+1))+'</h4>'+textBlock(answer)).join('')+'</div>'+
+ modal(a.name+' · 신청 처리','<p class="wide help">'+esc(contact.department)+' · '+esc(contact.studentId)+' · '+esc(contact.phone||'연락처 없음')+'</p><div class="wide record-meta">'+badge(a.status)+(showFinance?badge(a.payment):'')+badge(a.attendance==='present'?'present':'absent')+'</div><div class="wide detail-grid"><p>참가비<br><strong>'+money(a.fee)+'</strong></p>'+(showFinance?'<p>납부 확인<br><strong>'+money(a.paidAmount)+'</strong></p><p>환불 확인<br><strong>'+money(a.refundAmount)+'</strong></p>':'')+'</div><div class="wide">'+a.answers.map((answer,i)=>'<h4>'+esc(e.questions[i]||'질문 '+(i+1))+'</h4>'+textBlock(answer)).join('')+'</div>'+
  (a.status==='offered'?'<p class="wide help">승급 응답 기한: '+date(a.offerExpiresAt,true)+'</p>':'')+
  '<div class="wide action-grid">'+
  (canEvent?button('확인 링크 재발급','receipt-reissue',{id,class:'button secondary'}):'')+
- (canEvent&&e.status!=='cancelled'&&a.status==='registered'?button('출석','attendance-present',{id})+button('불참','attendance-absent',{id,class:'button secondary'})+button('출석 미확인으로','attendance-unchecked',{id,class:'button secondary'}):'')+
+ (canEvent&&e.status!=='cancelled'&&a.status==='registered'?button('출석','attendance-present',{id})+button('불참','attendance-absent',{id,class:'button secondary'}):'')+
  (canEvent&&a.status==='waiting'?button('대기 승급 제안','application-offer',{id}):'')+
  (canEvent&&a.status==='offered'?button('기한 지난 예약 해제','application-expire',{id,class:'button secondary'}):'')+
  (canEvent&&['registered','waiting','offered'].includes(a.status)?button('신청 취소 처리','application-cancel',{id,class:'button danger secondary'}):'')+

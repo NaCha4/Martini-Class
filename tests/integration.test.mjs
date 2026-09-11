@@ -718,7 +718,7 @@ test('96-bit links support event access, application, receipt and key rotation',
  const current=(await db.doc('martini_v2_events/'+event.id).get()).data();
  const renewed=await service.handle({op:'rotateEventLink',id:event.id,revision:current.revision},owner);assert.match(renewed.linkKey,/^[a-f0-9]{24}$/);
  const resolved=await service.handle({op:'resolveLink',kind:'e',key:renewed.linkKey},{ip:'shorter'});assert.equal(resolved.id,event.id);
- const receiptKey='1'.repeat(24),a=await service.handle(application(1,{key:renewed.linkKey,receiptKey}),{ip:'shorter'});
+ const receiptKey='1'.repeat(24),a=await service.handle(application(1,{key:renewed.linkKey,receiptKey}),{ip:'shorter'});assert.equal((await db.doc('martini_v2_applications/'+a.id).get()).data().attendance,'absent');
  assert.equal((await service.handle({op:'resolveLink',kind:'r',key:receiptKey},{ip:'shorter'})).id,a.id);
  assert.equal((await service.handle({op:'receipt',id:a.id,key:receiptKey,action:'get'},{ip:'shorter'})).application.id,a.id);
  const rotated=await service.handle({op:'rotateReceipt',id:a.id,reason:'테스트'},owner);assert.match(rotated.key,/^[a-f0-9]{24}$/);

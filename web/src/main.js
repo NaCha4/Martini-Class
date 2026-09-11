@@ -61,6 +61,14 @@ document.addEventListener('keydown',event=>{
     const menu=document.querySelector('.public-mobile-menu[open]');if(menu){menu.open=false;menu.querySelector('summary').focus();event.preventDefault();}
   }
 });
+document.addEventListener('click',async event=>{
+ const control=event.target.closest('[data-attendance-id]');if(!control||control.disabled)return;
+ const value=control.dataset.savedValue==='present'?'absent':'present',id=control.dataset.attendanceId;
+ control.disabled=true;control.setAttribute('aria-busy','true');
+ try{await api('applicationCommand',{id,action:'attendance',attendance:value,reason:'신청자 목록에서 출석 변경'});control.dataset.savedValue=value;control.textContent=value==='present'?'출석':'불참';control.classList.toggle('present',value==='present');control.classList.toggle('absent',value==='absent');control.setAttribute('aria-pressed',String(value==='present'));if(state.data.applications?.[id])state.data.applications[id].attendance=value;toast('출석 상태를 저장했습니다.');}
+ catch(error){toast(error.message||'출석 상태를 저장하지 못했습니다. 다시 시도해 주세요.');}
+ finally{control.disabled=false;control.removeAttribute('aria-busy');}
+});
 const pendingActions=new Set();
 document.addEventListener('click',async event=>{
   if(!(event.target instanceof Element))return;
@@ -125,16 +133,6 @@ document.addEventListener('input',event=>{
   if(event.target.matches('[data-search]')){state.search=event.target.value;filterRows();}
 });
 document.addEventListener('change',async event=>{
-  const attendance=event.target.closest('[data-attendance-id]');
-  if(attendance){
-    const previous=attendance.dataset.savedValue,value=attendance.value,id=attendance.dataset.attendanceId;
-    if(attendance.disabled||value===previous)return;
-    attendance.disabled=true;attendance.setAttribute('aria-busy','true');
-    try{await api('applicationCommand',{id,action:'attendance',attendance:value,reason:'신청자 목록에서 출석 변경'});attendance.dataset.savedValue=value;if(state.data.applications?.[id])state.data.applications[id].attendance=value;toast('출석 상태를 저장했습니다.');}
-    catch(error){attendance.value=previous;toast(error.message||'출석 상태를 저장하지 못했습니다. 다시 시도해 주세요.');}
-    finally{attendance.disabled=false;attendance.removeAttribute('aria-busy');}
-    return;
-  }
   if(event.target.matches('input,select,textarea'))clearInvalid(event.target);
   if(event.target.matches('[data-event-type]')){state.eventType=event.target.value;filterRows();}
   if(event.target.matches('[data-filter]')){state.filter=event.target.value;filterRows();}

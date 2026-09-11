@@ -219,7 +219,7 @@ export function createService(db,clock=Date.now){
    if(existing&&(existing.paidAmount||0)>(existing.refundAmount||0))fail('failed-precondition','이전 신청의 환불 처리를 먼저 확인해 주세요.');
    if(input.answers.length!==event.questions.length||input.answers.some(a=>!a))fail('invalid-argument','행사별 질문에 답변해 주세요.');
    const status=allocate(event,clock()),sequence=event.sequence+1;
-   const record={id,eventId:event.id,eventTitle:event.title,memberId:member.id,name:member.name,semester:event.semester,status,payment:status==='waiting'||event.fee===0?'none':'unpaid',fee:event.fee,paidAmount:0,refundAmount:0,attendance:'unchecked',answers:input.answers,receiptHash:hash(input.receiptKey),requestId:input.requestId,sequence,policy:event.policy,consentedAt:now(),createdAt:now(),updatedAt:now()};
+   const record={id,eventId:event.id,eventTitle:event.title,memberId:member.id,name:member.name,semester:event.semester,status,payment:status==='waiting'||event.fee===0?'none':'unpaid',fee:event.fee,paidAmount:0,refundAmount:0,attendance:'absent',answers:input.answers,receiptHash:hash(input.receiptKey),requestId:input.requestId,sequence,policy:event.policy,consentedAt:now(),createdAt:now(),updatedAt:now()};
    if(existing)tx.create(ref.collection('history').doc(),existing);
    tx.set(ref,record);
    tx.update(col('events').doc(event.id),{registered:event.registered+(status==='registered'?1:0),waiting:event.waiting+(status==='waiting'?1:0),sequence,updatedAt:now(),revision:event.revision+1});
