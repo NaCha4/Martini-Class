@@ -137,6 +137,7 @@ document.addEventListener('change',async event=>{
   if(event.target.matches('input,select,textarea'))clearInvalid(event.target);
   if(event.target.matches('[data-event-type]')){state.eventType=event.target.value;filterRows();}
   if(event.target.matches('[data-filter]')){state.filter=event.target.value;filterRows();}
+  if(event.target.matches('[data-staff-id]')){await adminAction(ctx,'application-staff',event.target.dataset.staffId,event.target);return;}
   if(event.target.matches('[data-member-sort]'))sortMemberRows(ctx,event.target);
   if(event.target.matches('[data-decision-category]')){
     const control=event.target,previous=decisionCategoryId();control.disabled=true;

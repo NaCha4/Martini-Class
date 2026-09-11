@@ -236,3 +236,11 @@ td .title-button{text-align:left;line-height:1.6}
 .decision-context-copy h2{font-size:18px;margin:4px 0 6px;overflow-wrap:anywhere}
 .decision-context-copy p{font-size:13px;color:var(--muted);margin:0}
 @media(max-width:650px){.decision-context{padding:18px;gap:12px}.decision-category-picker{flex-basis:100%}.decision-category-picker select{font-size:16px}.decision-context>.button{width:100%}}
+
+.staff-pricing-panel{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:16px;padding:20px 24px;margin:20px 0;background:var(--panel);border:1px solid var(--line);border-radius:8px}
+.staff-pricing-panel h2{font-size:15px;margin:0 0 8px}.staff-pricing-panel h2 strong{display:inline-block;margin-left:10px;color:var(--gold)}
+.staff-pricing-panel p{font-size:13px;color:var(--muted);margin:0}
+.staff-checkbox{display:flex;align-items:center;gap:9px;min-height:44px;cursor:pointer;font-size:13px;width:fit-content;max-width:100%}
+.staff-checkbox input{width:18px;height:18px;margin:0;accent-color:var(--gold);cursor:pointer}.staff-checkbox:has(input:disabled){cursor:default;opacity:.6}
+.staff-pricing-choice{padding:12px 16px;background:var(--panel);border:1px solid var(--line);border-radius:8px}
+@media(max-width:650px){.staff-pricing-panel{padding:18px}.staff-pricing-panel>.button{width:100%}}

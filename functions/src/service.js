@@ -1,4 +1,5 @@
 import { billingFee } from './billing.js';
+import { createStaffPricing } from './staff-pricing.js';
 import { createRoster, semesterSchema } from './roster.js';
 import { defaultRoles, hasPermission } from './permissions.js';
 import { openChatUrl } from './public-links.js';
@@ -17,7 +18,7 @@ export function createService(db,clock=Date.now){
  const now=()=>new Date(clock()).toISOString();
  const roster=createRoster(col);
  const snapshot=snap=>snap.exists&&!snap.data().deletedAt?{...snap.data(),id:snap.id}:null;
- const clean=record=>{const {linkHash,receiptHash,identityHash,isStaff,staffFee,pricingRevision,...safe}=record;return safe;};
+ const clean=record=>{const {linkHash,receiptHash,identityHash,isStaff,staffFee,staffFeeRevision,pricingRevision,...safe}=record;return safe;};
  async function roleDefinition(id,tx){
   const builtin=defaultRoles.find(r=>r.id===id);
   if(['owner','chair'].includes(id))return {...builtin,revision:0};
@@ -34,6 +35,7 @@ export function createService(db,clock=Date.now){
  function visible(kind,record,who){
   const result=clean(record);
   if(kind==='applications'&&hasPermission(who,'finance'))Object.assign(result,{isStaff:!!record.isStaff,staffFee:record.staffFee??record.fee,pricingRevision:record.pricingRevision||0});
+  if(kind==='events'&&hasPermission(who,'finance'))Object.assign(result,{staffFee:record.staffFee??null,staffFeeRevision:record.staffFeeRevision||0});
   if(kind==='members'){delete result.duesPaid;delete result.status;}
   if(kind==='applications'&&!hasPermission(who,'finance'))for(const key of ['paidAmount','refundAmount','payment'])delete result[key];
   return result;
@@ -41,6 +43,7 @@ export function createService(db,clock=Date.now){
  function audit(tx,who,kind,id,action,semester){tx.create(col('audit').doc(),{entityType:kind,entityId:id,action,actor:who.uid,actorName:who.displayName,at:now(),updatedAt:now(),...(semester?{semester}:{})});}
  const deleteRecord=createDeletion({db,col,clock,audit});
  const decisionCategories=createDecisionCategories({db,col,clock,now,audit});
+ const staffPricing=createStaffPricing({db,col,clock,now,audit});
  // Serialize hot-event transactions within an instance; Firestore still guards cross-instance capacity.
  const eventQueues=new Map(),queueSizes=new Map();
  function serializeEvent(id,run){
@@ -83,6 +86,7 @@ export function createService(db,clock=Date.now){
    }
    if(kind==='budgets'){if(old?.status==='executed')fail('failed-precondition','집행 완료한 계획은 수정할 수 없습니다.');next.status='planned';}
    if(kind==='events'){
+    for(const key of ['staffFee','staffFeeRevision'])if(old?.[key]!==undefined)next[key]=old[key];
     for(const key of ['accountNumber','bankName','accountHolder'])next[key]=input[key]??old?.[key]??'';
     validateEvent(input,old?.registered||0);
     if(old?.status==='cancelled'&&input.status!=='cancelled')fail('failed-precondition','취소된 행사는 다시 열 수 없습니다. 새 행사를 만들어 주세요.');
@@ -415,19 +419,7 @@ export function createService(db,clock=Date.now){
    });
   }
   if(op==='stock')return stock(data,who);
-  if(op==='setApplicationPricing'){
-   ensureScope(who,'finance',clock());
-   const input=parse(z.object({id:idSchema,isStaff:z.boolean(),staffFee:z.number().int().min(0).max(1000000),pricingRevision:z.number().int().min(0)}).strict(),data);
-   return db.runTransaction(async tx=>{
-    const ref=col('applications').doc(input.id),a=snapshot(await tx.get(ref));if(!a||a.anonymizedAt)fail('not-found','신청을 찾을 수 없습니다.');
-    const e=snapshot(await tx.get(col('events').doc(a.eventId)));if(!e||e.status==='cancelled'||!['registered','waiting','offered'].includes(a.status))fail('failed-precondition','진행 중인 신청의 금액만 변경할 수 있습니다.');
-    if((a.pricingRevision||0)!==input.pricingRevision)fail('aborted','금액 설정이 변경되었습니다. 다시 열어 확인해 주세요.');
-    const fee=input.isStaff?input.staffFee:a.fee;if(fee<(a.paidAmount||0))fail('failed-precondition','이미 확인한 입금액보다 낮게 설정할 수 없습니다. 기존 입금 기록을 먼저 확인해 주세요.');
-    const payment=a.status!=='registered'||fee===0?'none':a.refundAmount>0?a.payment:a.paidAmount===fee?'paid':a.payment==='requested'?'requested':'unpaid';
-    tx.update(ref,{isStaff:input.isStaff,staffFee:input.isStaff?input.staffFee:a.fee,pricingRevision:(a.pricingRevision||0)+1,payment,updatedAt:now()});
-    audit(tx,who,'applications',a.id,(input.isStaff?'관리인원':'일반 참가자')+' 정산 금액 '+fee+'원',a.semester);return {saved:true};
-   });
-  }
+  if(['setEventStaffFee','setApplicationStaff','setApplicationPricing'].includes(op))return staffPricing(op,data,who);
   if(op==='finance')return finance(data,who);
   if(op==='applicationCommand')return applicationCommand(data,who);
   if(op==='rotateEventLink'){
