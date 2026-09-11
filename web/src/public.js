@@ -114,7 +114,7 @@ export async function publicSubmit(ctx,form,f){
  let result;
  try{result=await ctx.api('apply',{eventId:e.id,key:key(),name:String(f.get('name')).trim(),studentId:String(f.get('studentId')).trim(),answers:e.questions.map((q,i)=>String(f.get('answer'+i)||'').trim()),consent:f.has('consent'),...pending});}
  catch(error){
-  if(error.code==='functions/permission-denied')error.message='명부 정보 또는 활동 자격을 확인할 수 없습니다. 이름·학번·전화번호를 다시 확인해 주세요. 정보가 맞다면 운영진에게 이번 학기 부원 등록 정보를 확인해 주세요.';
+  if(error.code==='functions/permission-denied')error.message='활동 자격을 확인할 수 없습니다. 이름·학번을 다시 확인해 주세요.';
   if(error.code==='functions/already-exists')error.message='이미 신청한 행사입니다. 신청할 때 받은 개인 확인 링크에서 내역을 확인해 주세요. 링크를 잃어버렸다면 운영진에게 재발급을 요청해 주세요.';
   throw error;
  }
