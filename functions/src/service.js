@@ -1,3 +1,4 @@
+import { billingFee } from './billing.js';
 import { createRoster, semesterSchema } from './roster.js';
 import { defaultRoles, hasPermission } from './permissions.js';
 import { openChatUrl } from './public-links.js';
@@ -15,7 +16,7 @@ export function createService(db,clock=Date.now){
  const now=()=>new Date(clock()).toISOString();
  const roster=createRoster(col);
  const snapshot=snap=>snap.exists&&!snap.data().deletedAt?{...snap.data(),id:snap.id}:null;
- const clean=record=>{const {linkHash,receiptHash,identityHash,...safe}=record;return safe;};
+ const clean=record=>{const {linkHash,receiptHash,identityHash,isStaff,staffFee,pricingRevision,...safe}=record;return safe;};
  async function roleDefinition(id,tx){
   const builtin=defaultRoles.find(r=>r.id===id);
   if(['owner','chair'].includes(id))return {...builtin,revision:0};
@@ -31,6 +32,7 @@ export function createService(db,clock=Date.now){
  }
  function visible(kind,record,who){
   const result=clean(record);
+  if(kind==='applications'&&hasPermission(who,'finance'))Object.assign(result,{isStaff:!!record.isStaff,staffFee:record.staffFee??record.fee,pricingRevision:record.pricingRevision||0});
   if(kind==='members'){delete result.duesPaid;delete result.status;}
   if(kind==='applications'&&!hasPermission(who,'finance'))for(const key of ['paidAmount','refundAmount','payment'])delete result[key];
   return result;
@@ -184,8 +186,8 @@ export function createService(db,clock=Date.now){
    if(input.kind==='income'&&application){
     if(eventRecord.status==='cancelled'||!['registered'].includes(application.status))fail('failed-precondition','참가 등록 상태의 신청만 납부 확인할 수 있습니다.');
     const paidAmount=(application.paidAmount||0)+input.amount;
-    if(paidAmount>application.fee)fail('failed-precondition','청구액을 초과합니다. 과오납은 별도 메모로 확인 후 처리해 주세요.');
-    tx.update(applicationRef,{paidAmount,payment:paidAmount===application.fee?'paid':'unpaid',updatedAt:now()});
+    if(paidAmount>billingFee(application))fail('failed-precondition','청구액을 초과합니다. 과오납은 별도 메모로 확인 후 처리해 주세요.');
+    tx.update(applicationRef,{paidAmount,payment:paidAmount===billingFee(application)?'paid':'unpaid',updatedAt:now()});
    }
    if(input.kind==='dues'){
     if(!member||member.semester!==input.semester)fail('invalid-argument','해당 학기에 등록된 부원을 선택해 주세요.');
@@ -243,7 +245,7 @@ export function createService(db,clock=Date.now){
     if(event.status==='cancelled'||record.status!=='offered'||Date.parse(record.offerExpiresAt)<=clock())fail('failed-precondition','유효한 승급 제안이 없습니다.');
     const member=await roster.get(record.memberId,record.semester,tx);
     if(!member||member.anonymizedAt||member.removedAt||member.semester!==record.semester)fail('permission-denied','현재 활동 자격을 확인할 수 없습니다. 운영진에게 문의해 주세요.');
-    tx.update(ref,{status:'registered',payment:record.fee?'unpaid':'none',updatedAt:now()});return {saved:true};
+    tx.update(ref,{status:'registered',payment:billingFee(record)?'unpaid':'none',updatedAt:now()});return {saved:true};
    }
    if(input.action==='cancel'||input.action==='decline'){
     if(record.status==='cancelled')return {saved:true};
@@ -380,6 +382,19 @@ export function createService(db,clock=Date.now){
    });
   }
   if(op==='stock')return stock(data,who);
+  if(op==='setApplicationPricing'){
+   ensureScope(who,'finance',clock());
+   const input=parse(z.object({id:idSchema,isStaff:z.boolean(),staffFee:z.number().int().min(0).max(1000000),pricingRevision:z.number().int().min(0)}).strict(),data);
+   return db.runTransaction(async tx=>{
+    const ref=col('applications').doc(input.id),a=snapshot(await tx.get(ref));if(!a||a.anonymizedAt)fail('not-found','신청을 찾을 수 없습니다.');
+    const e=snapshot(await tx.get(col('events').doc(a.eventId)));if(!e||e.status==='cancelled'||!['registered','waiting','offered'].includes(a.status))fail('failed-precondition','진행 중인 신청의 금액만 변경할 수 있습니다.');
+    if((a.pricingRevision||0)!==input.pricingRevision)fail('aborted','금액 설정이 변경되었습니다. 다시 열어 확인해 주세요.');
+    const fee=input.isStaff?input.staffFee:a.fee;if(fee<(a.paidAmount||0))fail('failed-precondition','이미 확인한 입금액보다 낮게 설정할 수 없습니다. 기존 입금 기록을 먼저 확인해 주세요.');
+    const payment=a.status!=='registered'||fee===0?'none':a.refundAmount>0?a.payment:a.paidAmount===fee?'paid':a.payment==='requested'?'requested':'unpaid';
+    tx.update(ref,{isStaff:input.isStaff,staffFee:input.isStaff?input.staffFee:a.fee,pricingRevision:(a.pricingRevision||0)+1,payment,updatedAt:now()});
+    audit(tx,who,'applications',a.id,(input.isStaff?'관리인원':'일반 참가자')+' 정산 금액 '+fee+'원',a.semester);return {saved:true};
+   });
+  }
   if(op==='finance')return finance(data,who);
   if(op==='applicationCommand')return applicationCommand(data,who);
   if(op==='rotateEventLink'){

@@ -1,3 +1,4 @@
+import { billingFee } from './billing.js';
 import { z } from 'zod';
 import { FieldValue } from 'firebase-admin/firestore';
 import { ensureScope,parse,fail,hash,idSchema } from './domain.js';
@@ -27,7 +28,7 @@ export function createPrivacy({db,col,now,clock,audit,roster}){
    const a=application.data(),event=await reader.get(col('events').doc(a.eventId)),e=event.data();
    if(!e||!['completed','cancelled'].includes(e.status))blockers.push('종료 처리되지 않은 행사가 있습니다.');
    if(a.paidAmount>a.refundAmount&&(e?.status==='cancelled'||['cancelled','expired'].includes(a.status)||a.payment==='refund_pending'))blockers.push('확인해야 할 환불 내역이 있습니다.');
-   if(a.status==='registered'&&e?.status!=='cancelled'&&a.paidAmount<a.fee)blockers.push('납부가 완료되지 않은 참가비가 있습니다.');
+   if(a.status==='registered'&&e?.status!=='cancelled'&&a.paidAmount<billingFee(a))blockers.push('납부가 완료되지 않은 참가비가 있습니다.');
    if(a.semester!==input.semester)continue;
    if(!a.anonymizedAt)add(application,'application');
    const history=await reader.get(application.ref.collection('history'));

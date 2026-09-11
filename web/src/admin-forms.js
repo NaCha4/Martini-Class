@@ -1,3 +1,4 @@
+import { billingFee } from '../../functions/src/billing.js';
 import { shortLink } from './share-links.js';
 import { hasPermission, permissionLabels } from '../../functions/src/permissions.js';
 import { openChatUrl } from '../../functions/src/public-links.js';
@@ -120,7 +121,7 @@ async function history(ctx,kind,id){
 async function applicationManage(ctx,id){
  const a=await record(ctx,'applications',id),e=await record(ctx,'events',a.eventId),contact=await ctx.api('participantContact',{id});
  const showFinance=hasPermission(ctx.state.profile,'finance'),canEvent=!a.anonymizedAt&&hasPermission(ctx.state.profile,'events'),canFinance=!a.anonymizedAt&&showFinance;
- modal(a.name+' · 신청 처리','<p class="wide help">'+esc(contact.department)+' · '+esc(contact.studentId)+' · '+esc(contact.phone||'연락처 없음')+'</p><div class="wide record-meta">'+badge(a.status)+(showFinance?badge(a.payment):'')+badge(a.attendance==='present'?'present':'absent')+'</div><div class="wide detail-grid"><p>참가비<br><strong>'+money(a.fee)+'</strong></p>'+(showFinance?'<p>납부 확인<br><strong>'+money(a.paidAmount)+'</strong></p><p>환불 확인<br><strong>'+money(a.refundAmount)+'</strong></p>':'')+'</div><div class="wide">'+a.answers.map((answer,i)=>'<h4>'+esc(e.questions[i]||'질문 '+(i+1))+'</h4>'+textBlock(answer)).join('')+'</div>'+
+ modal(a.name+' · 신청 처리','<p class="wide help">'+esc(contact.department)+' · '+esc(contact.studentId)+' · '+esc(contact.phone||'연락처 없음')+'</p><div class="wide record-meta">'+badge(a.status)+(showFinance?badge(a.payment):'')+badge(a.attendance==='present'?'present':'absent')+'</div><div class="wide detail-grid"><p>참가비<br><strong>'+money(showFinance?billingFee(a):a.fee)+'</strong></p>'+(showFinance?'<p>납부 확인<br><strong>'+money(a.paidAmount)+'</strong></p><p>환불 확인<br><strong>'+money(a.refundAmount)+'</strong></p>':'')+'</div><div class="wide">'+a.answers.map((answer,i)=>'<h4>'+esc(e.questions[i]||'질문 '+(i+1))+'</h4>'+textBlock(answer)).join('')+'</div>'+
  (a.status==='offered'?'<p class="wide help">승급 응답 기한: '+date(a.offerExpiresAt,true)+'</p>':'')+
  '<div class="wide action-grid">'+
  (canEvent?button('확인 링크 재발급','receipt-reissue',{id,class:'button secondary'}):'')+
@@ -128,7 +129,8 @@ async function applicationManage(ctx,id){
  (canEvent&&a.status==='waiting'?button('대기 승급 제안','application-offer',{id}):'')+
  (canEvent&&a.status==='offered'?button('기한 지난 예약 해제','application-expire',{id,class:'button secondary'}):'')+
  (canEvent&&['registered','waiting','offered'].includes(a.status)?button('신청 취소 처리','application-cancel',{id,class:'button danger secondary'}):'')+
- (canFinance&&e.status!=='cancelled'&&a.status==='registered'&&a.fee>a.paidAmount?button('입금 확인 기록','application-payment',{id,icon:'wallet'}):'')+
+ (canFinance&&e.status!=='cancelled'&&['registered','waiting','offered'].includes(a.status)?button(a.isStaff?'관리인원 금액 수정':'관리인원 · 참가비 설정','application-pricing',{id,class:'button secondary'}):'')+
+ (canFinance&&e.status!=='cancelled'&&a.status==='registered'&&billingFee(a)>a.paidAmount?button('입금 확인 기록','application-payment',{id,icon:'wallet'}):'')+
  (canFinance&&a.paidAmount>a.refundAmount?button('환불 기록','application-refund',{id,class:'button secondary'}):'')+'</div>',null,{wide:true});
 }
 async function applicationChange(ctx,id,action,attendance){
@@ -150,7 +152,7 @@ async function financeAdd(ctx,applicationId='',refund=false){
  const a=applicationId?await record(ctx,'applications',applicationId):null;
  const events=(await readAll(ctx,'events')).rows,members=(await readAll(ctx,'members',{semester:a?.semester||semester(ctx)})).rows;
  const requestId=uuid(),choices=a?[[refund?'refund':'income',refund?'참가비 환불':'참가비 입금']]:[['income','기타 수입'],['expense','지출'],['dues','학기 회비']];
- const dialog=modal(refund?'환불 완료 기록':'입금 · 지출 기록',field('kind','구분',refund?'refund':'income',{choices})+field('amount','금액 (원)',a?(refund?a.paidAmount-a.refundAmount:a.fee-a.paidAmount):'',{type:'number',min:1,max:a?(refund?a.paidAmount-a.refundAmount:a.fee-a.paidAmount):100000000,required:true})+field('title','내용',a?a.eventTitle+' · '+a.name:'',{required:true,wide:true,maxLength:160})+field('eventId','연결 행사',a?.eventId||'',{choices:a?[[a.eventId,a.eventTitle]]:[['','행사 연결 안 함'],...events.map(e=>[e.id,e.title])]})+field('memberId','회비 납부 부원','',{choices:[['','선택 안 함'],...members.filter(m=>!m.anonymizedAt).map(m=>[m.id,m.name+' · '+m.studentId])]})+field('semester','학기',a?.semester||semester(ctx),{required:true,maxLength:30,readOnly:!!a})+field('note','메모', '',{type:'textarea',wide:true,rows:2,maxLength:2000})+field('confirmed','실제 거래 내역을 확인했습니다',false,{type:'checkbox',required:true,wide:true})+'<p class="wide help">이 기능은 실제 입금·송금·환불을 실행하지 않습니다. 은행에서 처리한 내용을 기록합니다.</p>',async f=>save(ctx,'finance',{requestId,kind:val(f,'kind'),amount:num(f,'amount'),title:val(f,'title'),eventId:a?.eventId||val(f,'eventId'),applicationId:a?.id||'',memberId:val(f,'memberId'),semester:val(f,'semester'),note:val(f,'note')}),{wide:true});
+ const dialog=modal(refund?'환불 완료 기록':'입금 · 지출 기록',field('kind','구분',refund?'refund':'income',{choices})+field('amount','금액 (원)',a?(refund?a.paidAmount-a.refundAmount:billingFee(a)-a.paidAmount):'',{type:'number',min:1,max:a?(refund?a.paidAmount-a.refundAmount:billingFee(a)-a.paidAmount):100000000,required:true})+field('title','내용',a?a.eventTitle+' · '+a.name:'',{required:true,wide:true,maxLength:160})+field('eventId','연결 행사',a?.eventId||'',{choices:a?[[a.eventId,a.eventTitle]]:[['','행사 연결 안 함'],...events.map(e=>[e.id,e.title])]})+field('memberId','회비 납부 부원','',{choices:[['','선택 안 함'],...members.filter(m=>!m.anonymizedAt).map(m=>[m.id,m.name+' · '+m.studentId])]})+field('semester','학기',a?.semester||semester(ctx),{required:true,maxLength:30,readOnly:!!a})+field('note','메모', '',{type:'textarea',wide:true,rows:2,maxLength:2000})+field('confirmed','실제 거래 내역을 확인했습니다',false,{type:'checkbox',required:true,wide:true})+'<p class="wide help">이 기능은 실제 입금·송금·환불을 실행하지 않습니다. 은행에서 처리한 내용을 기록합니다.</p>',async f=>save(ctx,'finance',{requestId,kind:val(f,'kind'),amount:num(f,'amount'),title:val(f,'title'),eventId:a?.eventId||val(f,'eventId'),applicationId:a?.id||'',memberId:val(f,'memberId'),semester:val(f,'semester'),note:val(f,'note')}),{wide:true});
  let termRequest=0;
  dialog.querySelector('[name=semester]').addEventListener('change',async e=>{
   const term=e.target.value.trim(),request=++termRequest,select=dialog.querySelector('[name=memberId]');select.replaceChildren(new Option('선택 안 함',''));select.disabled=true;
@@ -276,6 +278,12 @@ export async function handleAdminAction(ctx,action,id,target){
   modal('신청 링크 다시 만들기','<p class="wide prose">새 링크를 만들면 이전 행사 신청 링크는 사용할 수 없습니다. 기존 참가자의 개인 확인 링크는 유지됩니다.</p>',async()=>{const result=await save(ctx,'rotateEventLink',{id,revision:e.revision});setTimeout(()=>share('행사 신청 링크',location.origin+shortLink('e',result.linkKey)),0);},{submit:'이전 링크 만료 · 재발급',submitClass:'button danger'});return;
  }
  if(action==='copy-link'){const input=document.querySelector('[name=shareUrl]');try{await navigator.clipboard.writeText(input.value);ctx.toast('링크를 복사했습니다.');}catch{input.select();ctx.toast('선택된 링크를 복사해 주세요.');}return;}
+ if(action==='application-pricing'){
+  if(!hasPermission(ctx.state.profile,'finance'))throw Error('회비 · 정산 권한이 없습니다.');
+  const a=(await read(ctx,'applications',{recordId:id})).rows[0];
+  const dialog=modal(a.name+' · 참가비 설정','<p class="wide help">일반 참가비 '+money(a.fee)+' · 확인한 입금 '+money(a.paidAmount)+'</p>'+field('isStaff','관리인원',a.isStaff,{type:'checkbox',wide:true})+field('staffFee','관리인원 참가비 (원)',a.staffFee??a.fee,{type:'number',min:0,max:1000000,required:true,wide:true,hint:'0원은 면제입니다. 관리자 정산에만 적용됩니다.'}),async f=>save(ctx,'setApplicationPricing',{id,isStaff:f.has('isStaff'),staffFee:f.has('isStaff')?num(f,'staffFee'):a.fee,pricingRevision:a.pricingRevision||0}),{submit:'금액 저장'});
+  const update=()=>{dialog.querySelector('[name=staffFee]').disabled=!dialog.querySelector('[name=isStaff]').checked;};dialog.querySelector('[name=isStaff]').addEventListener('change',update);update();return;
+ }
  if(action==='receipt-reissue'){modal('개인 확인 링크 재발급',field('reason','본인 확인 및 재발급 사유','',{required:true,wide:true,maxLength:200})+'<p class="wide help">기존 확인 링크는 즉시 만료됩니다. 신원을 확인한 본인에게만 새 링크를 전달해 주세요.</p>',async f=>{const result=await save(ctx,'rotateReceipt',{id,reason:val(f,'reason')});setTimeout(()=>share('개인 신청 확인 링크',location.origin+shortLink('r',result.key)),0);});return;}
  if(action==='application-manage')return applicationManage(ctx,id);
  if(action.startsWith('attendance-'))return applicationChange(ctx,id,'attendance',action.replace('attendance-',''));

@@ -1,3 +1,4 @@
+import { billingFee } from './billing.js';
 import { z } from 'zod';
 import { FieldValue } from 'firebase-admin/firestore';
 import { parse, fail, ensureScope, idSchema, stockTotal } from './domain.js';
@@ -21,7 +22,7 @@ export function createDeletion({db,col,clock,audit}){
    if(input.kind==='events'){
     if(!['draft','cancelled','completed'].includes(r.status))fail('failed-precondition','모집 중인 행사는 먼저 취소하거나 진행 완료로 변경해 주세요.');
     const apps=await tx.get(col('applications').where('eventId','==',input.id));
-    if(apps.docs.some(d=>{const a=d.data();return !a.deletedAt&&(['waiting','offered'].includes(a.status)||(r.status!=='completed'&&a.status==='registered')||(['cancelled','expired'].includes(a.status)&&a.paidAmount>a.refundAmount)||(a.status==='registered'&&a.fee>a.paidAmount));}))fail('failed-precondition','참가·대기 상태와 미납·환불을 먼저 정리해 주세요.');
+    if(apps.docs.some(d=>{const a=d.data();return !a.deletedAt&&(['waiting','offered'].includes(a.status)||(r.status!=='completed'&&a.status==='registered')||(['cancelled','expired'].includes(a.status)&&a.paidAmount>a.refundAmount)||(a.status==='registered'&&billingFee(a)>a.paidAmount));}))fail('failed-precondition','참가·대기 상태와 미납·환불을 먼저 정리해 주세요.');
    }
    if(input.kind==='applications'){
     if(!['cancelled','expired'].includes(r.status))fail('failed-precondition','참가 신청을 먼저 취소한 뒤 삭제해 주세요.');
@@ -44,7 +45,7 @@ export function createDeletion({db,col,clock,audit}){
      if(!event)fail('failed-precondition','정산에 연결된 행사 원본을 찾을 수 없습니다.');
      const paidAmount=(a.paidAmount||0)-(r.kind==='income'?r.amount:0),refundAmount=(a.refundAmount||0)-(r.kind==='refund'?r.amount:0);
      if(paidAmount<0||refundAmount<0||refundAmount>paidAmount)fail('failed-precondition','연결된 환불 기록을 먼저 삭제해 주세요. 납부·환불 합계가 맞아야 합니다.');
-     let payment=!a.fee?'none':paidAmount>=a.fee?'paid':'unpaid';
+     let payment=!billingFee(a)?'none':paidAmount>=billingFee(a)?'paid':'unpaid';
      if(refundAmount>0)payment=refundAmount===paidAmount?'refunded':'partial';
      if((event.status==='cancelled'||['cancelled','expired'].includes(a.status))&&paidAmount>refundAmount)payment='refund_pending';
      changes.push([aRef,{paidAmount,refundAmount,payment,updatedAt:now()}]);

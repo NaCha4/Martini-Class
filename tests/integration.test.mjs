@@ -726,3 +726,33 @@ test('96-bit links support event access, application, receipt and key rotation',
  await service.handle({op:'receipt',id:a.id,key:rotated.key,action:'cancel'},{ip:'shorter'});
  assert.equal((await db.doc('martini_v2_applications/'+a.id).get()).data().status,'cancelled');
 });
+
+test('staff pricing is finance-only and caps payments without changing public fee',async()=>{
+ await db.doc('martini_v2_events/'+event.id).update({fee:25000});const a=await service.handle(application(1),{ip:'1'});
+ const pricing={op:'setApplicationPricing',id:a.id,isStaff:true,staffFee:10000,pricingRevision:0};
+ await assert.rejects(service.handle(pricing,education),e=>e.code==='permission-denied');
+ await service.handle(pricing,finance);
+ await assert.rejects(service.handle({...pricing,staffFee:5000},finance),e=>e.code==='aborted');
+ const adminRecord=(await service.handle({op:'read',kind:'applications',recordId:a.id},finance)).rows[0];assert.equal(adminRecord.isStaff,true);assert.equal(adminRecord.staffFee,10000);
+ const staffRecord=(await service.handle({op:'read',kind:'applications',recordId:a.id},education)).rows[0];assert.equal('staffFee' in staffRecord,false);assert.equal('isStaff' in staffRecord,false);
+ const receipt=await service.handle({op:'receipt',id:a.id,key:'1'.repeat(64),action:'get'},{ip:'1'});assert.equal(receipt.application.fee,25000);assert.equal(receipt.event.fee,25000);for(const key of ['isStaff','staffFee','pricingRevision'])assert.equal(key in receipt.application,false);
+ const pay={op:'finance',requestId:'staff-pay',kind:'income',amount:10001,title:'참가비',eventId:event.id,applicationId:a.id,memberId:'',semester:'2026-2',note:''};
+ await assert.rejects(service.handle(pay,finance),e=>e.code==='failed-precondition');await service.handle({...pay,amount:10000},finance);
+ assert.equal((await db.doc('martini_v2_applications/'+a.id).get()).data().payment,'paid');
+ await assert.rejects(service.handle({...pricing,staffFee:0,pricingRevision:1},finance),e=>e.code==='failed-precondition');
+ await service.handle({...pricing,isStaff:false,pricingRevision:1},finance);assert.equal((await db.doc('martini_v2_applications/'+a.id).get()).data().payment,'unpaid');
+ await service.handle({...pricing,pricingRevision:2},finance);
+ const ledger=(await db.doc('martini_v2_finance/staff-pay').get()).data();await service.handle({op:'deleteRecord',kind:'finance',id:'staff-pay',updatedAt:ledger.updatedAt,confirmed:true},finance);assert.equal((await db.doc('martini_v2_applications/'+a.id).get()).data().payment,'unpaid');
+ await service.handle({...pricing,staffFee:0,pricingRevision:3},finance);assert.equal((await db.doc('martini_v2_applications/'+a.id).get()).data().payment,'none');
+});
+test('staff fee remains the waitlist acceptance and refund basis',async()=>{
+ await db.doc('martini_v2_events/'+event.id).update({fee:25000});const first=await service.handle(application(1),{ip:'1'}),waiting=await service.handle(application(2),{ip:'2'});
+ await service.handle({op:'setApplicationPricing',id:waiting.id,isStaff:true,staffFee:0,pricingRevision:0},finance);
+ await service.handle({op:'receipt',id:first.id,key:'1'.repeat(64),action:'cancel'},{ip:'1'});
+ await service.handle({op:'applicationCommand',id:waiting.id,action:'offer',offerExpiresAt:time(3600000),reason:'승급'},owner);
+ await service.handle({op:'receipt',id:waiting.id,key:'2'.repeat(64),action:'accept'},{ip:'2'});assert.equal((await db.doc('martini_v2_applications/'+waiting.id).get()).data().payment,'none');
+ await service.handle({op:'setApplicationPricing',id:waiting.id,isStaff:true,staffFee:5000,pricingRevision:1},finance);
+ const pay={op:'finance',requestId:'staff-paid',kind:'income',amount:5000,title:'참가비',eventId:event.id,applicationId:waiting.id,memberId:'',semester:'2026-2',note:''};await service.handle(pay,finance);
+ await service.handle({op:'receipt',id:waiting.id,key:'2'.repeat(64),action:'cancel'},{ip:'2'});
+ await service.handle({...pay,kind:'refund',requestId:'staff-refund'},finance);assert.equal((await db.doc('martini_v2_applications/'+waiting.id).get()).data().payment,'refunded');
+});
