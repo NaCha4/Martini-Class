@@ -699,14 +699,17 @@ test('short links resolve existing keys, remain scoped and revoke after rotation
 });
 
 test('event bank account persists, supports legacy edits, and appears on private receipt',async()=>{
- await service.handle(await eventEditInput({accountNumber:'123-456-789',fee:10000,paymentInstructions:'가상 은행 / 동아리'}),owner);
+ await service.handle(await eventEditInput({accountNumber:'123-456-789',bankName:'가상은행',accountHolder:'가상동아리',fee:10000,paymentInstructions:''}),owner);
  const a=await service.handle(application(1),{ip:'member'});
  const receipt=await service.handle({op:'receipt',id:a.id,key:'1'.repeat(64),action:'get'},{ip:'member'});
- assert.equal(receipt.event.accountNumber,'123-456-789');
- const legacy=await eventEditInput({title:'수정 행사'});delete legacy.accountNumber;await service.handle(legacy,owner);
+ assert.equal(receipt.event.accountNumber,'123-456-789');assert.equal(receipt.event.bankName,'가상은행');assert.equal(receipt.event.accountHolder,'가상동아리');
+ const legacy=await eventEditInput({title:'수정 행사'});delete legacy.accountNumber;delete legacy.bankName;delete legacy.accountHolder;await service.handle(legacy,owner);
  assert.equal((await db.doc('martini_v2_events/'+event.id).get()).data().accountNumber,'123-456-789');
+ const preserved=(await db.doc('martini_v2_events/'+event.id).get()).data();assert.equal(preserved.bankName,'가상은행');assert.equal(preserved.accountHolder,'가상동아리');
+ await assert.rejects(service.handle(await eventEditInput({bankName:'가'.repeat(81)}),owner),e=>e.code==='invalid-argument');
+ await assert.rejects(service.handle(await eventEditInput({accountHolder:'가'.repeat(81)}),owner),e=>e.code==='invalid-argument');
  await assert.rejects(service.handle(await eventEditInput({accountNumber:'<script>'}),owner),e=>e.code==='invalid-argument');
  await assert.rejects(service.handle(await eventEditInput({accountNumber:'1'.repeat(61)}),owner),e=>e.code==='invalid-argument');
- await service.handle(await eventEditInput({accountNumber:''}),owner);
+ await service.handle(await eventEditInput({accountNumber:'',bankName:'',accountHolder:''}),owner);
  assert.equal((await db.doc('martini_v2_events/'+event.id).get()).data().accountNumber,'');
 });
