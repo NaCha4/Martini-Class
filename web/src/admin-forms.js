@@ -29,7 +29,7 @@ async function eventEdit(ctx,id){
  editorSection('2. 행사 · 신청 일정','행사 시간과 신청 기간을 구분해 입력하세요. 모든 시간은 현재 기기의 시간대 기준입니다.',
  field('startsAt','행사 시작',localTime(r?.startsAt||start),{type:'datetime-local',required:true})+field('endsAt','행사 종료',localTime(r?.endsAt||end),{type:'datetime-local',required:true})+
  field('opensAt','신청 시작',localTime(r?.opensAt),{type:'datetime-local',required:true})+field('closesAt','신청 마감',localTime(r?.closesAt||new Date(Date.now()+6*86400000)),{type:'datetime-local',required:true})+
- field('cancelUntil','자율 취소 마감',localTime(r?.cancelUntil||new Date(Date.now()+6*86400000)),{type:'datetime-local',required:true,wide:true}))+
+ field('cancelUntil','취소 마감',localTime(r?.cancelUntil||new Date(Date.now()+6*86400000)),{type:'datetime-local',required:true,wide:true}))+
  editorSection('3. 정원 · 참가비','참가비와 취소 기준은 신청 전에 부원에게 안내됩니다.',field('capacity','정원',r?.capacity||20,{type:'number',min:1,max:500,required:true})+
  field('fee','참가비 (원)',r?.fee||0,{type:'number',min:0,max:1000000,required:true,readOnly:!!r?.sequence,hint:r?.sequence?'신청 이력이 있어 참가비를 변경할 수 없습니다.':'무료 행사는 0원으로 입력하세요.'})+
  field('waitlist','정원 초과 시 대기 신청 허용',r?.waitlist??true,{type:'checkbox',wide:true})+
@@ -42,7 +42,7 @@ async function eventEdit(ctx,id){
   if(starts>=ends)throw Error('행사 종료는 시작 이후로 정해 주세요.');
   if(opens>=closes)throw Error('신청 마감은 신청 시작 이후로 정해 주세요.');
   if(closes>starts)throw Error('신청 마감은 행사 시작 이전으로 정해 주세요.');
-  if(cancel>starts)throw Error('자율 취소 마감은 행사 시작 이전으로 정해 주세요.');
+  if(cancel>starts)throw Error('취소 마감은 행사 시작 이전으로 정해 주세요.');
   const questions=val(f,'questions').split('\n').map(v=>v.trim()).filter(Boolean);
   if(questions.length>3||questions.some(q=>q.length>200))throw Error('추가 질문은 최대 3개, 질문 하나당 200자까지 입력해 주세요.');
   if(r?.status!=='cancelled'&&val(f,'status')==='cancelled'&&!f.has('confirmCancellation'))throw Error('행사 취소의 영향을 확인해 주세요.');
