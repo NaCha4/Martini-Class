@@ -83,7 +83,7 @@ export function createService(db,clock=Date.now){
     if(old?.status==='cancelled'&&input.status!=='cancelled')fail('failed-precondition','취소된 행사는 다시 열 수 없습니다. 새 행사를 만들어 주세요.');
     const conf=snapshot(await tx.get(col('settings').doc('club')));
     if(input.status==='open'&&(!conf||(!conf.contact&&!openChatUrl(conf.joinUrl))))fail('failed-precondition','운영 설정에서 동아리 문의 채널 또는 가입 오픈채팅 링크를 먼저 입력해 주세요.');
-    if(old?.sequence>0&&(old.fee!==input.fee||old.semester!==input.semester))fail('failed-precondition','신청 이력이 있는 행사의 참가비·학기는 변경할 수 없습니다.');
+    next.hasSemesterChanges=!!old?.hasSemesterChanges||!!(old?.sequence>0&&old.semester!==input.semester);
     next={...next,registered:old?.registered||0,waiting:old?.waiting||0,sequence:old?.sequence||0,linkHash:link?hash(link):old.linkHash};
     if(old&&old.status!=='cancelled'&&input.status==='cancelled'){
      const applications=await tx.get(col('applications').where('eventId','==',id));
@@ -207,7 +207,12 @@ export function createService(db,clock=Date.now){
    const members=(await roster.findStudent(input.studentId,event.semester,tx)).filter(m=>m.name===input.name);
    const member=members.length===1?members[0]:null;
    if(!member||(input.phone!==undefined&&normalizePhone(input.phone)!==normalizePhone(member.phone))||member.name!==input.name||member.anonymizedAt||member.removedAt||member.semester!==event.semester)fail('permission-denied','명부 정보 또는 활동 자격을 확인할 수 없습니다. 운영진에게 문의해 주세요.');
-   const id=hash(event.id+':'+member.id),ref=col('applications').doc(id),prior=await tx.get(ref),existing=prior.exists?{...prior.data(),id}:null;
+   let priorId=null;
+   if(event.hasSemesterChanges){
+    const previous=await tx.get(col('applications').where('eventId','==',event.id));
+    for(const d of previous.docs){const a=d.data();if(a.name!==input.name||a.semester===event.semester||a.deletedAt||a.anonymizedAt)continue;const original=await roster.get(a.memberId,a.semester,tx);if(original?.studentId===input.studentId){if(priorId&&priorId!==d.id)fail('failed-precondition','이전 신청 기록을 운영진에게 확인해 주세요.');priorId=d.id;}}
+   }
+   const id=priorId||hash(event.id+':'+member.id),ref=col('applications').doc(id),prior=await tx.get(ref),existing=prior.exists?{...prior.data(),id}:null;
    if(existing&&matches(input.receiptKey,existing.receiptHash)&&existing.requestId===input.requestId)return {id,status:existing.status};
    if(existing&&!['cancelled','expired'].includes(existing.status))fail('already-exists','이미 신청한 행사입니다. 신청할 때 받은 확인 링크를 이용해 주세요.');
    if(existing&&(existing.paidAmount||0)>(existing.refundAmount||0))fail('failed-precondition','이전 신청의 환불 처리를 먼저 확인해 주세요.');
@@ -235,9 +240,9 @@ export function createService(db,clock=Date.now){
    }
    if(input.action==='accept'){
     if(event.status==='cancelled'||record.status!=='offered'||Date.parse(record.offerExpiresAt)<=clock())fail('failed-precondition','유효한 승급 제안이 없습니다.');
-    const member=await roster.get(record.memberId,event.semester,tx);
-    if(!member||member.anonymizedAt||member.removedAt||member.semester!==event.semester)fail('permission-denied','현재 활동 자격을 확인할 수 없습니다. 운영진에게 문의해 주세요.');
-    tx.update(ref,{status:'registered',payment:event.fee?'unpaid':'none',updatedAt:now()});return {saved:true};
+    const member=await roster.get(record.memberId,record.semester,tx);
+    if(!member||member.anonymizedAt||member.removedAt||member.semester!==record.semester)fail('permission-denied','현재 활동 자격을 확인할 수 없습니다. 운영진에게 문의해 주세요.');
+    tx.update(ref,{status:'registered',payment:record.fee?'unpaid':'none',updatedAt:now()});return {saved:true};
    }
    if(input.action==='cancel'||input.action==='decline'){
     if(record.status==='cancelled')return {saved:true};
@@ -259,8 +264,8 @@ export function createService(db,clock=Date.now){
     if(e.status==='cancelled'||a.status!=='registered'||!input.attendance)fail('failed-precondition','참가 등록된 신청만 출석을 처리할 수 있습니다.');
     tx.update(ref,{attendance:input.attendance,updatedAt:now()});
    }else if(input.action==='offer'){
-    const member=await roster.get(a.memberId,e.semester,tx);
-    if(!member||member.anonymizedAt||member.removedAt||member.semester!==e.semester)fail('failed-precondition','해당 부원의 활동 자격이 변경되었습니다. 신청을 취소한 뒤 다음 대기자를 확인해 주세요.');
+    const member=await roster.get(a.memberId,a.semester,tx);
+    if(!member||member.anonymizedAt||member.removedAt||member.semester!==a.semester)fail('failed-precondition','해당 부원의 활동 자격이 변경되었습니다. 신청을 취소한 뒤 다음 대기자를 확인해 주세요.');
     const queue=await tx.get(col('applications').where('eventId','==',e.id));
     const first=queue.docs.map(snapshot).filter(x=>x?.status==='waiting').sort((a,b)=>a.sequence-b.sequence)[0];
     if(e.status==='cancelled'||a.status!=='waiting'||first?.id!==a.id||e.registered>=e.capacity)fail('failed-precondition','빈자리와 대기 순서를 확인해 주세요.');

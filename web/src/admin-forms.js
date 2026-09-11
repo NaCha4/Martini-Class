@@ -22,8 +22,8 @@ async function memberEdit(ctx,id){
 }
 async function eventEdit(ctx,id){
  const r=await record(ctx,'events',id),start=new Date(Date.now()+7*86400000).toISOString(),end=new Date(Date.now()+7*86400000+7200000).toISOString();
- const dialog=modal(r?'행사 편집':'새 행사 만들기',editorSection('1. 기본 정보','어떤 활동인지 먼저 알려주세요. 소개와 준비물은 신청 화면에 표시됩니다.',field('title','행사 이름',r?.title,{required:true,wide:true,maxLength:120,placeholder:'예: 9월 칵테일 기초 교육'})+
- field('type','활동 유형',r?.type||'meeting',{choices:['meeting','class','social','workshop','other']})+field('semester','학기',r?.semester||semester(ctx),{required:true,maxLength:30,readOnly:!!r?.sequence,hint:r?.sequence?'신청 이력이 있어 학기를 변경할 수 없습니다.':'예: 2026-2'})+
+ const dialog=modal(r?'행사 편집':'새 행사 만들기',(r?.sequence?'<div class="notice-warning wide" data-existing-applications role="status" hidden>신청 이력이 있습니다. 변경한 참가비·학기는 새 신청부터 적용됩니다. 기존 신청자의 금액·납부 내역과 대기 자격은 유지됩니다.</div>':'')+editorSection('1. 기본 정보','어떤 활동인지 먼저 알려주세요. 소개와 준비물은 신청 화면에 표시됩니다.',field('title','행사 이름',r?.title,{required:true,wide:true,maxLength:120,placeholder:'예: 9월 칵테일 기초 교육'})+
+ field('type','활동 유형',r?.type||'meeting',{choices:['meeting','class','social','workshop','other']})+field('semester','학기',r?.semester||semester(ctx),{required:true,maxLength:30,hint:'예: 2026-2'})+
  field('description','소개 · 준비물',r?.description,{type:'textarea',wide:true,rows:4,maxLength:8000})+
  field('location','장소',r?.location||ctx.state.settings.location||'동아리방',{required:true,maxLength:200})+field('owner','진행 담당',r?.owner||'기획부',{maxLength:80}))+
  editorSection('2. 행사 · 신청 일정','행사 시간과 신청 기간을 구분해 입력하세요. 모든 시간은 현재 기기의 시간대 기준입니다.',
@@ -31,7 +31,7 @@ async function eventEdit(ctx,id){
  field('opensAt','신청 시작',localTime(r?.opensAt),{type:'datetime-local',required:true})+field('closesAt','신청 마감',localTime(r?.closesAt||new Date(Date.now()+6*86400000)),{type:'datetime-local',required:true})+
  field('cancelUntil','취소 마감',localTime(r?.cancelUntil||new Date(Date.now()+6*86400000)),{type:'datetime-local',required:true,wide:true}))+
  editorSection('3. 정원 · 참가비','참가비와 취소 기준은 신청 전에 부원에게 안내됩니다.',field('capacity','정원',r?.capacity||20,{type:'number',min:1,max:500,required:true})+
- field('fee','참가비 (원)',r?.fee||0,{type:'number',min:0,max:1000000,required:true,readOnly:!!r?.sequence,hint:r?.sequence?'신청 이력이 있어 참가비를 변경할 수 없습니다.':'무료 행사는 0원으로 입력하세요.'})+
+ field('fee','참가비 (원)',r?.fee||0,{type:'number',min:0,max:1000000,required:true,hint:'무료 행사는 0원으로 입력하세요.'})+
  field('waitlist','정원 초과 시 대기 신청 허용',r?.waitlist??true,{type:'checkbox',wide:true})+
  field('paymentInstructions','납부 안내',r?.paymentInstructions||'',{type:'textarea',wide:true,rows:2,maxLength:1000})+
  field('policy','취소 · 환불 안내',r?.policy||'취소 마감 전에는 확인 링크에서 취소할 수 있습니다. 마감 이후 취소와 환불은 운영진에게 문의해 주세요.',{type:'textarea',wide:true,required:true,rows:3,maxLength:2000}))+
@@ -51,6 +51,7 @@ async function eventEdit(ctx,id){
  },{wide:true,submit:'행사 저장'});
  const updateStatus=()=>{const status=dialog.querySelector('[name=status]').value,confirmation=dialog.querySelector('[name=confirmCancellation]'),destructive=status==='cancelled'&&r?.status!=='cancelled';confirmation.closest('label').hidden=!destructive;confirmation.required=destructive;confirmation.disabled=!destructive;dialog.querySelector('[data-event-status-help]').textContent={draft:'초안은 신청을 받지 않습니다. 내용을 확인한 뒤 모집 중으로 변경하세요.',open:'신청 시작부터 마감까지, 활동 자격이 확인된 부원의 신청을 받습니다.',closed:'새 신청 접수를 중지합니다. 기존 신청은 유지됩니다.',completed:'행사 진행이 끝난 상태입니다. 출석과 정산 기록을 함께 확인하세요.',cancelled:r?.status==='cancelled'?'취소된 행사입니다. 새 모집이 필요하면 새 행사를 만들어 주세요.':'저장하면 등록·대기·승급 제안 중인 모든 신청도 취소됩니다. 이미 납부된 참가비는 환불을 별도로 처리해야 합니다.'}[status];const submit=dialog.querySelector('[type=submit]');submit.classList.toggle('danger',destructive);submit.textContent=destructive?'행사 취소 확정':'행사 저장';};
  dialog.querySelector('[name=status]').addEventListener('change',updateStatus);updateStatus();
+ if(r?.sequence){const warn=()=>{dialog.querySelector('[data-existing-applications]').hidden=Number(dialog.querySelector('[name=fee]').value)===r.fee&&dialog.querySelector('[name=semester]').value.trim()===r.semester;};for(const name of ['fee','semester'])dialog.querySelector('[name='+name+']').addEventListener('input',warn);warn();}
 }
 async function itemEdit(ctx,id){
  const r=await record(ctx,'inventory',id);

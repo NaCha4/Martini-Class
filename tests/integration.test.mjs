@@ -132,7 +132,7 @@ test('receipt reissue revokes the old link and contact access remains limited',a
 });
 
 async function eventEditInput(changes={}) {
- const {registered,waiting,sequence,linkHash,createdAt,updatedAt,createdBy,updatedBy,...editable}=(await db.doc('martini_v2_events/'+event.id).get()).data();
+ const {registered,waiting,sequence,linkHash,hasSemesterChanges,createdAt,updatedAt,createdBy,updatedBy,...editable}=(await db.doc('martini_v2_events/'+event.id).get()).data();
  return {op:'saveEvent',...editable,...changes};
 }
 test('event cancellation closes every seat, preserves attendance and permits refunds only',async()=>{
@@ -183,12 +183,20 @@ test('100 eligible members on one campus IP register concurrently without overse
  assert.equal(results.filter(r=>r.value?.status==='registered').length,25);assert.equal(results.filter(r=>r.value?.status==='waiting').length,75);
  const stored=(await db.doc('martini_v2_events/'+event.id).get()).data();assert.equal(stored.registered,25);assert.equal(stored.waiting,75);
 });
-test('a waiting application prevents later fee or semester changes',async()=>{
- const a=await service.handle(application(1),{ip:'1'});await service.handle(application(2),{ip:'2'});
- await service.handle({op:'receipt',id:a.id,key:'1'.repeat(64),action:'cancel'},{ip:'1'});
- await assert.rejects(service.handle(await eventEditInput({fee:10000,paymentInstructions:'새 납부'}),owner),e=>e.code==='failed-precondition');
- await assert.rejects(service.handle(await eventEditInput({semester:'2027-1'}),owner),e=>e.code==='failed-precondition');
+test('fee and semester edits preserve existing waitlist terms and block cross-semester duplicates',async()=>{
+ const first=await service.handle(application(1),{ip:'1'}),waiting=await service.handle(application(2),{ip:'2'});
+ await service.handle({op:'receipt',id:first.id,key:'1'.repeat(64),action:'cancel'},{ip:'1'});
+ await service.handle(await eventEditInput({fee:10000,paymentInstructions:'새 납부',semester:'2027-1'}),owner);
+ const before=(await db.doc('martini_v2_applications/'+waiting.id).get()).data();assert.equal(before.fee,0);assert.equal(before.semester,'2026-2');
+ await service.handle({op:'applicationCommand',id:waiting.id,action:'offer',offerExpiresAt:time(3600000),reason:'기존 대기자'},owner);
+ await service.handle({op:'receipt',id:waiting.id,key:'2'.repeat(64),action:'accept'},{ip:'2'});
+ assert.equal((await db.doc('martini_v2_applications/'+waiting.id).get()).data().payment,'none');
+ const newer={...member(2),id:'new-member-2',semester:'2027-1'};await db.doc('martini_v2_members/new-member-2').set(newer);
+ await assert.rejects(service.handle({...application(2),requestId:'new-term-attempt',receiptKey:'f'.repeat(64)},{ip:'2'}),e=>e.code==='already-exists');
+ await db.doc('martini_v2_members/new-member-3').set({...member(3),id:'new-member-3',semester:'2027-1'});
+ const fresh=await service.handle(application(3),{ip:'3'}),freshData=(await db.doc('martini_v2_applications/'+fresh.id).get()).data();assert.equal(freshData.fee,10000);assert.equal(freshData.semester,'2027-1');
 });
+
 test('linked record queries include older meetings and stock movements outside the latest page',async()=>{
  const batch=db.batch();for(let i=0;i<110;i++)batch.set(db.doc('martini_v2_stockMoves/other-'+i),{itemId:'other',updatedAt:stamp});
  batch.set(db.doc('martini_v2_stockMoves/old-gin'),{itemId:'gin',updatedAt:time(-86400000)});await batch.commit();
