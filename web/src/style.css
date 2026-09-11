@@ -220,5 +220,6 @@ td .title-button{text-align:left;line-height:1.6}
 @media(max-width:1200px){.quick-start{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:580px){.quick-start{gap:8px}.quick-start a{padding:14px 10px;gap:8px}.quick-start a>svg:last-child{display:none}.quick-start strong{font-size:13px}.quick-start small{font-size:11px}.editor-fields{grid-template-columns:minmax(0,1fr)}.application-shortcut{padding:16px;align-items:flex-start;flex-direction:column;gap:12px}.application-shortcut .button{width:100%}.event-card-footer{font-size:12px}.toolbar select[data-event-type]{max-width:none;flex:1}.record-delete{min-width:44px;min-height:44px}}
 
-.receipt-account{margin-block:1.5rem;padding-block:1.25rem;border-block:1px solid rgba(205,185,134,.2)}
+.receipt-account{margin:0 0 1.25rem;padding:0 0 1.25rem;border-bottom:1px solid var(--line)}
+.receipt-account .account-owner{margin-bottom:.4rem;overflow-wrap:anywhere}.account-owner span{margin-inline:.35rem;color:var(--muted)}.receipt-account .account-fee{margin:.5rem 0 1rem}
 .account-number{font-variant-numeric:tabular-nums;overflow-wrap:anywhere;user-select:all}

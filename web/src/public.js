@@ -95,12 +95,13 @@ async function receiptPage(ctx,id){
  if(effective==='waiting')details+='<p>대기 신청이 접수되었습니다.<br>빈자리가 생기면 접수 순서대로 운영진이 안내합니다. 참가 제안을 받으면 이 페이지에서 기한 안에 수락해 주세요.</p>';
  if(offered)details+=canAccept?'<p><strong>참가 자리가 준비되었습니다.</strong><br>'+scheduleDate(a.offerExpiresAt)+'까지 수락해 주세요. 수락 후 참가 등록이 완료됩니다.</p>':'<p class="event-state-note">참가 제안의 응답 기한이 지났습니다. 참가를 원하시면 운영진에게 문의해 주세요.</p>';
  if(effective==='expired')details+='<p>이 신청은 만료되었습니다. 참가를 원하시면 운영진에게 문의해 주세요.</p>';
- if(activeEvent&&a.status==='registered'&&a.fee){
-  if(a.payment==='unpaid')details+='<p>참가비 <strong>'+money(a.fee)+'</strong></p><p class="help">입금을 마친 뒤 아래에서 확인을 요청해 주세요.</p>';
+ if(activeEvent&&a.status==='registered'&&a.fee>0){
+  if(e.accountNumber)details+='<section class="receipt-account"><h3>입금 계좌</h3>'+([e.bankName,e.accountHolder].some(Boolean)?'<p class="account-owner">'+[e.bankName,e.accountHolder].filter(Boolean).map(esc).join(' <span aria-hidden="true">|</span> ')+'</p>':'')+'<p class="account-number">'+esc(e.accountNumber)+'</p><p class="account-fee">참가비 <strong>'+money(a.fee)+'</strong></p>'+button('계좌번호 복사','account-copy',{class:'button secondary',icon:'copy'})+'</section>';
+  else details+='<p>참가비 <strong>'+money(a.fee)+'</strong></p>';
+  if(a.payment==='unpaid')details+='<p class="help">입금을 마친 뒤 아래에서 확인을 요청해 주세요.</p>';
   if(a.payment==='requested')details+='<p>운영진이 입금을 확인 중입니다. 확인이 끝나면 이 페이지에 납부 완료로 표시됩니다.</p>';
   if(a.payment==='paid')details+='<p>참가비 납부가 확인되었습니다.</p>';
  }
- if(activeEvent&&a.status==='registered'&&a.fee>0&&e.accountNumber)details+='<section class="receipt-account"><h3>입금 계좌</h3>'+(e.bankName?'<p>은행 <strong>'+esc(e.bankName)+'</strong></p>':'')+(e.accountHolder?'<p>예금주 <strong>'+esc(e.accountHolder)+'</strong></p>':'')+'<p class="account-number">'+esc(e.accountNumber)+'</p>'+button('계좌번호 복사','account-copy',{class:'button secondary',icon:'copy'})+'</section>';
  if(a.paidAmount>0)details+='<p>확인한 입금 '+money(a.paidAmount)+(a.refundAmount?' · 확인한 환불 '+money(a.refundAmount):'')+'</p>';
  if(e.status==='cancelled')details+='<p>행사가 취소되었습니다.'+(a.paidAmount>a.refundAmount?' 납부한 참가비는 운영진에게 환불 처리를 확인해 주세요.':'')+'</p>';
  else if(a.status==='cancelled')details+='<p>신청이 취소되었습니다.'+(a.payment==='refund_pending'?' 환불이 완료되면 이 페이지에 반영됩니다.':'')+'</p>';
