@@ -35,7 +35,7 @@ test('event creation application rejection and cancellation',async({page,browser
  await p.goto(link);await expect(p.locator('.application-shortcut')).toHaveCount(0);await expect(p.locator('[name=phone]')).toHaveCount(0);expect(p.url()).toBe(link);await p.locator('[name=name]').fill('명부에 없는 사람');await p.locator('[name=studentId]').fill('202600003');await p.locator('[name=consent]').check();
  await p.getByRole('button',{name:'신청하기',exact:true}).click();await expect(p.locator('.form-error')).toContainText('활동 자격');
  await p.locator('[name=name]').fill('가상부원 가');await p.locator('[name=studentId]').fill('202600001');
- await p.getByRole('button',{name:'신청하기',exact:true}).click();await expect(p.getByRole('heading',{name:'내 신청 확인',exact:true})).toBeVisible();
+ await p.getByRole('button',{name:'신청하기',exact:true}).click();await expect(p.locator('.receipt-card').getByRole('heading',{name:title,exact:true})).toBeVisible();
  await p.reload();await expect(p.getByText('참가 등록',{exact:true})).toBeVisible();
  await p.getByRole('button',{name:'신청 취소',exact:true}).click();await p.getByRole('dialog').getByRole('button',{name:'신청 취소',exact:true}).click();
  await expect(p.locator('.receipt-status')).toContainText('취소');await guest.close();
