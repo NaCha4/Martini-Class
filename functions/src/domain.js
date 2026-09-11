@@ -16,7 +16,7 @@ export const scopes={
  finance:['owner','chair','finance'],
  inventory:['owner','chair','education','execution'],
  meetings:roles, decisions:roles,
- content:['owner','chair','publicity'], settings:['owner','chair'], admins:['owner'], audit:['owner','chair']
+ content:['owner','chair','publicity'], settings:['owner','chair'], admins:['owner','chair'], audit:['owner','chair']
 };
 export const schemas={
  budget:z.object({...meta,title:required(160),amount:z.number().int().min(1).max(100000000),dueDate:z.string().regex(/^20[0-9]{2}-[0-9]{2}-[0-9]{2}$/).refine(v=>{const d=new Date(v+'T00:00:00Z');return Number.isFinite(d.getTime())&&d.toISOString().slice(0,10)===v;}).or(z.literal('')),note:text(2000).default(''),semester:z.string().regex(/^20[0-9]{2}-[12]$/)}).strict(),

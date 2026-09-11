@@ -651,3 +651,19 @@ test('applications accept name and student ID without a phone and reject ambiguo
  const second=application(2);delete second.phone;await db.doc('martini_v2_members/ambiguous').set({...member(2),id:'ambiguous',phone:'01099999999'});
  await assert.rejects(service.handle(second,{ip:'no-phone-two'}),e=>e.code==='permission-denied');
 });
+
+test('chair shares owner management authority despite stored role overrides, while other roles remain limited',async()=>{
+ await db.doc('martini_v2_roles/chair').set({id:'chair',name:'이전 부회장',permissions:['meetings'],revision:5});
+ await db.doc('martini_v2_admins/chair').set({role:'chair',displayName:'부회장',active:true,expiresAt:time(86400000),updatedAt:stamp});const chair={uid:'chair',ip:'chair-local'};
+ const leader=await service.handle({op:'profile'},chair),president=await service.handle({op:'profile'},owner);assert.deepEqual(leader.permissions,president.permissions);assert.equal(leader.roleName,'부회장');
+ await service.handle({op:'listRoles'},chair);await service.handle({op:'read',kind:'admins'},chair);await service.handle({op:'read',kind:'audit'},chair);
+ const role=await service.handle({op:'saveRole',revision:0,name:'테스트 부서',permissions:['meetings']},chair);
+ await service.handle({op:'saveAdmin',uid:'new-staff',displayName:'테스트 임원',role:role.id,active:true,expiresAt:time(86400000)},chair);
+ const staff=(await db.doc('martini_v2_admins/new-staff').get()).data();await service.handle({op:'deleteAdmin',uid:'new-staff',updatedAt:staff.updatedAt},chair);await service.handle({op:'deleteRole',id:role.id,revision:role.revision},chair);
+ await assert.rejects(service.handle({op:'deleteRole',id:'chair',revision:0},owner),e=>e.code==='failed-precondition');
+ await assert.rejects(service.handle({op:'saveRole',id:'chair',revision:0,name:'부회장',permissions:['meetings']},owner),e=>e.code==='failed-precondition');
+ await assert.rejects(service.handle({op:'deleteAdmin',uid:'chair',updatedAt:stamp},chair),e=>e.code==='failed-precondition');
+ await service.handle({op:'saveAdmin',uid:'chair',displayName:'부회장',role:'chair',active:true,expiresAt:time(86400000)},chair);
+ await assert.rejects(service.handle({op:'saveAdmin',uid:'chair',displayName:'부회장',role:'education',active:true,expiresAt:time(86400000)},chair),e=>e.code==='failed-precondition');
+ await assert.rejects(service.handle({op:'listRoles'},education),e=>e.code==='permission-denied');
+});

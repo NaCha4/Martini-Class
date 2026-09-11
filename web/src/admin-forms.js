@@ -181,7 +181,7 @@ async function roleEdit(ctx,id){
 async function roleDelete(ctx,id){
  const r=(await ctx.api('listRoles')).rows.find(role=>role.id===id);
  if(!r)throw Error('역할을 찾을 수 없습니다.');
- if(r.id==='owner')throw Error('회장 역할은 삭제할 수 없습니다.');
+ if(['owner','chair'].includes(r.id))throw Error('회장·부회장 역할은 삭제할 수 없습니다.');
  if(r.assigned)throw Error('이 역할을 배정받은 임원의 역할을 먼저 변경해 주세요.');
  modal('역할 삭제','<p class="wide">'+esc(r.name)+' 역할을 삭제합니다. 삭제한 역할은 임원에게 배정할 수 없으며, 되돌릴 수 없습니다.</p>',async()=>save(ctx,'deleteRole',{id:r.id,revision:r.revision}),{submit:'역할 삭제',submitClass:'button danger'});
 }

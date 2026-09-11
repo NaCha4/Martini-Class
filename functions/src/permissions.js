@@ -2,7 +2,7 @@ export const permissionLabels={members:'부원 명부 등록·수정',events:'�
 export const permissionKeys=Object.keys(permissionLabels);
 export const defaultRoles=[
  {id:'owner',name:'회장',permissions:[...permissionKeys,'admins'],system:true},
- {id:'chair',name:'부회장',permissions:[...permissionKeys],system:true},
+ {id:'chair',name:'부회장',permissions:[...permissionKeys,'admins'],system:true},
  {id:'finance',name:'재무부',permissions:['members','finance','meetings','decisions'],system:true},
  {id:'education',name:'교육부',permissions:['events','inventory','meetings','decisions'],system:true},
  {id:'execution',name:'집행부',permissions:['members','events','inventory','meetings','decisions'],system:true},

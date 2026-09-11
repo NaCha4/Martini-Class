@@ -99,7 +99,7 @@ async function list(ctx,kind){
  if(kind==='roles'){
   const result=await ctx.api('listRoles'),roles=result.rows;ctx.state.roles=roles;
   const heads=['역할','사용할 수 있는 업무','배정 인원','관리'];
-  return heading('','역할 관리','역할을 만들고 업무 권한을 정한 뒤 임원에게 배정합니다.',button('역할 만들기','role-edit',{icon:'plus'}))+table(heads,roles.map(r=>row(r,r.name,['<span class="role-name">'+esc(r.name)+'</span>',r.permissions.map(p=>esc(permissionLabels[p]||'역할·임원 관리')).join(' · '),r.assigned+'명',r.id==='owner'?'<span class="help">필수 관리 권한 유지</span>':managementActions('role',r.id)],heads)))+'<p class="help">회비·정산 권한은 기본적으로 회장·부회장·재무부에만 부여됩니다. 권한을 수정하면 배정된 임원 모두에게 적용됩니다. 회장을 제외한 역할은 삭제할 수 있으며, 배정 인원이 있으면 먼저 다른 역할로 변경해야 합니다.</p>';
+  return heading('','역할 관리','역할을 만들고 업무 권한을 정한 뒤 임원에게 배정합니다.',button('역할 만들기','role-edit',{icon:'plus'}))+table(heads,roles.map(r=>row(r,r.name,['<span class="role-name">'+esc(r.name)+'</span>',r.permissions.map(p=>esc(permissionLabels[p]||'역할·임원 관리')).join(' · '),r.assigned+'명',['owner','chair'].includes(r.id)?'<span class="help">필수 관리 권한 유지</span>':managementActions('role',r.id)],heads)))+'<p class="help">회비·정산 권한은 기본적으로 회장·부회장·재무부에만 부여됩니다. 권한을 수정하면 배정된 임원 모두에게 적용됩니다. 회장·부회장을 제외한 역할은 삭제할 수 있으며, 배정 인원이 있으면 먼저 다른 역할로 변경해야 합니다.</p>';
  }
 
  const {rows}=['events','finance','members','meetings','decisions'].includes(kind)?await readAll(ctx,kind):await read(ctx,kind);
