@@ -7,7 +7,7 @@ import { createDeletion } from './deletion.js';
 import { Timestamp, FieldValue } from 'firebase-admin/firestore';
 import { schemas, parse, fail, ensureScope, hash, secret, identity, normalizePhone, validateEvent, allocate, changeStock, stockTotal, matches, publicEvent, requireRevision, occupied, idSchema, roles } from './domain.js';
 const PREFIX='martini_v2_';
-const token=z.string().regex(/^[a-f0-9]{64}$/);
+const token=z.string().regex(/^(?:[a-f0-9]{24}|[a-f0-9]{64})$/);
 const requestKey=idSchema;
 const iso=()=>new Date().toISOString();
 export function createService(db,clock=Date.now){

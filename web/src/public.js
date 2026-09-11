@@ -26,7 +26,7 @@ function shell(body){
  return header()+'<main id="main-content" class="public-page">'+body+'</main>'+footer();
 }
 const key=()=>linkKey(location.hash);
-const secret=()=>Array.from(crypto.getRandomValues(new Uint8Array(32)),b=>b.toString(16).padStart(2,'0')).join('');
+const secret=()=>Array.from(crypto.getRandomValues(new Uint8Array(12)),b=>b.toString(16).padStart(2,'0')).join('');
 async function publicInfo(ctx){
  if(ctx.state.publicInfo)return ctx.state.publicInfo;
  try{ctx.state.publicInfo=await ctx.api('publicRead');return ctx.state.publicInfo;}
@@ -114,7 +114,7 @@ export async function publicSubmit(ctx,form,f){
  ctx.state.pendingApplications??={};
  let pending=ctx.state.pendingApplications[storageKey];
  if(!pending){try{pending=JSON.parse(sessionStorage.getItem(storageKey)||'null');}catch{}}
- if(!pending||typeof pending.requestId!=='string'||!/^[a-f0-9]{64}$/.test(pending.receiptKey||''))pending={requestId:crypto.randomUUID(),receiptKey:secret()};
+ if(!pending||typeof pending.requestId!=='string'||!/^(?:[a-f0-9]{24}|[a-f0-9]{64})$/.test(pending.receiptKey||''))pending={requestId:crypto.randomUUID(),receiptKey:secret()};
  ctx.state.pendingApplications[storageKey]=pending;
  try{sessionStorage.setItem(storageKey,JSON.stringify(pending));}catch{}
  let result;

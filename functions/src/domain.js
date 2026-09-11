@@ -34,7 +34,7 @@ export const schemas={
 };
 export function parse(schema,value){const result=schema.safeParse(value);if(!result.success)fail('invalid-argument',result.error.issues.map(i=>i.path.join('.')+': '+i.message).slice(0,3).join(' / '));return result.data;}
 export const hash=value=>createHash('sha256').update(String(value)).digest('hex');
-export const secret=()=>randomBytes(32).toString('hex');
+export const secret=()=>randomBytes(12).toString('hex');
 export function matches(value,digest){if(typeof value!=='string'||typeof digest!=='string'||digest.length!==64)return false;return timingSafeEqual(Buffer.from(hash(value),'hex'),Buffer.from(digest,'hex'));}
 export const normalizePhone=value=>String(value).replace(/[^0-9]/g,'');
 export const identity=(studentId,phone)=>hash(String(studentId).trim().toLowerCase()+':'+normalizePhone(phone));

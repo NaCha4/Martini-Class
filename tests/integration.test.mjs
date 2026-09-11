@@ -713,3 +713,16 @@ test('event bank account persists, supports legacy edits, and appears on private
  await service.handle(await eventEditInput({accountNumber:'',bankName:'',accountHolder:''}),owner);
  assert.equal((await db.doc('martini_v2_events/'+event.id).get()).data().accountNumber,'');
 });
+
+test('96-bit links support event access, application, receipt and key rotation',async()=>{
+ const current=(await db.doc('martini_v2_events/'+event.id).get()).data();
+ const renewed=await service.handle({op:'rotateEventLink',id:event.id,revision:current.revision},owner);assert.match(renewed.linkKey,/^[a-f0-9]{24}$/);
+ const resolved=await service.handle({op:'resolveLink',kind:'e',key:renewed.linkKey},{ip:'shorter'});assert.equal(resolved.id,event.id);
+ const receiptKey='1'.repeat(24),a=await service.handle(application(1,{key:renewed.linkKey,receiptKey}),{ip:'shorter'});
+ assert.equal((await service.handle({op:'resolveLink',kind:'r',key:receiptKey},{ip:'shorter'})).id,a.id);
+ assert.equal((await service.handle({op:'receipt',id:a.id,key:receiptKey,action:'get'},{ip:'shorter'})).application.id,a.id);
+ const rotated=await service.handle({op:'rotateReceipt',id:a.id,reason:'테스트'},owner);assert.match(rotated.key,/^[a-f0-9]{24}$/);
+ await assert.rejects(service.handle({op:'resolveLink',kind:'r',key:receiptKey},{ip:'shorter'}),e=>e.code==='not-found');
+ await service.handle({op:'receipt',id:a.id,key:rotated.key,action:'cancel'},{ip:'shorter'});
+ assert.equal((await db.doc('martini_v2_applications/'+a.id).get()).data().status,'cancelled');
+});
