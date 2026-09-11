@@ -7,7 +7,7 @@
     "dev": "vite --host 127.0.0.1",
     "build": "node scripts/build.mjs",
     "preview": "vite preview --host 127.0.0.1",
-    "test": "node --test tests/domain.test.mjs",
+    "test": "node --test tests/domain.test.mjs tests/share-links.test.mjs",
     "test:integration": "node --test tests/integration.test.mjs",
     "emulators": "node scripts/start-emulators.mjs",
     "seed:local": "node scripts/seed-local.mjs",

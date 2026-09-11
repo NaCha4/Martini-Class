@@ -289,6 +289,14 @@ export function createService(db,clock=Date.now){
    const [config,content]=await Promise.all([settings(),col('content').where('published','==',true).limit(50).get()]);
    return {settings:config?{intro:config.intro,contact:config.contact,joinUrl:config.joinUrl,privacy:config.privacy,location:config.location,semester:config.semester}:null,content:content.docs.map(s=>clean({...s.data(),id:s.id})).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt))};
   }
+  if(op==='resolveLink'){
+   const input=parse(z.object({kind:z.enum(['e','r']),key:token}).strict(),data);
+   await throttle(ctx,'resolve-link:'+input.kind+':'+(parseInt(secret().slice(0,4),16)%16),100);
+   const rows=await col(input.kind==='e'?'events':'applications').where(input.kind==='e'?'linkHash':'receiptHash','==',hash(input.key)).limit(2).get();
+   const record=rows.size===1?snapshot(rows.docs[0]):null;
+   if(!record||record.anonymizedAt)fail('not-found','링크를 확인해 주세요.');
+   return {id:rows.docs[0].id};
+  }
   if(op==='eventAccess'){const input=parse(z.object({eventId:idSchema,key:token}).strict(),data);await throttle(ctx,'event:'+input.eventId+':'+(parseInt(secret().slice(0,4),16)%16),100);return publicEvent(await verifyEvent(input.eventId,input.key));}
   if(op==='apply')return apply(data,ctx);
   if(op==='receipt')return receipt(data,ctx);

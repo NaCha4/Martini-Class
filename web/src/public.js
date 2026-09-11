@@ -1,3 +1,4 @@
+import { shortLink, linkKey } from './share-links.js';
 import privacyContent from './content/privacy.html?raw';
 import { openChatUrl } from '../../functions/src/public-links.js';
 import { esc, icon, textBlock, field, badge, button, date, money, label, empty, modal } from './ui.js';
@@ -24,7 +25,7 @@ function home(){
 function shell(body){
  return header()+'<main id="main-content" class="public-page">'+body+'</main>'+footer();
 }
-const key=()=>new URLSearchParams(location.hash.slice(1)).get('key')||'';
+const key=()=>linkKey(location.hash);
 const secret=()=>Array.from(crypto.getRandomValues(new Uint8Array(32)),b=>b.toString(16).padStart(2,'0')).join('');
 async function publicInfo(ctx){
  if(ctx.state.publicInfo)return ctx.state.publicInfo;
@@ -34,6 +35,10 @@ async function publicInfo(ctx){
 export async function renderPublic(ctx){
  const path=location.pathname.replace(/\/+$/,'')||'/',parts=path.split('/').filter(Boolean);
  if(path==='/')return home();
+ if(['e','r'].includes(parts[0])&&parts.length===1){
+  const resolvingUrl=location.href;
+  try{const result=await ctx.api('resolveLink',{kind:parts[0],key:key()});if(location.href!==resolvingUrl)return '';return parts[0]==='e'?eventPage(ctx,result.id):receiptPage(ctx,result.id);}catch(error){return linkError(error,parts[0]==='e'?'event':'receipt');}
+ }
  if(parts[0]==='e'&&parts.length===2)return eventPage(ctx,parts[1]);
  if(parts[0]==='r'&&parts.length===2)return receiptPage(ctx,parts[1]);
  if(path==='/privacy')return shell('<section class="page-intro"><span class="eyebrow">개인정보</span><h1>개인정보 처리방침</h1></section>'+privacyContent);
@@ -60,9 +65,9 @@ function linkError(error,kind){
  return shell('<section class="page-intro"><span class="eyebrow">신청 안내</span><h1>'+title+'</h1><p>'+esc(message)+'</p><div class="receipt-actions">'+button('다시 불러오기','public-refresh',{class:'button secondary'})+'<a data-nav href="/" class="button secondary">홈으로</a></div></section>');
 }
 async function eventPage(ctx,id){
- const accessKey=key();
+ const accessKey=key(),accessUrl=location.href;
  let e;try{e=await ctx.api('eventAccess',{eventId:id,key:accessKey});}catch(error){return linkError(error,'event');}
- if(location.pathname.replace(/\/+$/,'')==='/e/'+id&&key()===accessKey)ctx.state.currentEvent=e;
+ if(location.href===accessUrl&&key()===accessKey)ctx.state.currentEvent=e;
  const now=Date.now(),beforeOpen=Date.parse(e.opensAt)>now,afterClose=Date.parse(e.closesAt)<=now;
  const open=e.status==='open'&&!beforeOpen&&!afterClose,willWait=e.registered>=e.capacity||e.waiting>0;
  const canApply=open&&(!willWait||e.waitlist);
@@ -78,9 +83,9 @@ async function eventPage(ctx,id){
  return shell('<div class="application-layout"><section class="event-public-detail"><span class="eyebrow">'+esc(label(e.type))+'</span><span class="badge '+esc(statusClass)+'">'+esc(statusText)+'</span><h1>'+esc(e.title)+'</h1><div class="event-facts"><p>'+icon('calendar-days')+'<span>'+scheduleDate(e.startsAt)+'<small>종료 '+scheduleDate(e.endsAt)+'</small></span></p><p>'+icon('map-pin')+'<span>'+esc(e.location)+'</span></p><p>'+icon('wallet')+'<span>'+(e.fee?money(e.fee):'참가비 없음')+'</span></p><p>'+icon('users')+'<span>등록 '+e.registered+' / '+e.capacity+'명'+(e.waitlist?' · 대기 '+e.waiting+'명':'')+'</span></p></div>'+'<section class="application-description"><h2>활동 안내</h2>'+textBlock(e.description||'별도 준비물 안내가 없습니다.')+'</section><hr><h2>신청과 취소</h2><p class="help">신청 시작 '+scheduleDate(e.opensAt)+'<br>신청 마감 '+scheduleDate(e.closesAt)+'<br>취소 마감 '+scheduleDate(e.cancelUntil)+'</p>'+textBlock(e.policy)+'</section><aside class="apply-card" aria-labelledby="apply-title"><span class="eyebrow">행사 신청</span><h2 id="apply-title">'+(canApply?(willWait?'대기 신청':'참가 신청'):statusText)+'</h2>'+(canApply&&willWait?'<p class="event-state-note">'+esc(stateNote)+'</p>':'')+applicationForm+'</aside></div>');
 }
 async function receiptPage(ctx,id){
- const accessKey=key();
+ const accessKey=key(),accessUrl=location.href;
  let result;try{result=await ctx.api('receipt',{id,key:accessKey,action:'get'});}catch(error){return linkError(error,'receipt');}
- if(location.pathname.replace(/\/+$/,'')==='/r/'+id&&key()===accessKey)ctx.state.currentReceipt={id,key:accessKey,...result};
+ if(location.href===accessUrl&&key()===accessKey)ctx.state.currentReceipt={id,key:accessKey,...result};
  const {application:a,event:e}=result,now=Date.now(),effective=e.status==='cancelled'?'cancelled':a.status;
  const activeEvent=e.status!=='cancelled',offered=activeEvent&&a.status==='offered';
  const showPayment=a.payment!=='none'&&(!['cancelled','expired'].includes(effective)||!['unpaid','requested'].includes(a.payment));
@@ -120,7 +125,7 @@ export async function publicSubmit(ctx,form,f){
  }
  try{sessionStorage.removeItem(storageKey);}catch{}
  delete ctx.state.pendingApplications[storageKey];
- await ctx.navigate('/r/'+result.id+'#key='+pending.receiptKey,{discard:true});
+ await ctx.navigate(shortLink('r',pending.receiptKey),{discard:true});
 }
 export async function publicAction(ctx,action){
  if(action==='application-jump'){
@@ -130,9 +135,11 @@ export async function publicAction(ctx,action){
  if(action==='public-refresh'){delete ctx.state.publicInfo;await ctx.render();return;}
  const r=ctx.state.currentReceipt;
  if(action==='receipt-copy'){
-  try{await navigator.clipboard.writeText(location.href);ctx.toast('개인 확인 링크를 복사했습니다. 나만 볼 수 있는 곳에 보관해 주세요.');}
+  if(!r)return;
+  const shareUrl=location.origin+shortLink('r',r.key);
+  try{await navigator.clipboard.writeText(shareUrl);ctx.toast('개인 확인 링크를 복사했습니다. 나만 볼 수 있는 곳에 보관해 주세요.');}
   catch{
-   const dialog=modal('개인 확인 링크',field('receiptLink','복사해서 보관할 링크',location.href,{wide:true,readOnly:true,spellcheck:false,hint:'자동 복사를 사용할 수 없습니다. 선택한 주소를 직접 복사해 주세요. 다른 사람에게 공유하지 마세요.'}),null);
+   const dialog=modal('개인 확인 링크',field('receiptLink','복사해서 보관할 링크',shareUrl,{wide:true,readOnly:true,spellcheck:false,hint:'자동 복사를 사용할 수 없습니다. 선택한 주소를 직접 복사해 주세요. 다른 사람에게 공유하지 마세요.'}),null);
    const input=dialog.querySelector('[name=receiptLink]');input.focus();input.select();input.addEventListener('click',()=>input.select());
   }
   return;

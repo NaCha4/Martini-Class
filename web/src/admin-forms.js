@@ -1,3 +1,4 @@
+import { shortLink } from './share-links.js';
 import { hasPermission, permissionLabels } from '../../functions/src/permissions.js';
 import { openChatUrl } from '../../functions/src/public-links.js';
 import { esc, field, icon, badge, button, date, money, label, modal, textBlock, downloadCSV, refreshIcons } from './ui.js';
@@ -47,7 +48,7 @@ async function eventEdit(ctx,id){
   if(questions.length>3||questions.some(q=>q.length>200))throw Error('추가 질문은 최대 3개, 질문 하나당 200자까지 입력해 주세요.');
   if(r?.status!=='cancelled'&&val(f,'status')==='cancelled'&&!f.has('confirmCancellation'))throw Error('행사 취소의 영향을 확인해 주세요.');
   const result=await save(ctx,'saveEvent',{...meta(r),title:val(f,'title'),type:val(f,'type'),semester:val(f,'semester'),description:val(f,'description'),location:val(f,'location'),owner:val(f,'owner'),startsAt:toISO(val(f,'startsAt')),endsAt:toISO(val(f,'endsAt')),opensAt:toISO(val(f,'opensAt')),closesAt:toISO(val(f,'closesAt')),cancelUntil:toISO(val(f,'cancelUntil')),capacity:num(f,'capacity'),fee:num(f,'fee'),status:val(f,'status'),waitlist:f.has('waitlist'),questions,policy:val(f,'policy'),paymentInstructions:val(f,'paymentInstructions')});
-  if(result.linkKey)setTimeout(()=>share('행사 신청 링크',location.origin+'/e/'+result.id+'#key='+result.linkKey),0);
+  if(result.linkKey)setTimeout(()=>share('행사 신청 링크',location.origin+shortLink('e',result.linkKey)),0);
  },{wide:true,submit:'행사 저장'});
  const updateStatus=()=>{const status=dialog.querySelector('[name=status]').value,confirmation=dialog.querySelector('[name=confirmCancellation]'),destructive=status==='cancelled'&&r?.status!=='cancelled';confirmation.closest('label').hidden=!destructive;confirmation.required=destructive;confirmation.disabled=!destructive;dialog.querySelector('[data-event-status-help]').textContent={draft:'초안은 신청을 받지 않습니다. 내용을 확인한 뒤 모집 중으로 변경하세요.',open:'신청 시작부터 마감까지, 활동 자격이 확인된 부원의 신청을 받습니다.',closed:'새 신청 접수를 중지합니다. 기존 신청은 유지됩니다.',completed:'행사 진행이 끝난 상태입니다. 출석과 정산 기록을 함께 확인하세요.',cancelled:r?.status==='cancelled'?'취소된 행사입니다. 새 모집이 필요하면 새 행사를 만들어 주세요.':'저장하면 등록·대기·승급 제안 중인 모든 신청도 취소됩니다. 이미 납부된 참가비는 환불을 별도로 처리해야 합니다.'}[status];const submit=dialog.querySelector('[type=submit]');submit.classList.toggle('danger',destructive);submit.textContent=destructive?'행사 취소 확정':'행사 저장';};
  dialog.querySelector('[name=status]').addEventListener('change',updateStatus);updateStatus();
@@ -270,10 +271,10 @@ export async function handleAdminAction(ctx,action,id,target){
  if(action==='agenda-remove-keep'){const row=target.closest('.agenda-edit');row.querySelector('[data-agenda-confirm]')?.remove();row.querySelector('[name=agendaTitle]').focus();return;}
  if(action==='event-link'){
   const e=await record(ctx,'events',id);
-  modal('신청 링크 다시 만들기','<p class="wide prose">새 링크를 만들면 이전 행사 신청 링크는 사용할 수 없습니다. 기존 참가자의 개인 확인 링크는 유지됩니다.</p>',async()=>{const result=await save(ctx,'rotateEventLink',{id,revision:e.revision});setTimeout(()=>share('행사 신청 링크',location.origin+'/e/'+id+'#key='+result.linkKey),0);},{submit:'이전 링크 만료 · 재발급',submitClass:'button danger'});return;
+  modal('신청 링크 다시 만들기','<p class="wide prose">새 링크를 만들면 이전 행사 신청 링크는 사용할 수 없습니다. 기존 참가자의 개인 확인 링크는 유지됩니다.</p>',async()=>{const result=await save(ctx,'rotateEventLink',{id,revision:e.revision});setTimeout(()=>share('행사 신청 링크',location.origin+shortLink('e',result.linkKey)),0);},{submit:'이전 링크 만료 · 재발급',submitClass:'button danger'});return;
  }
  if(action==='copy-link'){const input=document.querySelector('[name=shareUrl]');try{await navigator.clipboard.writeText(input.value);ctx.toast('링크를 복사했습니다.');}catch{input.select();ctx.toast('선택된 링크를 복사해 주세요.');}return;}
- if(action==='receipt-reissue'){modal('개인 확인 링크 재발급',field('reason','본인 확인 및 재발급 사유','',{required:true,wide:true,maxLength:200})+'<p class="wide help">기존 확인 링크는 즉시 만료됩니다. 신원을 확인한 본인에게만 새 링크를 전달해 주세요.</p>',async f=>{const result=await save(ctx,'rotateReceipt',{id,reason:val(f,'reason')});setTimeout(()=>share('개인 신청 확인 링크',location.origin+'/r/'+id+'#key='+result.key),0);});return;}
+ if(action==='receipt-reissue'){modal('개인 확인 링크 재발급',field('reason','본인 확인 및 재발급 사유','',{required:true,wide:true,maxLength:200})+'<p class="wide help">기존 확인 링크는 즉시 만료됩니다. 신원을 확인한 본인에게만 새 링크를 전달해 주세요.</p>',async f=>{const result=await save(ctx,'rotateReceipt',{id,reason:val(f,'reason')});setTimeout(()=>share('개인 신청 확인 링크',location.origin+shortLink('r',result.key)),0);});return;}
  if(action==='application-manage')return applicationManage(ctx,id);
  if(action.startsWith('attendance-'))return applicationChange(ctx,id,'attendance',action.replace('attendance-',''));
  if(action==='application-offer')return applicationChange(ctx,id,'offer');

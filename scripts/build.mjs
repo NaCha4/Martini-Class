@@ -6,7 +6,7 @@ const root=path.resolve(fileURLToPath(new URL('../',import.meta.url)));
 process.chdir(root);
 await build();
 const output=path.join(root,'dist');
-const routes=['about','activities','join','notices','privacy','events','admin','admin/events','admin/members','admin/inventory','admin/finance','admin/meetings','admin/decisions','admin/content','admin/settings','admin/admins','admin/roles','admin/privacy','admin/audit'];
+const routes=['e','r','about','activities','join','notices','privacy','events','admin','admin/events','admin/members','admin/inventory','admin/finance','admin/meetings','admin/decisions','admin/content','admin/settings','admin/admins','admin/roles','admin/privacy','admin/audit'];
 const html=await fs.readFile(path.join(output,'index.html'),'utf8');
 await fs.writeFile(path.join(output,'404.html'),html);
 for(const route of routes){await fs.mkdir(path.join(output,route),{recursive:true});await fs.writeFile(path.join(output,route,'index.html'),html);}

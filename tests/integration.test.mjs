@@ -675,3 +675,25 @@ test('chair shares owner management authority despite stored role overrides, whi
  await assert.rejects(service.handle({op:'saveAdmin',uid:'chair',displayName:'부회장',role:'education',active:true,expiresAt:time(86400000)},chair),e=>e.code==='failed-precondition');
  await assert.rejects(service.handle({op:'listRoles'},education),e=>e.code==='permission-denied');
 });
+test('short links resolve existing keys, remain scoped and revoke after rotation or deletion',async()=>{
+ const resolve=(kind,key)=>service.handle({op:'resolveLink',kind,key},{ip:'short-link'});
+ assert.deepEqual(await resolve('e','a'.repeat(64)),{id:event.id});
+ const a=await service.handle(application(1),{ip:'member'});
+ assert.deepEqual(await resolve('r','1'.repeat(64)),{id:a.id});
+ await assert.rejects(resolve('r','a'.repeat(64)),e=>e.code==='not-found');
+ await assert.rejects(resolve('e','1'.repeat(64)),e=>e.code==='not-found');
+ await assert.rejects(resolve('r','b'.repeat(64)),e=>e.code==='not-found');
+ await assert.rejects(resolve('r','short'),e=>e.code==='invalid-argument');
+ const renewed=await service.handle({op:'rotateReceipt',id:a.id,reason:'본인 요청'},owner);
+ await assert.rejects(resolve('r','1'.repeat(64)),e=>e.code==='not-found');
+ assert.deepEqual(await resolve('r',renewed.key),{id:a.id});
+ const legacy=await service.handle({op:'receipt',id:a.id,key:renewed.key,action:'get'},{ip:'legacy'});assert.equal(legacy.application.id,a.id);
+ const current=(await db.doc('martini_v2_events/'+event.id).get()).data();
+ const rotated=await service.handle({op:'rotateEventLink',id:event.id,revision:current.revision},owner);
+ await assert.rejects(resolve('e','a'.repeat(64)),e=>e.code==='not-found');
+ assert.deepEqual(await resolve('e',rotated.linkKey),{id:event.id});
+ await db.doc('martini_v2_applications/'+a.id).update({anonymizedAt:stamp});
+ await assert.rejects(resolve('r',renewed.key),e=>e.code==='not-found');
+ await db.doc('martini_v2_events/'+event.id).update({deletedAt:stamp});
+ await assert.rejects(resolve('e',rotated.linkKey),e=>e.code==='not-found');
+});
