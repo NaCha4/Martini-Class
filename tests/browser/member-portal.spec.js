@@ -19,7 +19,8 @@ test.afterEach(async ({ page }, info) => {
 });
 
 async function fillIdentity(dialog, person = member) {
-  for (const key of ['name', 'studentId', 'phone']) await dialog.locator('[name=' + key + ']').fill(person[key]);
+  await expect(dialog.locator('[name=phone], input[type=tel]')).toHaveCount(0);
+  for (const key of ['name', 'studentId']) await dialog.locator('[name=' + key + ']').fill(person[key]);
 }
 
 async function submitDialog(page, title) {
@@ -143,10 +144,10 @@ test('member verification rejects wrong identity and can be cleared on a shared 
   await expect(page.getByRole('region', { name: '신청 바로가기' }).getByRole('button')).toHaveCount(2);
   await expect(page.getByRole('heading', { name: '동아리 가입 신청', exact: true })).toHaveCount(0);
   await action(page, 'member-verify').click();
-  await fillIdentity(page.getByRole('dialog'), { ...member, phone: '01099999999' });
+  await fillIdentity(page.getByRole('dialog'), { ...member, name: '명부에 없는 이름' });
   await page.getByRole('dialog').getByRole('button', { name: '부원 확인하기', exact: true }).click();
   await expect(page.getByRole('dialog').locator('.form-error')).toContainText('확인할 수 없습니다');
-  await page.getByRole('dialog').locator('[name=phone]').fill(member.phone);
+  await page.getByRole('dialog').locator('[name=name]').fill(member.name);
   await submitDialog(page, '부원 확인하기');
   await expect(action(page, 'member-forget')).toBeVisible();
   await expect(page.locator('.member-event').first()).toBeVisible();
@@ -219,6 +220,7 @@ test('visitor can recover an inquiry submission and read the officer reply throu
   let lostSubmissionResponse = false;
   await page.route('**/martiniApi', async route => {
     const body = route.request().method() === 'POST' ? route.request().postDataJSON() : null;
+    if (body?.data?.op === 'submitClubRequest') expect(body.data).not.toHaveProperty('phone');
     if (!lostSubmissionResponse && body?.data?.op === 'submitClubRequest' && body.data.kind === 'inquiry') {
       const savedResponse = await route.fetch();
       expect(savedResponse.ok()).toBeTruthy();

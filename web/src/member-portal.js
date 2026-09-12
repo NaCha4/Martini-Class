@@ -35,9 +35,9 @@ function requestSummary(request){return request.kind==='visit'?stamp(request.sta
 function allRequests(ctx){const view=state(ctx),rows=new Map();for(const row of [...view.receiptRows,...view.requests])if(row?.id)rows.set(row.id,row);return [...rows.values()].sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)));}
 function findRequest(ctx,id){return allRequests(ctx).find(row=>row.id===id);}
 function receiptFor(ctx,id){return storage(ctx).receipts.find(item=>item.id===id);}
-function identityFields(){return input('name','이름','',{required:true,maxLength:40,autocomplete:'name'})+input('studentId','학번','',{required:true,maxLength:30,inputMode:'numeric',autocomplete:'off',spellcheck:false})+input('phone','휴대전화','',{required:true,maxLength:30,type:'tel',autocomplete:'tel',placeholder:'010-1234-5678',wide:true});}
+function identityFields(){return input('name','이름','',{required:true,maxLength:40,autocomplete:'name'})+input('studentId','학번','',{required:true,maxLength:30,inputMode:'numeric',autocomplete:'off',spellcheck:false});}
 function consent(kind){
- const description=kind==='visit'?'이름·학번·연락처, 방문 일정·목적과 외부인 이름을 출입 승인 및 안전한 공간 운영을 위해 수집합니다. 외부인의 연락처나 신분증 정보는 적지 마세요.':'이름·학번·연락처와 문의 내용을 문의 확인 및 답변을 위해 수집합니다. 비밀번호, 주민등록번호 등 민감한 정보는 적지 마세요.';
+ const description=kind==='visit'?'이름·학번, 방문 일정·목적과 외부인 이름을 출입 승인 및 안전한 공간 운영을 위해 수집합니다. 외부인의 연락처나 신분증 정보는 적지 마세요.':'이름·학번와 문의 내용을 문의 확인 및 답변을 위해 수집합니다. 비밀번호, 주민등록번호 등 민감한 정보는 적지 마세요.';
  return '<div class="member-consent-note wide"><h3>개인정보 수집·이용 안내</h3><p>'+description+' 동의하지 않으면 이 신청을 접수할 수 없습니다. 보관 기간과 삭제 요청 방법은 개인정보 안내에서 확인할 수 있습니다.</p><a href="/privacy" target="_blank" rel="noopener noreferrer">개인정보 안내 보기 (새 탭) '+icon('arrow-up-right')+'</a></div>'+input('consent','개인정보 수집·이용에 동의합니다',false,{required:true,type:'checkbox',wide:true});
 }
 function verifiedNote(ctx){const member=state(ctx).member;return member?'<div class="member-form-identity wide">'+icon('shield-check')+'<span><strong>'+esc(member.name)+'</strong> 님의 부원 정보로 접수합니다.</span></div>':'';}
@@ -53,7 +53,7 @@ function openForm(ctx,kind){
  dialog.classList.add('member-dialog');if(kind==='visit'){dialog.classList.add('member-visit-dialog');bindVisitCalendar(dialog);}return dialog;
 }
 function openVerification(ctx,continueToVisit=false){
- const dialog=modal('부원 확인','<p class="member-form-intro wide">부원 명단에 등록된 이름, 학번, 휴대전화 번호로 확인합니다. 진행 중인 행사와 내 신청 내역을 볼 수 있어요.</p>'+identityFields()+'<p class="member-form-note wide">공용 기기에서는 이용 후 ‘이 기기에서 나가기’를 눌러 주세요. 입력한 신원 정보는 이 브라우저에 저장하지 않습니다.</p>',async(data,node)=>{
+ const dialog=modal('부원 확인','<p class="member-form-intro wide">부원 명단에 등록된 이름과 학번로 확인합니다. 진행 중인 행사와 내 신청 내역을 볼 수 있어요.</p>'+identityFields()+'<p class="member-form-note wide">공용 기기에서는 이용 후 ‘이 기기에서 나가기’를 눌러 주세요. 입력한 신원 정보는 이 브라우저에 저장하지 않습니다.</p>',async(data,node)=>{
   await memberPortalSubmit(ctx,'member-verify',data,node);
   if(continueToVisit)dialog.addEventListener('close',()=>setTimeout(()=>openForm(ctx,'visit'),0),{once:true});
  },{submit:'부원 확인하기',busyText:'확인 중…'});
@@ -157,12 +157,12 @@ export async function memberPortalAction(ctx,action,id){
  }
 }
 function required(data,name,title,max){const value=String(data.get(name)||'').trim();if(!value)throw new Error(title+'을(를) 입력해 주세요.');if(value.length>max)throw new Error(title+'은(는) '+max+'자 이하로 입력해 주세요.');return value;}
-function identity(data){const values={name:required(data,'name','이름',40),studentId:required(data,'studentId','학번',30),phone:required(data,'phone','휴대전화 번호',30)};if(!/^[0-9]{8,15}$/.test(values.phone.replace(/\D/g,'')))throw new Error('휴대전화 번호를 확인해 주세요.');return values;}
+function identity(data){return {name:required(data,'name','이름',40),studentId:required(data,'studentId','학번',30)};}
 function koreaISO(value){if(!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value))throw new Error('방문 날짜와 시간을 정확히 입력해 주세요.');const result=new Date(value+':00+09:00');if(Number.isNaN(result.getTime()))throw new Error('유효한 방문 날짜와 시간을 입력해 주세요.');return result.toISOString();}
 export async function memberPortalSubmit(ctx,form,data){
  if(form==='member-verify'){
   const sessionKey=secret();let result;
-  try{result=await ctx.api('memberAccess',{...identity(data),sessionKey});}catch(error){if(['functions/permission-denied','functions/not-found','functions/unauthenticated'].includes(error.code))throw new Error('부원 정보를 확인할 수 없습니다. 명단에 등록된 이름·학번·휴대전화 번호를 확인해 주세요. 계속 확인되지 않으면 운영진에게 문의해 주세요.');throw error;}
+  try{result=await ctx.api('memberAccess',{...identity(data),sessionKey});}catch(error){if(['functions/permission-denied','functions/not-found','functions/unauthenticated'].includes(error.code))throw new Error('부원 정보를 확인할 수 없습니다. 명단에 등록된 이름·학번를 확인해 주세요. 계속 확인되지 않으면 운영진에게 문의해 주세요.');throw error;}
   storage(ctx).session={sessionKey,expiresAt:result.expiresAt};state(ctx).member=result.member;persist(ctx);await ctx.render();ctx.toast('부원 확인을 마쳤습니다.');return;
  }
  const kind=form.replace(/^member-/,'');if(!activeKinds.includes(kind))return;

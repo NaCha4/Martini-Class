@@ -16,10 +16,11 @@ const session='a'.repeat(64),otherSession='b'.repeat(64),receiptKey='c'.repeat(6
 const ref=(kind,id)=>db.doc('martini_v2_'+kind+'/'+id);
 const memberRef=id=>ref('semesters','2026-2').collection('members').doc(id);
 const person=(id=1)=>({name:'가상부원 '+id,studentId:'20260000'+id,phone:'0100000000'+id});
-const access=(id=1,sessionKey=session,extra={})=>service.handle({op:'memberAccess',...person(id),sessionKey,...extra},{ip:'access-'+id});
+const loungePerson=(id=1)=>({name:person(id).name,studentId:person(id).studentId});
+const access=(id=1,sessionKey=session,extra={})=>service.handle({op:'memberAccess',...loungePerson(id),sessionKey,...extra},{ip:'access-'+id});
 const visit=(extra={})=>({op:'submitClubRequest',kind:'visit',requestId:'visit-one',receiptKey,consent:true,sessionKey:session,startsAt:time(3600000),endsAt:time(7200000),guestCount:2,guestNames:'가상 방문자 1, 가상 방문자 2',purpose:'동아리 교류 미팅',...extra});
 const retiredJoin=(extra={})=>({op:'submitClubRequest',kind:'join',requestId:'join-one',receiptKey,consent:true,...person(3),department:'가상학과',grade:'1',message:'가입을 희망합니다.',...extra});
-const inquiry=(extra={})=>({op:'submitClubRequest',kind:'inquiry',requestId:'inquiry-one',receiptKey,consent:true,...person(3),subject:'운영 시간 문의',message:'방문 가능한 시간을 알려 주세요.',...extra});
+const inquiry=(extra={})=>({op:'submitClubRequest',kind:'inquiry',requestId:'inquiry-one',receiptKey,consent:true,...loungePerson(3),subject:'운영 시간 문의',message:'방문 가능한 시간을 알려 주세요.',...extra});
 const command=(id,action,extra={})=>service.handle({op:'clubRequestCommand',id,revision:1,action,response:action==='approve'?'':'운영진 답변',...extra},owner);
 const lookup=id=>service.handle({op:'clubRequestReceipt',id,receiptKey},guest);
 const cancel=id=>service.handle({op:'cancelClubRequest',id,receiptKey},guest);
@@ -37,15 +38,15 @@ beforeEach(async()=>{
 });
 after(()=>deleteApp(app));
 
-test('member access validates all identity fields and stores only a hashed 2-hour capability',async()=>{
- const result=await access(1,session,{phone:'010-0000-0001'});
+test('member access validates name and student ID and stores only a hashed 2-hour capability',async()=>{
+ const result=await access();
  assert.deepEqual(result.member,{name:person().name,semester:'2026-2'});
  assert.equal(Date.parse(result.expiresAt)-now,7200000);
  const stored=(await ref('memberSessions',hash(session)).get()).data();
  assert.equal(stored.memberId,'member-1');assert.equal(stored.expiresAt.toMillis(),now+7200000);
  const serialized=JSON.stringify(stored);for(const value of [session,person().name,person().studentId,person().phone])assert.equal(serialized.includes(value),false);
  await assert.rejects(access(1,'1'.repeat(64),{name:'다른 사람'}),e=>e.code==='permission-denied');
- await assert.rejects(access(1,'2'.repeat(64),{phone:person(2).phone}),e=>e.code==='permission-denied');
+ await assert.rejects(access(1,'2'.repeat(64),{studentId:person(2).studentId}),e=>e.code==='permission-denied');
  await assert.rejects(access(2,session),e=>e.code==='already-exists');
 });
 
@@ -109,6 +110,43 @@ test('strict request schemas reject unverified visits, spoofed identities and un
  for(const extra of [{startsAt:time(-1)},{startsAt:time(91*86400000),endsAt:time(91*86400000+3600000)},{endsAt:time(3600000)},{endsAt:time(14*3600000)},{guestCount:0},{guestCount:21},{guestCount:1.5},{purpose:''},{name:'위조된 이름'}])await assert.rejects(service.handle(visit(extra),{ip:'invalid-'+JSON.stringify(extra)}),e=>e.code==='invalid-argument');
  await assert.rejects(service.handle(inquiry({consent:false}),guest),e=>e.code==='invalid-argument');
  await assert.rejects(service.handle(inquiry({sessionKey:session}),guest),e=>e.code==='invalid-argument');
+});
+
+test('ambiguous names and student IDs fail closed even if a retired phone is supplied',async()=>{
+ await memberRef('duplicate').set({...person(),phone:'01099999999',revision:1});
+ await assert.rejects(access(),e=>e.code==='permission-denied');
+ await assert.rejects(access(1,otherSession,{phone:person().phone}),e=>e.code==='permission-denied');
+});
+
+test('lounge requests do not store or return phone numbers, including cached clients',async()=>{
+ await access(1,session,{phone:'01099999999'});
+ const inputs=[visit(),inquiry(),inquiry({requestId:'cached-inquiry',phone:'01088887777'}),{op:'submitClubRequest',kind:'inquiry',requestId:'member-inquiry',receiptKey,consent:true,sessionKey:session,subject:'부원 문의',message:'문의 내용'}];
+ for(const input of inputs){
+  const result=await service.handle(input,guest),stored=(await ref('clubRequests',input.requestId).get()).data();
+  assert.equal(Object.hasOwn(stored,'phone'),false);assert.equal(Object.hasOwn(result.request,'phone'),false);
+  assert.equal(result.request.memberIdentityHash,undefined);
+ }
+ for(const extra of [{name:''},{studentId:''}])await assert.rejects(service.handle(inquiry(extra),guest),e=>e.code==='invalid-argument');
+ const portal=await service.handle({op:'memberPortal',sessionKey:session},guest);
+ assert.deepEqual(portal.requests.map(row=>row.id).sort(),['member-inquiry','visit-one']);
+ assert.equal((await command('visit-one','approve')).request.status,'approved');
+});
+
+test('legacy visit and inquiry records remain readable and retries do not duplicate them',async()=>{
+ await access();
+ for(const input of [visit(),inquiry()]){
+  const result=await service.handle(input,guest);
+  const {op,sessionKey,receiptKey:unusedReceipt,requestId,consent,...fields}=input;
+  const personInfo=input.kind==='visit'?person():person(3);
+  const legacyFields=Object.fromEntries(Object.entries(fields).flatMap(([field,value])=>field==='studentId'?[[field,value],['phone',personInfo.phone]]:[[field,value]]));
+  const stored=(await ref('clubRequests',result.id).get()).data();delete stored.memberIdentityHash;
+  Object.assign(stored,{phone:personInfo.phone,payloadHash:hash(JSON.stringify({...legacyFields,...personInfo,semester:'2026-2',memberScope:input.kind==='visit'?hash('2026-2:member-1'):null}))});
+  await ref('clubRequests',result.id).set(stored);
+  assert.equal((await service.handle(input,guest)).duplicate,true);
+  assert.equal((await lookup(result.id)).request.phone,undefined);
+ }
+ assert.equal((await service.handle({op:'memberPortal',sessionKey:session},guest)).requests.length,1);
+ assert.equal((await command('visit-one','approve')).request.status,'approved');
 });
 
 test('retired membership application payloads cannot create requests',async()=>{
@@ -216,7 +254,7 @@ test('existing membership application receipts, decisions and consent retention 
 });
 
 test('identity guessing is throttled across IP addresses and receipt guesses are bounded',async()=>{
- for(let i=0;i<8;i++)await assert.rejects(service.handle({op:'memberAccess',...person(),phone:'01099999999',sessionKey:hash('guess-'+i)},{ip:'ip-'+i}),e=>e.code==='permission-denied');
+ for(let i=0;i<8;i++)await assert.rejects(service.handle({op:'memberAccess',...loungePerson(),name:'다른 사람',sessionKey:hash('guess-'+i)},{ip:'ip-'+i}),e=>e.code==='permission-denied');
  await assert.rejects(access(),e=>e.code==='resource-exhausted');
  await service.handle(inquiry(),guest);
  for(let i=0;i<20;i++)await assert.rejects(service.handle({op:'clubRequestReceipt',id:'inquiry-one',receiptKey:hash('wrong-'+i)},{ip:'receipt-ip-'+i}),e=>e.code==='not-found');
