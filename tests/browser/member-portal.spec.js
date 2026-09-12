@@ -77,6 +77,7 @@ test('member verification rejects wrong identity and can be cleared on a shared 
   await expect(page.locator('.member-event').first()).toBeVisible();
   await expect(page.getByRole('heading', { name: '진행 중인 행사', exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: '새로운 소식', exact: true })).toBeVisible();
+  await page.screenshot({ path: '.local/screenshots/member-portal-hub-' + test.info().project.name + '.png' });
   await page.reload();
   await expect(action(page, 'member-forget')).toBeVisible();
   await action(page, 'member-forget').click();
@@ -93,6 +94,7 @@ test('visitor request passes through officer approval and both future and pendin
   const admin = await adminContext.newPage();
   try {
     await loginAdmin(admin, baseURL);
+    await admin.screenshot({ path: '.local/screenshots/member-portal-admin-' + test.info().project.name + '.png' });
     await adminRequest(admin, purpose).getByRole('button', { name: '검토', exact: true }).click();
     const dialog = admin.getByRole('dialog');
     await expect(dialog).toContainText(member.name);
@@ -157,10 +159,15 @@ test('prospective member can submit a join request and read the officer reply to
       await route.abort('failed');
     } else await route.continue();
   });
-  await submitDialog(page, '문의 보내기');
+  await page.getByRole('dialog').getByRole('button', { name: '문의 보내기', exact: true }).click();
+  await expect(page.getByRole('dialog').locator('.form-error')).toContainText('연결하지 못했습니다');
   expect(lostSubmissionResponse).toBeTruthy();
+  page.once('dialog', dialog => dialog.accept());
+  await page.reload();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
   await expect(ownRequest(page, subject)).toHaveCount(1);
   await expect(ownRequest(page, subject).locator('.member-status')).toHaveText('답변 대기');
+  expect(await page.evaluate(() => !JSON.parse(sessionStorage.getItem('martini-member-lounge-v1')).pending.inquiry)).toBeTruthy();
 
   const adminContext = await browser.newContext({ viewport: page.viewportSize() });
   const admin = await adminContext.newPage();
