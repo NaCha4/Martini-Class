@@ -3,7 +3,7 @@ import { renderMemberPortal, memberPortalAction, memberPortalSubmit, getMemberSe
 import privacyContent from './content/privacy.html?raw';
 import { openChatUrl } from '../../functions/src/public-links.js';
 import { esc, icon, textBlock, field, badge, button, date, money, label, empty, modal } from './ui.js';
-const publicLinks=[['/about','소개'],['/activities','활동'],['/notices','공지'],['/join','가입 안내'],['/members','부원 라운지']];
+const publicLinks=[['/about','소개'],['/activities','활동'],['/notices','공지'],['/join','가입 안내']];
 function header(home=false){
  const links=publicLinks.map(([href,title])=>'<a href="'+href+'" data-nav'+((location.pathname.replace(/\/+$/,'')||'/')===href?' aria-current="page"':'')+'>'+title+'</a>').join('');
  return '<a class="skip-link" href="#main-content">본문으로 건너뛰기</a><header class="public-header '+(home?'over-hero':'')+'"><a class="brand" href="/" data-nav aria-label="마티니 홈"><img class="wordmark" src="/assets/wordmark.png" alt="Martini" width="170" height="42"></a><nav aria-label="홈페이지 메뉴">'+links+'</nav><div class="header-actions"><a class="staff-link" href="/admin" data-nav>'+icon('log-out')+'<span>운영실</span></a><details class="public-mobile-menu"><summary aria-label="홈페이지 메뉴" aria-controls="public-mobile-links">'+icon('menu')+'</summary><nav id="public-mobile-links" aria-label="모바일 홈페이지 메뉴">'+links+'</nav></details></div></header>';
