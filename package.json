@@ -8,7 +8,7 @@
     "build": "node scripts/build.mjs",
     "preview": "vite preview --host 127.0.0.1",
     "test": "node --test tests/domain.test.mjs tests/share-links.test.mjs",
-    "test:integration": "node --test tests/integration.test.mjs tests/decision-categories.test.mjs tests/staff-pricing.test.mjs",
+    "test:integration": "node --test tests/integration.test.mjs tests/decision-categories.test.mjs tests/staff-pricing.test.mjs tests/member-portal.test.mjs",
     "emulators": "node scripts/start-emulators.mjs",
     "seed:local": "node scripts/seed-local.mjs",
     "build:pages": "node scripts/build.mjs --stage-pages",

@@ -6,10 +6,12 @@ import { auth, signInWithEmailAndPassword, signOut, local, sendPasswordResetEmai
 import { handleAdminAction, handleAdminSubmit } from './admin-forms.js';
 import { hasStaffFee, staffCheckbox } from './staff-pricing.js';
 import { decisionCategoryId, decisionBoardUrl, readDecisionCategories, decisionCategoryOptions } from './decision-categories.js';
+import { renderAdminRequests, adminRequestAction } from './admin-requests.js';
 const navigation=[['','layout-dashboard','오늘의 운영'],['events','calendar-days','행사 · 교육'],['members','users-round','부원 명부'],['inventory','package','재고 관리'],['finance','wallet','회비 · 정산'],['meetings','notebook-pen','회의록'],['decisions','list-checks','결정 · 할 일'],['content','megaphone','공지 · 활동'],['settings','settings-2','학기 · 운영 설정'],['roles','list-checks','역할 관리'],['admins','shield-check','임원 배정'],['privacy','shield-check','학기말 정보 정리'],['audit','history','변경 이력']];
-const can=(ctx,kind)=>hasPermission(ctx.state.profile,['roles','privacy'].includes(kind)?'admins':kind==='events'?'eventRead':kind);
+navigation.splice(3,0,['requests','door-open','신청 · 문의']);
+const can=(ctx,kind)=>hasPermission(ctx.state.profile,['roles','privacy'].includes(kind)?'admins':kind==='events'?'eventRead':kind==='requests'?'members':kind);
 const scopeEvent=ctx=>hasPermission(ctx.state.profile,'events');
-const menuGroups=[['활동 운영',['','events','members','content']],['운영 지원',['inventory','finance','meetings','decisions']],['관리 · 설정',['settings','roles','admins','privacy','audit']]];
+const menuGroups=[['활동 운영',['','events','members','requests','content']],['운영 지원',['inventory','finance','meetings','decisions']],['관리 · 설정',['settings','roles','admins','privacy','audit']]];
 const menuKeywords={events:'신청 참가자 출석 교육 행사',members:'회원 연락처 명부',inventory:'재료 주류 구매 도구 재고',finance:'예산 지출 수입 회비 정산',meetings:'회의 안건 회의록',decisions:'업무 담당 기한 결정 할 일',content:'공지 홍보 게시글',settings:'학기 장소 가입 링크',roles:'권한 역할',admins:'임원 계정 배정',privacy:'개인정보 삭제 학기말',audit:'변경 기록 이력'};
 function groupedNavigation(ctx,kind){
  return menuGroups.map(([title,keys])=>{
@@ -18,7 +20,7 @@ function groupedNavigation(ctx,kind){
  }).join('');
 }
 function quickStart(ctx){
- const actions=[['events','calendar-days','행사 · 교육 관리','모집, 신청자와 출석 확인'],['members','users-round','부원 명부','신청 자격과 등록 정보 확인'],['meetings','notebook-pen','회의록','안건과 논의 기록'],['finance','wallet','회비 · 정산','예산과 지출 확인']].filter(([k])=>can(ctx,k));
+ const actions=[['requests','door-open','신청 · 문의','외부인 출입 승인과 신청 검토'],['events','calendar-days','행사 · 교육 관리','모집, 신청자와 출석 확인'],['members','users-round','부원 명부','신청 자격과 등록 정보 확인'],['meetings','notebook-pen','회의록','안건과 논의 기록'],['finance','wallet','회비 · 정산','예산과 지출 확인']].filter(([k])=>can(ctx,k));
  return '<section class="quick-start" aria-label="자주 하는 업무">'+actions.map(([k,i,t,d])=>'<a data-nav href="/admin/'+k+'">'+icon(i)+'<span><strong>'+t+'</strong><small>'+d+'</small></span>'+icon('arrow-right')+'</a>').join('')+'</section>';
 }
 const memberSortFields=[['name','이름별'],['grade','학년별'],['department','학과별'],['studentId','학번별']];
@@ -89,6 +91,7 @@ export const total=item=>item.unit==='bottle'?item.quantity*item.size+Object.val
 export const unit=item=>item.unit==='bottle'?'mL (추정)':({each:'개',g:'g',ml:'mL',pack:'팩'}[item.unit]||item.unit);
 function previousSemester(term){const [year,half]=String(term).split('-').map(Number);return half===2?year+'-1':(year-1)+'-2';}
 async function list(ctx,kind){
+ if(kind==='requests')return renderAdminRequests(ctx);
  if(kind==='privacy'){
   const semester=ctx.state.privacySemester||previousSemester(ctx.state.settings.semester);
   let result,error;try{result=await ctx.api('privacyCandidates',{semester});}catch(e){error=e.message;}
@@ -208,6 +211,7 @@ export async function renderAdmin(ctx){
  return '<div class="workspace"><aside class="sidebar"><a href="/admin" data-nav class="side-brand"><img src="/assets/logo.png" alt="" width="42" height="42"><span>MARTINI<small>운영실</small></span></a><div class="side-semester">'+icon('calendar-days')+esc(ctx.state.settings.semester)+'<span>운영 중</span></div>'+'<nav aria-label="운영 메뉴">'+groupedNavigation(ctx,kind)+'</nav><div class="side-footer"><a href="/" data-nav>'+icon('arrow-up-right')+' 홈페이지 보기</a><button data-action="logout">'+icon('log-out')+' 로그아웃</button></div></aside><div class="workspace-main"><header class="workspace-header"><div class="breadcrumb">마티니 <span>/</span> '+esc(navigation.find(([k])=>k===kind)?.[2]||'운영실')+'</div><div class="account-chip"><span class="avatar">'+esc(ctx.state.profile.displayName.slice(0,1))+'</span><div>'+esc(ctx.state.profile.displayName)+'<small>'+esc(ctx.state.profile.roleName||label(ctx.state.profile.role))+'</small></div></div></header>'+(local?'<div class="local-strip">개발 환경 · 가상 데이터</div>':'')+'<main id="main-content" class="workspace-content">'+body+'</main><nav class="mobile-admin-nav" aria-label="빠른 운영 메뉴">'+navigation.filter(([k])=>['','events','inventory','meetings'].includes(k)&&(!k||can(ctx,k))).map(([key,i,t])=>'<a data-nav href="/admin'+(key?'/'+key:'')+'" class="'+(kind===key?'active':'')+'"'+(kind===key?' aria-current="page"':'')+'>'+icon(i)+'<span>'+t+'</span></a>').join('')+button('전체 메뉴','mobile-menu',{class:'mobile-more',icon:'menu'})+'</nav></div></div>';
 }
 export async function adminAction(ctx,action,id,target){
+ if(action.startsWith('club-request-'))return adminRequestAction(ctx,action,id,target);
  if(action==='password-reset'){modal('비밀번호 재설정',field('email','가입한 이메일',document.querySelector('[name=email]')?.value||ctx.state.user?.email||'',{type:'email',required:true,wide:true,autocomplete:'email',inputmode:'email',maxLength:254}),async f=>{await sendPasswordResetEmail(auth,String(f.get('email')).trim());ctx.toast('등록된 계정이면 비밀번호 재설정 메일이 발송됩니다.');},{submit:'재설정 메일 요청'});return;}
  if(action==='logout'){ctx.state.profile=null;ctx.state.data={};ctx.state.authError='';await signOut(auth);return ctx.render();}
  if(action==='local-login'&&local){await signInWithEmailAndPassword(auth,'admin@martini.local','Martini-Local-2026!');ctx.state.profile=await ctx.api('profile');return ctx.render();}

@@ -1,8 +1,9 @@
 import { shortLink, linkKey } from './share-links.js';
+import { renderMemberPortal, memberPortalAction, memberPortalSubmit, getMemberSessionKey } from './member-portal.js';
 import privacyContent from './content/privacy.html?raw';
 import { openChatUrl } from '../../functions/src/public-links.js';
 import { esc, icon, textBlock, field, badge, button, date, money, label, empty, modal } from './ui.js';
-const publicLinks=[['/about','소개'],['/activities','활동'],['/notices','공지'],['/join','가입 안내']];
+const publicLinks=[['/about','소개'],['/activities','활동'],['/notices','공지'],['/join','가입 안내'],['/members','부원 라운지']];
 function header(home=false){
  const links=publicLinks.map(([href,title])=>'<a href="'+href+'" data-nav'+((location.pathname.replace(/\/+$/,'')||'/')===href?' aria-current="page"':'')+'>'+title+'</a>').join('');
  return '<a class="skip-link" href="#main-content">본문으로 건너뛰기</a><header class="public-header '+(home?'over-hero':'')+'"><a class="brand" href="/" data-nav aria-label="마티니 홈"><img class="wordmark" src="/assets/wordmark.png" alt="Martini" width="170" height="42"></a><nav aria-label="홈페이지 메뉴">'+links+'</nav><div class="header-actions"><a class="staff-link" href="/admin" data-nav>'+icon('log-out')+'<span>운영실</span></a><details class="public-mobile-menu"><summary aria-label="홈페이지 메뉴" aria-controls="public-mobile-links">'+icon('menu')+'</summary><nav id="public-mobile-links" aria-label="모바일 홈페이지 메뉴">'+links+'</nav></details></div></header>';
@@ -35,13 +36,15 @@ async function publicInfo(ctx){
 export async function renderPublic(ctx){
  const path=location.pathname.replace(/\/+$/,'')||'/',parts=path.split('/').filter(Boolean);
  if(path==='/')return home();
+ if(path==='/members')return shell(await renderMemberPortal(ctx));
+ if(parts[0]==='members'&&parts[1]==='events'&&parts.length===3)return eventPage(ctx,parts[2],{member:true});
  if(['e','r'].includes(parts[0])&&parts.length===1){
   const resolvingUrl=location.href;
   try{const result=await ctx.api('resolveLink',{kind:parts[0],key:key()});if(location.href!==resolvingUrl)return '';return parts[0]==='e'?eventPage(ctx,result.id):receiptPage(ctx,result.id);}catch(error){return linkError(error,parts[0]==='e'?'event':'receipt');}
  }
  if(parts[0]==='e'&&parts.length===2)return eventPage(ctx,parts[1]);
  if(parts[0]==='r'&&parts.length===2)return receiptPage(ctx,parts[1]);
- if(path==='/privacy')return shell('<section class="page-intro"><span class="eyebrow">개인정보</span><h1>개인정보 처리방침</h1></section>'+privacyContent);
+ if(path==='/privacy')return shell('<section class="page-intro"><span class="eyebrow">개인정보</span><h1>개인정보 처리방침</h1></section>'+privacyContent+'<section class="privacy-content" aria-label="부원 라운지 개인정보 추가 안내"><h2>부원 라운지 · 외부인 출입 신청 추가 안내</h2><p>부원 확인에는 명부에 등록된 이름·학번·연락처를 사용합니다. 부원 확인은 2시간 동안 유효하며, 현재 학기와 명부 상태가 변경되면 다시 확인합니다.</p><p>외부인 출입 신청에는 신청 부원의 이름·학번·연락처, 방문 시작·종료 시각, 인원, 외부인 이름과 방문 목적을 수집합니다. 출입 승인, 신청 결과 안내와 동아리방 운영을 위해 사용하며 방문 종료 후 6개월까지 보관합니다. 신청 부원은 외부인에게 이름 수집 목적을 안내해 주세요. 외부인의 연락처·학번·신분증 정보는 입력하지 않습니다.</p><p>가입 신청의 학과·학년·자기소개와 문의 제목·본문은 위 가입 신청 및 문의 보관 기준에 따릅니다. 운영진이 보존 기한과 처리 상태를 확인해 정리하며, 보관 안내가 자동 삭제 기능을 의미하지는 않습니다.</p><p>수집에 동의하지 않으면 온라인 신청을 접수할 수 없습니다. 조회·정정·삭제 요청은 부원 라운지의 문의하기 또는 홈페이지에 안내된 운영진 문의 채널로 남길 수 있습니다. 개인 신청 확인 링크는 신청 기록을 열 수 있으므로 본인만 보관해 주세요.</p></section>');
  const info=await publicInfo(ctx),conf=info.settings;
  if(info.unavailable&&['/notices','/join'].includes(path))return shell('<section class="page-intro"><h1>안내를 불러오지 못했습니다.</h1><p>잠시 후 다시 시도해 주세요.</p><a href="'+esc(path)+'" class="button secondary">다시 불러오기</a></section>');
  if(path==='/about')return shell('<section class="page-intro"><span class="eyebrow">동아리 소개</span><h1>한양대학교 ERICA<br>칵테일 동아리, 마티니.</h1><p>'+esc(conf?.intro||'마티니는 함께 칵테일을 배우고 만들어보며 자연스럽게 가까워지는 동아리입니다.')+'</p></section><div class="public-two-col"><section class="panel padded"><h2>처음이어도 괜찮아요.</h2><p>재료와 도구를 알아가는 교육부터 서로의 취향을 나누는 친목 모임까지, 함께 경험하는 시간을 만들어갑니다.</p></section><section class="panel padded"><h2>우리의 공간</h2><p>'+esc(conf?.location||'동아리방에서 교육과 모임을 준비합니다.')+'</p><p>회장단·교육부·집행부·재무부·홍보부가 함께 운영합니다.</p></section></div>');
@@ -64,9 +67,12 @@ function linkError(error,kind){
  const message=invalid?(kind==='event'?'전달받은 행사 링크 전체를 다시 열어주세요. 계속 열리지 않으면 운영진에게 새 링크를 요청해 주세요.':'신청 완료 후 받은 개인 확인 링크 전체가 필요합니다. 링크를 잃어버렸다면 운영진에게 재발급을 요청해 주세요.'):error.message;
  return shell('<section class="page-intro"><span class="eyebrow">신청 안내</span><h1>'+title+'</h1><p>'+esc(message)+'</p><div class="receipt-actions">'+button('다시 불러오기','public-refresh',{class:'button secondary'})+'<a data-nav href="/" class="button secondary">홈으로</a></div></section>');
 }
-async function eventPage(ctx,id){
+async function eventPage(ctx,id,{member=false}={}){
  const accessKey=key(),accessUrl=location.href;
- let e;try{e=await ctx.api('eventAccess',{eventId:id,key:accessKey});}catch(error){return linkError(error,'event');}
+ const sessionKey=member?getMemberSessionKey(ctx):'';
+ if(member&&!sessionKey)return shell('<section class="page-intro"><h1>부원 확인이 필요합니다</h1><p>부원 라운지에서 명부 정보를 확인한 뒤 행사에 신청해 주세요.</p><a href="/members" data-nav class="button">부원 라운지로</a></section>');
+ let e;try{e=await ctx.api(member?'memberEventAccess':'eventAccess',{eventId:id,...(member?{sessionKey}:{key:accessKey})});}catch(error){if(member)return shell('<section class="page-intro"><h1>행사를 확인할 수 없습니다</h1><p>'+esc(error.message)+'</p><a href="/members" data-nav class="button">부원 라운지로</a></section>');return linkError(error,'event');}
+ e.memberAccess=member;
  if(location.href===accessUrl&&key()===accessKey)ctx.state.currentEvent=e;
  const now=Date.now(),beforeOpen=Date.parse(e.opensAt)>now,afterClose=Date.parse(e.closesAt)<=now;
  const open=e.status==='open'&&!beforeOpen&&!afterClose,willWait=e.registered>=e.capacity||e.waiting>0;
@@ -110,6 +116,7 @@ async function receiptPage(ctx,id){
  return shell('<section class="receipt-card"><span class="success-mark '+esc(effective)+'">'+icon(['cancelled','expired'].includes(effective)?'circle-x':['waiting','offered'].includes(effective)?'history':'check')+'</span><span class="eyebrow">신청 내역</span><h1>'+esc(e.title)+'</h1><div class="receipt-status">'+badge(effective)+(showPayment?badge(a.payment):'')+'</div><p>'+esc(a.name)+'님 · '+scheduleDate(e.startsAt)+'</p><p>'+esc(e.location)+'</p><section class="receipt-link-save" aria-labelledby="receipt-link-title"><h3 id="receipt-link-title">개인 확인 링크를 보관해 주세요.</h3><p>이 링크에서 신청 상태를 확인하고 취소할 수 있습니다. 다른 사람에게 공유하지 마세요.</p>'+button('확인 링크 복사','receipt-copy',{class:'button secondary',icon:'copy'})+'</section><div class="receipt-details">'+details+'</div><div class="receipt-actions">'+actions+'</div>'+(a.policy?'<details class="receipt-policy"><summary>취소·환불 안내</summary>'+textBlock(a.policy)+'</details>':'')+'<p class="help">접수 번호 '+esc(a.sequence)+' · 신청 '+scheduleDate(a.createdAt)+'</p></section>');
 }
 export async function publicSubmit(ctx,form,f){
+ if(form.startsWith('member-'))return memberPortalSubmit(ctx,form,f);
  if(form!=='apply')return;
  const e=ctx.state.currentEvent,storageKey='martini-pending-'+e.id;
  ctx.state.pendingApplications??={};
@@ -119,7 +126,7 @@ export async function publicSubmit(ctx,form,f){
  ctx.state.pendingApplications[storageKey]=pending;
  try{sessionStorage.setItem(storageKey,JSON.stringify(pending));}catch{}
  let result;
- try{result=await ctx.api('apply',{eventId:e.id,key:key(),name:String(f.get('name')).trim(),studentId:String(f.get('studentId')).trim(),answers:e.questions.map((q,i)=>String(f.get('answer'+i)||'').trim()),consent:f.has('consent'),...pending});}
+ try{result=await ctx.api('apply',{eventId:e.id,...(e.memberAccess?{sessionKey:getMemberSessionKey(ctx)}:{key:key()}),name:String(f.get('name')).trim(),studentId:String(f.get('studentId')).trim(),answers:e.questions.map((q,i)=>String(f.get('answer'+i)||'').trim()),consent:f.has('consent'),...pending});}
  catch(error){
   if(error.code==='functions/permission-denied')error.message='활동 자격을 확인할 수 없습니다. 이름·학번을 다시 확인해 주세요.';
   if(error.code==='functions/already-exists')error.message='이미 신청한 행사입니다. 신청할 때 받은 개인 확인 링크에서 내역을 확인해 주세요. 링크를 잃어버렸다면 운영진에게 재발급을 요청해 주세요.';
@@ -129,7 +136,8 @@ export async function publicSubmit(ctx,form,f){
  delete ctx.state.pendingApplications[storageKey];
  await ctx.navigate(shortLink('r',pending.receiptKey),{discard:true});
 }
-export async function publicAction(ctx,action){
+export async function publicAction(ctx,action,id,target){
+ if(action.startsWith('member-'))return memberPortalAction(ctx,action,id,target);
  if(action==='application-jump'){
   const target=document.querySelector('.apply-card [name=name]');
   target?.focus({preventScroll:true});target?.scrollIntoView({block:'center',behavior:'auto'});return;

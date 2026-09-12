@@ -1,4 +1,4 @@
 {
-  "indexes": [],
+  "indexes": [{"collectionGroup":"martini_v2_clubRequests","queryScope":"COLLECTION","fields":[{"fieldPath":"memberScope","order":"ASCENDING"},{"fieldPath":"createdAt","order":"DESCENDING"}]}],
   "fieldOverrides": []
 }

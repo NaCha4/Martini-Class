@@ -182,7 +182,7 @@ export async function render({focus=false,scroll}={}) {
     const search=app.querySelector('[data-search]'),filter=app.querySelector('[data-filter]');
     if(search)search.value=state.search;if(filter)filter.value=state.filter;const type=app.querySelector('[data-event-type]');if(type)type.value=state.eventType;filterRows();
     document.title=location.pathname==='/'?'Martini · 마티니':(app.querySelector('h1')?.textContent||'마티니')+' · Martini';
-    const application=app.querySelector('form[data-form=apply]');
+    const application=app.querySelector('form[data-form=apply],form[data-form^="member-"]');
     trackedForm=application?{node:application,signature:formSignature(application)}:null;
     app.style.minHeight='';
     window.scrollTo({top:scroll??savedScroll,behavior:'instant'});

@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { createPrivacy } from './privacy.js';
 import { createDeletion } from './deletion.js';
 import { createDecisionCategories } from './decision-categories.js';
+import { createMemberPortal } from './member-portal.js';
 import { Timestamp, FieldValue } from 'firebase-admin/firestore';
 import { schemas, parse, fail, ensureScope, hash, secret, identity, normalizePhone, validateEvent, allocate, changeStock, stockTotal, matches, publicEvent, requireRevision, occupied, idSchema, roles } from './domain.js';
 const PREFIX='martini_v2_';
@@ -58,6 +59,7 @@ export function createService(db,clock=Date.now){
   await db.runTransaction(async tx=>{const snap=await tx.get(ref);const count=snap.data()?.count||0;if(count>=limit)fail('resource-exhausted','요청이 많습니다. 잠시 후 다시 시도해 주세요.');tx.set(ref,{count:count+1,expiresAt:Timestamp.fromMillis(clock()+3600000)});});
  }
  async function settings(){return (await col('settings').doc('club').get()).data()||null;}
+ const memberPortal=createMemberPortal({db,col,clock,now,roster,throttle,audit});
  async function verifyEvent(eventId,key,tx){
   const ref=col('events').doc(eventId),s=tx?await tx.get(ref):await ref.get(),e=snapshot(s);
   if(!e||!matches(key,e.linkHash)||e.status==='draft')fail('not-found','유효한 행사 링크를 확인해 주세요.');
@@ -224,16 +226,17 @@ export function createService(db,clock=Date.now){
   });
  }
  async function apply(data,ctx){
-  const input=parse(z.object({eventId:idSchema,key:token,name:z.string().trim().min(1).max(40),studentId:z.string().trim().min(1).max(30),phone:z.string().min(8).max(30).optional(),answers:z.array(z.string().trim().max(500)).max(3),consent:z.literal(true),requestId:requestKey,receiptKey:token}).strict(),data);
+  const input=parse(z.object({eventId:idSchema,key:token.optional(),sessionKey:z.string().regex(/^[a-f0-9]{64}$/).optional(),name:z.string().trim().min(1).max(40),studentId:z.string().trim().min(1).max(30),phone:z.string().min(8).max(30).optional(),answers:z.array(z.string().trim().max(500)).max(3),consent:z.literal(true),requestId:requestKey,receiptKey:token}).strict().refine(value=>!!value.key!==!!value.sessionKey,{message:'행사 링크 또는 부원 인증 중 하나를 사용해 주세요.'}),data);
   // Identity buckets preserve shared-campus-network access; shard the aggregate IP guard.
   const identityKey=hash(input.studentId.trim().toLowerCase());
   await throttle(ctx,'apply-ip:'+input.eventId+':'+(parseInt(identityKey.slice(0,4),16)%32),30);
   await throttle({...ctx,ip:identityKey},'apply-member:'+input.eventId,10);
   return serializeEvent(input.eventId,()=>db.runTransaction(async tx=>{
-   const event=await verifyEvent(input.eventId,input.key,tx);
+   const verified=input.sessionKey?await memberPortal.verifyEvent(input.eventId,input.sessionKey,tx):null;
+   const event=verified?.event||await verifyEvent(input.eventId,input.key,tx);
    const members=(await roster.findStudent(input.studentId,event.semester,tx)).filter(m=>m.name===input.name);
    const member=members.length===1?members[0]:null;
-   if(!member||(input.phone!==undefined&&normalizePhone(input.phone)!==normalizePhone(member.phone))||member.name!==input.name||member.anonymizedAt||member.removedAt||member.semester!==event.semester)fail('permission-denied','명부 정보 또는 활동 자격을 확인할 수 없습니다. 운영진에게 문의해 주세요.');
+   if(!member||(verified&&verified.member.id!==member.id)||(input.phone!==undefined&&normalizePhone(input.phone)!==normalizePhone(member.phone))||member.name!==input.name||member.anonymizedAt||member.removedAt||member.semester!==event.semester)fail('permission-denied','명부 정보 또는 활동 자격을 확인할 수 없습니다. 운영진에게 문의해 주세요.');
    let priorId=null;
    if(event.hasSemesterChanges){
     const previous=await tx.get(col('applications').where('eventId','==',event.id));
@@ -327,7 +330,15 @@ export function createService(db,clock=Date.now){
   if(op==='eventAccess'){const input=parse(z.object({eventId:idSchema,key:token}).strict(),data);await throttle(ctx,'event:'+input.eventId+':'+(parseInt(secret().slice(0,4),16)%16),100);return publicEvent(await verifyEvent(input.eventId,input.key));}
   if(op==='apply')return apply(data,ctx);
   if(op==='receipt')return receipt(data,ctx);
+  if(op==='memberAccess')return memberPortal.access(data,ctx);
+  if(op==='memberPortal')return memberPortal.portal(data,ctx);
+  if(op==='memberEventAccess')return memberPortal.eventAccess(data,ctx);
+  if(op==='submitClubRequest')return memberPortal.submit(data,ctx);
+  if(op==='clubRequestReceipt')return memberPortal.getReceipt(data,ctx);
+  if(op==='cancelClubRequest')return memberPortal.cancel(data,ctx);
   const who=await admin(ctx);
+  if(op==='clubRequests')return memberPortal.list(data,who);
+  if(op==='clubRequestCommand')return memberPortal.command(data,who);
   if(op==='profile')return {uid:who.uid,displayName:who.displayName,role:who.role,roleName:who.roleName,permissions:who.permissions,expiresAt:who.expiresAt};
 
   if(['decisionCategories','createDecisionCategory','deleteDecisionCategory'].includes(op))return decisionCategories(op,data,who);
