@@ -65,7 +65,7 @@ async function submitVisit(page, purpose) {
   await selectVisitDay(dialog, visitDay());
   await dialog.locator('[name=startTime]').fill('18:00');
   await expect(dialog.locator('[name=endTime], [name=endNextDay]')).toHaveCount(0);
-  await dialog.locator('[name=guestCount]').fill('2');
+  await dialog.locator('.visit-guest-option').filter({ hasText: '2명' }).click();
   await dialog.locator('[name=guestNames]').fill('가상 방문자 가, 가상 방문자 나');
   await dialog.locator('[name=purpose]').fill(purpose);
   await dialog.locator('[name=consent]').check();
@@ -91,7 +91,13 @@ test('visit calendar preserves input across months and validates dates, start ti
   }
   await dialog.locator('[name=startTime]').fill('23:00');
   await expect(dialog.locator('[name=endTime], [name=endNextDay]')).toHaveCount(0);
-  await dialog.locator('[name=guestCount]').fill('3');
+  await expect(dialog.getByRole('radio')).toHaveCount(3);
+  await expect(dialog.getByRole('radio', { name: '1명', exact: true })).toBeChecked();
+  await expect(dialog.locator('input[type=number]')).toHaveCount(0);
+  await dialog.getByRole('radio', { name: '1명', exact: true }).focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(dialog.getByRole('radio', { name: '2명', exact: true })).toBeChecked();
+  await dialog.locator('.visit-guest-option').filter({ hasText: '3명' }).click();
   const purpose = '달력 야간 방문 ' + unique();
   await dialog.locator('[name=purpose]').fill(purpose);
   await dialog.locator('[name=guestNames]').fill('가상 가, 가상 나, 가상 다');
@@ -104,13 +110,12 @@ test('visit calendar preserves input across months and validates dates, start ti
   await dialog.getByRole('button', { name: '이전 달', exact: true }).click();
   await expect(dialog.locator('[data-visit-day="' + visitDay() + '"]')).toHaveAttribute('aria-pressed', 'true');
   await expect(dialog.locator('[name=purpose]')).toHaveValue(purpose);
-  await expect(dialog.locator('[name=guestCount]')).toHaveValue('3');
-  await dialog.locator('[name=guestCount]').fill('4');
-  await submit.click();
-  await expect(dialog.locator('[name=guestCount]')).toHaveAttribute('aria-invalid', 'true');
-  await expect(dialog.locator('[name=guestCount]')).toHaveAttribute('max', '3');
-  await expect(dialog).toBeVisible();
-  await dialog.locator('[name=guestCount]').fill('3');
+  await expect(dialog.getByRole('radio', { name: '3명', exact: true })).toBeChecked();
+  await dialog.locator('.visit-guest-option').filter({ hasText: '1명' }).click();
+  await expect(dialog.locator('[data-visit-summary]')).toContainText('외부인 1명');
+  await dialog.locator('.visit-guest-option').filter({ hasText: '2명' }).click();
+  await expect(dialog.locator('[data-visit-summary]')).toContainText('외부인 2명');
+  await dialog.locator('.visit-guest-option').filter({ hasText: '3명' }).click();
   await expect(dialog.locator('[data-visit-summary]')).toContainText('23:00 시작 · 외부인 3명');
   await selectVisitDay(dialog, visitDay(90));
   await expect(dialog.getByRole('button', { name: '다음 달', exact: true })).toBeDisabled();
@@ -126,6 +131,7 @@ test('visit calendar preserves input across months and validates dates, start ti
   const requestPromise = page.waitForRequest(request => request.method() === 'POST' && request.url().endsWith('/martiniApi') && request.postDataJSON()?.data?.op === 'submitClubRequest');
   await submitDialog(page, '출입 승인 요청');
   const payload = (await requestPromise).postDataJSON().data;
+  expect(payload.guestCount).toBe(3);
   expect(payload.startsAt).toBe(new Date(visitDay() + 'T23:00:00+09:00').toISOString());
   expect(payload).not.toHaveProperty('endsAt');
   await expect(ownRequest(page, purpose)).toContainText('외부인 3명');
