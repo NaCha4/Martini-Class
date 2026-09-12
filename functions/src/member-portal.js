@@ -10,7 +10,8 @@ const applicant={name:required(40),studentId:required(30)};
 // Accept and discard the retired field while cached clients finish upgrading.
 const legacyPhone=text(30).optional();
 const base={requestId:idSchema,receiptKey:key,consent:z.literal(true)};
-const visit=z.object({...base,kind:z.literal('visit'),sessionKey:key,startsAt:z.string().datetime(),endsAt:z.string().datetime(),guestCount:z.number().int().min(1).max(20),guestNames:required(300),purpose:required(1000)}).strict();
+// Accept the retired end time from cached clients, but never store it on new requests.
+const visit=z.object({...base,kind:z.literal('visit'),sessionKey:key,startsAt:z.string().datetime(),endsAt:z.string().datetime().optional(),guestCount:z.number().int().min(1).max(3),guestNames:required(300),purpose:required(1000)}).strict();
 const inquiry=z.object({...base,kind:z.literal('inquiry'),sessionKey:key.optional(),name:applicant.name.optional(),studentId:applicant.studentId.optional(),phone:legacyPhone,subject:required(120),message:required(3000)}).strict().superRefine((value,ctx)=>{
  if(value.sessionKey){if(value.name!==undefined||value.studentId!==undefined||value.phone!==undefined)ctx.addIssue({code:'custom',message:'부원 문의에는 인증된 명부 정보를 사용합니다.'});}
  else if(!value.name||!value.studentId)ctx.addIssue({code:'custom',message:'이름과 학번을 모두 입력해 주세요.'});
@@ -84,8 +85,8 @@ export function createMemberPortal({db,col,clock,now,roster,throttle,audit}){
   return db.runTransaction(async tx=>publicEvent((await verifyEvent(input.eventId,input.sessionKey,tx)).event),{readOnly:true});
  }
  function validateVisit(input){
-  const startsAt=Date.parse(input.startsAt),endsAt=Date.parse(input.endsAt);
-  if(startsAt<=clock()||startsAt>clock()+90*DAY||endsAt<=startsAt||endsAt-startsAt>12*3600000)fail('invalid-argument','방문은 현재 이후 90일 이내, 종료는 시작 이후 12시간 이내로 신청해 주세요.');
+  const startsAt=Date.parse(input.startsAt);
+  if(startsAt<=clock()||startsAt>clock()+90*DAY)fail('invalid-argument','방문 시작은 현재 이후 90일 이내로 신청해 주세요.');
  }
  async function submit(data,ctx){
   if(!schemas[data?.kind])fail('invalid-argument','신청 종류를 확인해 주세요.');
@@ -106,7 +107,8 @@ export function createMemberPortal({db,col,clock,now,roster,throttle,audit}){
     fail('already-exists','신청 번호가 이미 사용되었습니다. 기존 확인 링크를 이용하거나 새 신청을 작성해 주세요.');
    }
    if(input.kind==='visit')validateVisit(input);
-   const at=now(),record={...fields,...actor,id:requestId,semester,status:'pending',revision:1,response:'',receiptHash:hash(receiptKey),payloadHash,consentedAt:at,createdAt:at,updatedAt:at,retentionUntil:input.kind==='visit'?new Date(Date.parse(input.endsAt)+180*DAY).toISOString():null,...(member?{memberId:member.id,memberScope:scope(member)}:{})};
+   const {endsAt:retiredEnd,...storedFields}=fields;
+   const at=now(),record={...storedFields,...actor,id:requestId,semester,status:'pending',revision:1,response:'',receiptHash:hash(receiptKey),payloadHash,consentedAt:at,createdAt:at,updatedAt:at,retentionUntil:input.kind==='visit'?new Date(Date.parse(input.startsAt)+180*DAY).toISOString():null,...(member?{memberId:member.id,memberScope:scope(member)}:{})};
    if(member)record.memberIdentityHash=fingerprint(member);
    tx.create(ref,record);
    return {id:requestId,status:'pending',request:safeRequest(record)};

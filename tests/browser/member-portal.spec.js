@@ -64,7 +64,7 @@ async function submitVisit(page, purpose) {
   const dialog = page.getByRole('dialog');
   await selectVisitDay(dialog, visitDay());
   await dialog.locator('[name=startTime]').fill('18:00');
-  await dialog.locator('[name=endTime]').fill('20:00');
+  await expect(dialog.locator('[name=endTime], [name=endNextDay]')).toHaveCount(0);
   await dialog.locator('[name=guestCount]').fill('2');
   await dialog.locator('[name=guestNames]').fill('가상 방문자 가, 가상 방문자 나');
   await dialog.locator('[name=purpose]').fill(purpose);
@@ -73,19 +73,15 @@ async function submitVisit(page, purpose) {
   await expect(ownRequest(page, purpose).locator('.member-status')).toHaveText('승인 대기');
 }
 
-test('visit calendar preserves input across months and validates dates, duration and overnight requests', async ({ page }, info) => {
+test('visit calendar preserves input across months and validates dates, start time and the three-guest limit', async ({ page }, info) => {
   await verifyMember(page);
-  // Calendar arithmetic must stay in KST and cross month/year/leap-day boundaries correctly.
   const dates = await page.evaluate(async () => {
     const { koreaDay, visitSchedule } = await import('/src/visit-calendar.js');
-    const overnight = day => {
-      const data = new FormData();
-      for (const [key, value] of Object.entries({ visitDate: day, startTime: '23:00', endTime: '01:00', endNextDay: 'on' })) data.set(key, value);
-      return visitSchedule(data).endsAt;
-    };
-    return [koreaDay('2026-12-31T15:00:00Z'), overnight('2026-12-31'), overnight('2028-02-28'), overnight('2028-02-29')];
+    const data = new FormData();
+    data.set('visitDate', '2026-12-31');data.set('startTime', '23:00');
+    return [koreaDay('2026-12-31T15:00:00Z'), visitSchedule(data)];
   });
-  expect(dates).toEqual(['2027-01-01', '2027-01-01T01:00', '2028-02-29T01:00', '2028-03-01T01:00']);
+  expect(dates).toEqual(['2027-01-01', { startsAt: '2026-12-31T23:00' }]);
   await action(page, 'member-visit').click();
   const dialog = page.getByRole('dialog');
   await expect(dialog.getByRole('button', { name: '이전 달', exact: true })).toBeDisabled();
@@ -94,7 +90,7 @@ test('visit calendar preserves input across months and validates dates, duration
     if (await day.getAttribute('data-visit-day') < today) await expect(day).toBeDisabled();
   }
   await dialog.locator('[name=startTime]').fill('23:00');
-  await dialog.locator('[name=endTime]').fill('01:00');
+  await expect(dialog.locator('[name=endTime], [name=endNextDay]')).toHaveCount(0);
   await dialog.locator('[name=guestCount]').fill('3');
   const purpose = '달력 야간 방문 ' + unique();
   await dialog.locator('[name=purpose]').fill(purpose);
@@ -109,14 +105,13 @@ test('visit calendar preserves input across months and validates dates, duration
   await expect(dialog.locator('[data-visit-day="' + visitDay() + '"]')).toHaveAttribute('aria-pressed', 'true');
   await expect(dialog.locator('[name=purpose]')).toHaveValue(purpose);
   await expect(dialog.locator('[name=guestCount]')).toHaveValue('3');
+  await dialog.locator('[name=guestCount]').fill('4');
   await submit.click();
-  await expect(dialog.locator('.form-error')).toContainText('종료는 시작 시간 이후');
-  await dialog.locator('[name=endNextDay]').check();
-  await dialog.locator('[name=endTime]').fill('12:00');
-  await submit.click();
-  await expect(dialog.locator('.form-error')).toContainText('최대 12시간');
-  await dialog.locator('[name=endTime]').fill('01:00');
-  await expect(dialog.locator('[data-visit-summary]')).toContainText('23:00 → 다음 날 01:00 · 외부인 3명');
+  await expect(dialog.locator('[name=guestCount]')).toHaveAttribute('aria-invalid', 'true');
+  await expect(dialog.locator('[name=guestCount]')).toHaveAttribute('max', '3');
+  await expect(dialog).toBeVisible();
+  await dialog.locator('[name=guestCount]').fill('3');
+  await expect(dialog.locator('[data-visit-summary]')).toContainText('23:00 시작 · 외부인 3명');
   await selectVisitDay(dialog, visitDay(90));
   await expect(dialog.getByRole('button', { name: '다음 달', exact: true })).toBeDisabled();
   for (const day of await dialog.locator('[data-visit-day]').all()) {
@@ -132,7 +127,7 @@ test('visit calendar preserves input across months and validates dates, duration
   await submitDialog(page, '출입 승인 요청');
   const payload = (await requestPromise).postDataJSON().data;
   expect(payload.startsAt).toBe(new Date(visitDay() + 'T23:00:00+09:00').toISOString());
-  expect(payload.endsAt).toBe(new Date(visitDay(3) + 'T01:00:00+09:00').toISOString());
+  expect(payload).not.toHaveProperty('endsAt');
   await expect(ownRequest(page, purpose)).toContainText('외부인 3명');
 });
 
@@ -176,7 +171,7 @@ test('visitor request passes through officer approval and both future and pendin
     await expect(dialog).toContainText(member.name);
     await expect(dialog).toContainText('가상 방문자 가');
     await expect(dialog).toContainText('방문 시작');
-    await expect(dialog).toContainText('방문 종료');
+    await expect(dialog).not.toContainText('방문 종료');
     await dialog.locator('[name=response]').fill('신청한 시간에 부원과 함께 방문해 주세요.');
     await submitDialog(admin, '승인');
     await expect(adminRequest(admin, purpose).locator('.request-status')).toHaveText('승인');
@@ -184,6 +179,7 @@ test('visitor request passes through officer approval and both future and pendin
     await action(page, 'member-refresh').click();
     await expect(ownRequest(page, purpose).locator('.member-status')).toHaveText('승인');
     await ownRequest(page, purpose).click();
+    await expect(page.getByRole('dialog')).not.toContainText('방문 종료');
     await expect(page.getByRole('dialog')).toContainText('신청한 시간에 부원과 함께 방문해 주세요.');
     await page.getByRole('dialog').locator('[data-action=member-cancel]').click();
     await submitDialog(page, '신청 취소');

@@ -42,7 +42,7 @@ function consent(kind){
 }
 function verifiedNote(ctx){const member=state(ctx).member;return member?'<div class="member-form-identity wide">'+icon('shield-check')+'<span><strong>'+esc(member.name)+'</strong> 님의 부원 정보로 접수합니다.</span></div>':'';}
 function visitBody(ctx){
- return '<p class="member-form-intro wide">날짜를 고르고, 인원과 방문 사유를 알려 주세요.</p><div class="visit-layout wide">'+visitCalendar()+'<section class="visit-details" aria-labelledby="visit-details-title"><span class="member-section-kicker">STEP 02</span><h3 id="visit-details-title">방문 내용을 입력해 주세요</h3>'+verifiedNote(ctx)+'<div class="visit-time-fields">'+input('startTime','시작 시간','',{required:true,type:'time'})+input('endTime','종료 시간','',{required:true,type:'time'})+'</div>'+input('endNextDay','종료 시간이 다음 날이에요',false,{type:'checkbox',hint:'자정을 넘겨 방문할 때 선택 · 최대 12시간'})+input('guestCount','외부인 인원','1',{required:true,type:'number',min:1,max:20,step:1,hint:'신청한 부원 제외 · 최대 20명'})+input('purpose','방문 사유','',{required:true,type:'textarea',rows:3,maxLength:1000,placeholder:'예: 친구와 함께 칵테일 연습을 하려고 합니다.'})+input('guestNames','외부인 이름','',{required:true,type:'textarea',rows:2,maxLength:300,placeholder:'방문자 전원의 이름을 쉼표로 구분해 주세요.'})+'</section></div>'+consent('visit');
+ return '<p class="member-form-intro wide">날짜를 고르고, 인원과 방문 사유를 알려 주세요.</p><div class="visit-layout wide">'+visitCalendar()+'<section class="visit-details" aria-labelledby="visit-details-title"><span class="member-section-kicker">STEP 02</span><h3 id="visit-details-title">방문 내용을 입력해 주세요</h3>'+verifiedNote(ctx)+'<div class="visit-time-fields">'+input('startTime','시작 시간','',{required:true,type:'time'})+'</div>'+input('guestCount','외부인 인원','1',{required:true,type:'number',min:1,max:3,step:1,hint:'신청한 부원 제외 · 최대 3명'})+input('purpose','방문 사유','',{required:true,type:'textarea',rows:3,maxLength:1000,placeholder:'예: 친구와 함께 칵테일 연습을 하려고 합니다.'})+input('guestNames','외부인 이름','',{required:true,type:'textarea',rows:2,maxLength:300,placeholder:'방문자 전원의 이름을 쉼표로 구분해 주세요.'})+'</section></div>'+consent('visit');
 }
 function inquiryBody(ctx){return '<p class="member-form-intro wide">활동, 가입, 공간 이용 등 궁금한 점을 남겨 주세요. 운영진 답변은 내 신청 내역에서 확인할 수 있습니다.</p>'+(getMemberSessionKey(ctx)?verifiedNote(ctx):identityFields())+input('subject','문의 제목','',{required:true,maxLength:120,wide:true})+input('message','문의 내용','',{required:true,type:'textarea',maxLength:3000,rows:5,wide:true})+consent('inquiry');}
 function openForm(ctx,kind){
@@ -121,7 +121,7 @@ export async function renderMemberPortal(ctx){
 function requestDetail(ctx,request){
  let body='<div class="member-detail-heading wide"><span>'+esc(kinds[request.kind]||'신청')+'</span>'+requestStatus(request)+'</div>';
  if(receiptFor(ctx,request.id))body+='<section class="member-save-receipt wide"><h3>개인 확인 링크를 보관해 주세요</h3><p>다음에 이 링크를 열면 처리 결과와 답변을 확인할 수 있습니다. 신청 정보에 접근할 수 있는 링크이므로 다른 사람에게 공유하지 마세요.</p>'+button('개인 확인 링크 복사','member-receipt-copy',{id:request.id,class:'button secondary full',icon:'copy'})+'</section>';
- if(request.kind==='visit')body+='<dl class="member-detail-facts wide"><div><dt>방문 시작</dt><dd>'+esc(stamp(request.startsAt))+'</dd></div><div><dt>방문 종료</dt><dd>'+esc(stamp(request.endsAt))+'</dd></div><div><dt>외부인</dt><dd>'+Number(request.guestCount||0)+'명 · '+esc(request.guestNames)+'</dd></div></dl><div class="member-detail-section wide"><h3>방문 목적</h3>'+textBlock(request.purpose)+'</div>';
+ if(request.kind==='visit')body+='<dl class="member-detail-facts wide"><div><dt>방문 시작</dt><dd>'+esc(stamp(request.startsAt))+'</dd></div>'+(request.endsAt?'<div><dt>방문 종료</dt><dd>'+esc(stamp(request.endsAt))+'</dd></div>':'')+'<div><dt>외부인</dt><dd>'+Number(request.guestCount||0)+'명 · '+esc(request.guestNames)+'</dd></div></dl><div class="member-detail-section wide"><h3>방문 목적</h3>'+textBlock(request.purpose)+'</div>';
  else if(request.kind==='inquiry')body+='<div class="member-detail-section wide"><h3>'+esc(request.subject)+'</h3>'+textBlock(request.message)+'</div>';
  else body+='<div class="member-detail-section wide"><h3>가입 신청 내용</h3><p>'+esc(request.department||'')+' · '+esc(request.grade||'')+'</p>'+textBlock(request.message)+'</div>';
  if(request.status==='approved')body+='<div class="member-visit-guidance wide"><strong>'+(request.kind==='visit'?'방문이 승인되었습니다.':'가입 신청이 승인되었습니다.')+'</strong><p>'+(request.kind==='visit'?'승인된 날짜와 시간에만 신청한 부원이 외부인과 동행해 주세요. 일정이나 인원이 달라지면 운영진에게 문의해 주세요.':'최종 부원 등록과 회비 등 후속 절차는 운영진 안내를 따라 주세요.')+'</p></div>';
@@ -171,12 +171,10 @@ export async function memberPortalSubmit(ctx,form,data){
  if(kind==='visit'){
   if(!sessionKey)throw new Error('부원 확인이 만료되었습니다. 신청 내용을 보관한 뒤 다시 부원 확인을 진행해 주세요.');
   const schedule=visitSchedule(data);
-  payload.sessionKey=sessionKey;payload.startsAt=koreaISO(schedule.startsAt);payload.endsAt=koreaISO(schedule.endsAt);
+  payload.sessionKey=sessionKey;payload.startsAt=koreaISO(schedule.startsAt);
   if(Date.parse(payload.startsAt)<=Date.now())throw new Error('방문 시작은 현재 시간 이후로 입력해 주세요.');
   if(Date.parse(payload.startsAt)>Date.now()+90*86400000)throw new Error('방문은 현재 이후 90일 이내로 신청해 주세요.');
-  if(Date.parse(payload.endsAt)<=Date.parse(payload.startsAt))throw new Error('방문 종료는 시작 시간 이후로 입력해 주세요.');
-  if(Date.parse(payload.endsAt)-Date.parse(payload.startsAt)>12*3600000)throw new Error('한 번의 방문은 최대 12시간까지 신청할 수 있습니다.');
-  payload.guestCount=Number(data.get('guestCount'));if(!Number.isInteger(payload.guestCount)||payload.guestCount<1||payload.guestCount>20)throw new Error('외부인 인원은 1명부터 20명까지 입력해 주세요.');
+  payload.guestCount=Number(data.get('guestCount'));if(!Number.isInteger(payload.guestCount)||payload.guestCount<1||payload.guestCount>3)throw new Error('외부인 인원은 1명부터 3명까지 입력해 주세요.');
   payload.guestNames=required(data,'guestNames','외부인 이름',300);payload.purpose=required(data,'purpose','방문 목적',1000);
  }else{Object.assign(payload,sessionKey?{sessionKey}:identity(data),{subject:required(data,'subject','문의 제목',120),message:required(data,'message','문의 내용',3000)});}
  const saved=storage(ctx);saved.pending[kind]??={requestId:crypto.randomUUID(),receiptKey:secret()};persist(ctx);

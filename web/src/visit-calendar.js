@@ -2,7 +2,6 @@ import { esc, date } from './ui.js';
 
 const DAY=86400000;
 export const koreaDay=(value=Date.now())=>new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Seoul',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(value));
-const shiftDay=(day,offset)=>new Date(Date.parse(day+'T00:00:00Z')+offset*DAY).toISOString().slice(0,10);
 const monthOffset=(month,offset)=>{const [year,m]=month.split('-').map(Number);return new Date(Date.UTC(year,m-1+offset,1)).toISOString().slice(0,7);};
 const dayLabel=day=>date(day+'T00:00:00+09:00');
 
@@ -25,15 +24,15 @@ export function visitCalendar(){
 export function visitSchedule(data){
  const selected=String(data.get('visitDate')||'');
  if(!/^\d{4}-\d{2}-\d{2}$/.test(selected))throw new Error('달력에서 방문 날짜를 선택해 주세요.');
- return {startsAt:selected+'T'+String(data.get('startTime')||''),endsAt:shiftDay(selected,data.has('endNextDay')?1:0)+'T'+String(data.get('endTime')||'')};
+ return {startsAt:selected+'T'+String(data.get('startTime')||'')};
 }
 
 export function bindVisitCalendar(dialog){
  const calendar=dialog.querySelector('[data-visit-calendar]'),selected=dialog.querySelector('[name=visitDate]');
  const summary=()=>{
   dialog.querySelector('[data-visit-selected]').textContent=selected.value?dayLabel(selected.value)+' 방문':'방문 날짜를 선택해 주세요';
-  const data=new FormData(dialog.querySelector('form')),start=data.get('startTime'),end=data.get('endTime'),count=data.get('guestCount');
-  dialog.querySelector('[data-visit-summary]').textContent=selected.value?[(start&&end?start+' → '+(data.has('endNextDay')?'다음 날 ':'')+end:'방문 시간을 입력해 주세요'),count?'외부인 '+count+'명':''].filter(Boolean).join(' · '):'날짜와 시간을 선택하면 여기에 표시됩니다.';
+  const data=new FormData(dialog.querySelector('form')),start=data.get('startTime'),count=data.get('guestCount');
+  dialog.querySelector('[data-visit-summary]').textContent=selected.value?[(start?start+' 시작':'방문 시간을 입력해 주세요'),count?'외부인 '+count+'명':''].filter(Boolean).join(' · '):'날짜와 시간을 선택하면 여기에 표시됩니다.';
  };
  calendar.addEventListener('click',event=>{
   const target=event.target.closest('button');if(!target||target.disabled)return;
