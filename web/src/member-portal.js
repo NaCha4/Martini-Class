@@ -4,7 +4,9 @@ import { esc, icon, field, button, date, label, money, textBlock, empty, modal }
 const STORAGE='martini-member-lounge-v1';
 const TOKEN=/^[a-f0-9]{64}$/;
 const REQUEST_ID=/^[a-zA-Z0-9_-]{1,128}$/;
-const kinds={visit:'외부인 출입',join:'동아리 가입',inquiry:'문의'};
+// Keep labels and receipt recovery for requests submitted before online joining closed.
+const kinds={visit:'외부인 출입',join:'이전 가입 신청',inquiry:'문의'};
+const activeKinds=['visit','inquiry'];
 const statuses={pending:'검토 대기',approved:'승인',rejected:'반려',answered:'답변 완료',cancelled:'취소'};
 const secret=()=>Array.from(crypto.getRandomValues(new Uint8Array(32)),value=>value.toString(16).padStart(2,'0')).join('');
 const input=(name,title,value='',options={})=>field(name,title,value,{id:'member-'+name,...options});
@@ -34,20 +36,19 @@ function findRequest(ctx,id){return allRequests(ctx).find(row=>row.id===id);}
 function receiptFor(ctx,id){return storage(ctx).receipts.find(item=>item.id===id);}
 function identityFields(){return input('name','이름','',{required:true,maxLength:40,autocomplete:'name'})+input('studentId','학번','',{required:true,maxLength:30,inputMode:'numeric',autocomplete:'off',spellcheck:false})+input('phone','휴대전화','',{required:true,maxLength:30,type:'tel',autocomplete:'tel',placeholder:'010-1234-5678',wide:true});}
 function consent(kind){
- const description=kind==='visit'?'이름·학번·연락처, 방문 일정·목적과 외부인 이름을 출입 승인 및 안전한 공간 운영을 위해 수집합니다. 외부인의 연락처나 신분증 정보는 적지 마세요.':kind==='join'?'이름·학번·연락처·학과·학년과 신청 내용을 가입 검토 및 결과 안내를 위해 수집합니다.':'이름·학번·연락처와 문의 내용을 문의 확인 및 답변을 위해 수집합니다. 비밀번호, 주민등록번호 등 민감한 정보는 적지 마세요.';
+ const description=kind==='visit'?'이름·학번·연락처, 방문 일정·목적과 외부인 이름을 출입 승인 및 안전한 공간 운영을 위해 수집합니다. 외부인의 연락처나 신분증 정보는 적지 마세요.':'이름·학번·연락처와 문의 내용을 문의 확인 및 답변을 위해 수집합니다. 비밀번호, 주민등록번호 등 민감한 정보는 적지 마세요.';
  return '<div class="member-consent-note wide"><h3>개인정보 수집·이용 안내</h3><p>'+description+' 동의하지 않으면 이 신청을 접수할 수 없습니다. 보관 기간과 삭제 요청 방법은 개인정보 안내에서 확인할 수 있습니다.</p><a href="/privacy" target="_blank" rel="noopener noreferrer">개인정보 안내 보기 (새 탭) '+icon('arrow-up-right')+'</a></div>'+input('consent','개인정보 수집·이용에 동의합니다',false,{required:true,type:'checkbox',wide:true});
 }
 function verifiedNote(ctx){const member=state(ctx).member;return member?'<div class="member-form-identity wide">'+icon('shield-check')+'<span><strong>'+esc(member.name)+'</strong> 님의 부원 정보로 접수합니다.</span></div>':'';}
-function joinBody(){return '<p class="member-form-intro wide">칵테일이 처음이어도 괜찮아요. 간단한 자기소개와 함께 신청해 주세요. 운영진이 확인한 뒤 이곳에 결과를 남깁니다.</p>'+identityFields()+input('department','학과 / 전공','',{required:true,maxLength:100})+input('grade','학년','',{required:true,maxLength:30,choices:[['','선택해 주세요'],['1학년','1학년'],['2학년','2학년'],['3학년','3학년'],['4학년','4학년'],['기타','기타']]})+input('message','자기소개 / 가입하고 싶은 이유','',{required:true,type:'textarea',maxLength:1000,wide:true,placeholder:'관심 있는 활동이나 궁금한 점도 함께 적어 주세요.'})+'<p class="member-form-note wide">가입 신청 승인은 접수 검토 결과입니다. 최종 부원 등록과 회비 등 후속 절차는 운영진 안내를 따라 주세요.</p>'+consent('join');}
 function visitBody(ctx){
  const today=new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Seoul',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
  return verifiedNote(ctx)+'<div class="member-visit-guidance wide"><strong>승인을 받은 뒤 함께 입장해 주세요.</strong><p>간부 승인 전에는 출입할 수 없습니다. 승인된 날짜와 시간에만 신청한 부원이 외부인과 동행해야 합니다. 방문은 90일 이내, 한 번에 최대 12시간까지 신청할 수 있습니다.</p></div>'+input('startsAt','방문 시작','',{required:true,type:'datetime-local',min:today+'T00:00',hint:'한국 시간 (KST) 기준, 90일 이내'})+input('endsAt','방문 종료','',{required:true,type:'datetime-local',min:today+'T00:00',hint:'시작 이후, 최대 12시간 이내'})+input('guestCount','외부인 인원','1',{required:true,type:'number',min:1,max:20,step:1,hint:'신청한 부원을 제외한 인원, 최대 20명',wide:true})+input('guestNames','외부인 이름','',{required:true,type:'textarea',rows:2,maxLength:300,wide:true,placeholder:'외부인 전원의 이름을 쉼표 또는 줄바꿈으로 구분해 주세요.'})+input('purpose','방문 목적','',{required:true,type:'textarea',rows:3,maxLength:1000,wide:true,placeholder:'방문 이유와 동아리방에서 할 활동을 구체적으로 적어 주세요.'})+consent('visit');
 }
 function inquiryBody(ctx){return '<p class="member-form-intro wide">활동, 가입, 공간 이용 등 궁금한 점을 남겨 주세요. 운영진 답변은 내 신청 내역에서 확인할 수 있습니다.</p>'+(getMemberSessionKey(ctx)?verifiedNote(ctx):identityFields())+input('subject','문의 제목','',{required:true,maxLength:120,wide:true})+input('message','문의 내용','',{required:true,type:'textarea',maxLength:3000,rows:5,wide:true})+consent('inquiry');}
 function openForm(ctx,kind){
- const titles={visit:'외부인 출입 신청',join:'동아리 가입 신청',inquiry:'문의하기'};
- const submits={visit:'출입 승인 요청',join:'가입 신청 보내기',inquiry:'문의 보내기'};
- const body=kind==='visit'?visitBody(ctx):kind==='join'?joinBody():inquiryBody(ctx);
+ const titles={visit:'외부인 출입 신청',inquiry:'문의하기'};
+ const submits={visit:'출입 승인 요청',inquiry:'문의 보내기'};
+ const body=kind==='visit'?visitBody(ctx):inquiryBody(ctx);
  const dialog=modal(titles[kind],body,(data,node)=>memberPortalSubmit(ctx,'member-'+kind,data,node),{submit:submits[kind],busyText:'접수 중…'});
  dialog.classList.add('member-dialog');return dialog;
 }
@@ -105,7 +106,7 @@ function notices(info){
 }
 function requestHistory(ctx){
  const view=state(ctx),requests=allRequests(ctx);
- if(!requests.length)return empty('아직 신청 내역이 없어요',view.member?'출입 신청, 가입 신청, 문의를 보내면 진행 상황을 확인할 수 있습니다.':'이 탭에서 보낸 신청 또는 저장한 개인 확인 링크로 내역을 볼 수 있습니다. 기존 부원은 부원 확인 후 내역을 조회해 주세요.');
+ if(!requests.length)return empty('아직 신청 내역이 없어요',view.member?'출입 신청이나 문의를 보내면 진행 상황을 확인할 수 있습니다.':'이 탭에서 보낸 신청 또는 저장한 개인 확인 링크로 내역을 볼 수 있습니다. 기존 부원은 부원 확인 후 내역을 조회해 주세요.');
  return '<div class="member-request-list">'+requests.map(request=>'<button type="button" class="member-request-row" data-action="member-request" data-id="'+esc(request.id)+'"><span class="member-request-icon">'+icon(request.kind==='visit'?'users-round':request.kind==='join'?'user-plus':'notebook-pen')+'</span><span class="member-request-content"><span class="member-request-kind">'+esc(kinds[request.kind]||'신청')+'</span><strong>'+esc(requestTitle(request)||kinds[request.kind])+'</strong><small>'+esc(requestSummary(request))+'</small></span>'+requestStatus(request)+icon('arrow-right')+'</button>').join('')+'</div>';
 }
 export async function renderMemberPortal(ctx){
@@ -115,7 +116,7 @@ export async function renderMemberPortal(ctx){
  error+=linked;
  if(view.lastReceiptId&&receiptFor(ctx,view.lastReceiptId)&&view.lastReceiptId!==view.linkedId)error+='<div class="member-receipt-banner" role="status">'+icon('check')+'<p>신청을 접수했습니다. 다음에 결과를 볼 수 있도록 개인 확인 링크를 보관해 주세요.</p>'+button('확인 링크 복사','member-receipt-copy',{id:view.lastReceiptId,class:'button secondary small',icon:'copy'})+'</div>';
  const identity=member?'<div class="member-identity"><span class="member-avatar">'+esc(member.name.slice(0,1))+'</span><div><strong>'+esc(member.name)+' 님</strong><small>'+esc(member.semester||'마티니')+' · 부원 확인 완료</small></div>'+button('이 기기에서 나가기','member-forget',{class:'button ghost small'})+'</div>':'<div class="member-welcome-note"><span>'+icon('shield-check')+'<span>부원 확인으로 내 활동을 한눈에</span></span>'+button('부원 확인','member-verify',{class:'button secondary',icon:'arrow-right'})+'</div>';
- return '<div class="member-lounge"><section class="member-heading"><div><span class="eyebrow">MARTINI MEMBERS</span><h1>부원 라운지<span>.</span></h1><p>우리의 다음 만남부터 동아리방 방문까지.<br> 마티니의 소식과 필요한 신청을 한곳에서.</p></div><div class="member-heading-mark" aria-hidden="true">'+icon('martini')+'<span>MAKE. MIX. MEET.</span></div></section>'+error+identity+'<section class="member-shortcuts" aria-label="신청 바로가기"><button type="button" class="member-shortcut member-visit-card" data-action="member-visit"><div class="member-shortcut-top">'+icon('users-round')+'<span>간부 승인 필요</span></div><div><h2>외부인 출입 신청</h2><p>함께 방문할 손님이 있나요?<br> 일정과 목적을 미리 알려 주세요.</p></div><span class="member-shortcut-bottom">출입 승인 요청하기 '+icon('arrow-up-right')+'</span></button><button type="button" class="member-shortcut" data-action="member-join"><div class="member-shortcut-top">'+icon('user-plus')+'<span>새로운 시작</span></div><div><h2>동아리 가입 신청</h2><p>마티니와 함께하고 싶다면<br> 여기에서 첫 인사를 건네 주세요.</p></div><span class="member-shortcut-bottom">가입 신청하기 '+icon('arrow-up-right')+'</span></button><button type="button" class="member-shortcut" data-action="member-inquiry"><div class="member-shortcut-top">'+icon('notebook-pen')+'<span>운영진에게</span></div><div><h2>문의하기</h2><p>활동부터 공간 이용까지<br> 궁금한 점을 편하게 남겨 주세요.</p></div><span class="member-shortcut-bottom">문의 남기기 '+icon('arrow-up-right')+'</span></button></section><div class="member-content-grid"><section class="member-section member-event-section" aria-labelledby="member-events-title"><div class="member-section-heading"><div><span class="member-section-kicker">TOGETHER</span><h2 id="member-events-title">진행 중인 행사</h2></div>'+icon('calendar-days')+'</div>'+eventCards(ctx)+'</section><section class="member-section member-notice-section" aria-labelledby="member-notices-title"><div class="member-section-heading"><div><span class="member-section-kicker">NOTICE</span><h2 id="member-notices-title">새로운 소식</h2></div><a href="/notices" data-nav class="member-text-link">전체 보기 '+icon('arrow-up-right')+'</a></div>'+notices(info)+'</section></div><section class="member-section member-history" id="member-history" aria-labelledby="member-history-title"><div class="member-section-heading"><div><span class="member-section-kicker">MY REQUESTS</span><h2 id="member-history-title">내 신청 내역'+(pending?'<span class="member-count">검토 대기 '+pending+'</span>':'')+'</h2></div>'+button('새로고침','member-refresh',{class:'button ghost small',icon:'history'})+'</div>'+(view.receiptErrors?'<p class="member-history-warning" role="status">일부 신청 내역을 불러오지 못했습니다. 새로고침해 다시 확인해 주세요.</p>':'')+requestHistory(ctx)+'<div class="member-history-footnote"><p>'+icon('shield-check')+'<span>신청 내역에서 개인 확인 링크를 복사해 보관해 주세요. 탭을 닫은 뒤에도 링크로 결과를 확인할 수 있습니다. 부원 신청은 다시 부원 확인 후에도 조회할 수 있어요.</span></p>'+(!member&&storage(ctx).receipts.length?button('이 기기 기록 지우기','member-forget',{class:'button ghost small'}):'')+'</div></section>'+(view.storageUnavailable?'<p class="member-history-warning" role="status">브라우저 저장 공간을 사용할 수 없습니다. 새로고침하거나 창을 닫으면 현재 접수 내역의 조회 권한이 사라질 수 있습니다.</p>':'')+'<aside class="member-room-note"><span>'+icon('map-pin')+'<strong>우리의 공간, 함께 지켜요.</strong></span><p>외부인 방문은 승인된 일정에 부원과 동행해 주세요.<br> 사용한 자리와 도구는 다음 사람을 위해 정리해 주세요.</p></aside></div>';
+ return '<div class="member-lounge"><section class="member-heading"><div><span class="eyebrow">MARTINI MEMBERS</span><h1>부원 라운지<span>.</span></h1><p>우리의 다음 만남부터 동아리방 방문까지.<br> 마티니의 소식과 필요한 신청을 한곳에서.</p></div><div class="member-heading-mark" aria-hidden="true">'+icon('martini')+'<span>MAKE. MIX. MEET.</span></div></section>'+error+identity+'<section class="member-shortcuts" aria-label="신청 바로가기"><button type="button" class="member-shortcut member-visit-card" data-action="member-visit"><div class="member-shortcut-top">'+icon('users-round')+'<span>간부 승인 필요</span></div><div><h2>외부인 출입 신청</h2><p>함께 방문할 손님이 있나요?<br> 일정과 목적을 미리 알려 주세요.</p></div><span class="member-shortcut-bottom">출입 승인 요청하기 '+icon('arrow-up-right')+'</span></button><button type="button" class="member-shortcut" data-action="member-inquiry"><div class="member-shortcut-top">'+icon('notebook-pen')+'<span>운영진에게</span></div><div><h2>문의하기</h2><p>활동부터 공간 이용까지<br> 궁금한 점을 편하게 남겨 주세요.</p></div><span class="member-shortcut-bottom">문의 남기기 '+icon('arrow-up-right')+'</span></button></section><div class="member-content-grid"><section class="member-section member-event-section" aria-labelledby="member-events-title"><div class="member-section-heading"><div><span class="member-section-kicker">TOGETHER</span><h2 id="member-events-title">진행 중인 행사</h2></div>'+icon('calendar-days')+'</div>'+eventCards(ctx)+'</section><section class="member-section member-notice-section" aria-labelledby="member-notices-title"><div class="member-section-heading"><div><span class="member-section-kicker">NOTICE</span><h2 id="member-notices-title">새로운 소식</h2></div><a href="/notices" data-nav class="member-text-link">전체 보기 '+icon('arrow-up-right')+'</a></div>'+notices(info)+'</section></div><section class="member-section member-history" id="member-history" aria-labelledby="member-history-title"><div class="member-section-heading"><div><span class="member-section-kicker">MY REQUESTS</span><h2 id="member-history-title">내 신청 내역'+(pending?'<span class="member-count">검토 대기 '+pending+'</span>':'')+'</h2></div>'+button('새로고침','member-refresh',{class:'button ghost small',icon:'history'})+'</div>'+(view.receiptErrors?'<p class="member-history-warning" role="status">일부 신청 내역을 불러오지 못했습니다. 새로고침해 다시 확인해 주세요.</p>':'')+requestHistory(ctx)+'<div class="member-history-footnote"><p>'+icon('shield-check')+'<span>신청 내역에서 개인 확인 링크를 복사해 보관해 주세요. 탭을 닫은 뒤에도 링크로 결과를 확인할 수 있습니다. 부원 신청은 다시 부원 확인 후에도 조회할 수 있어요.</span></p>'+(!member&&storage(ctx).receipts.length?button('이 기기 기록 지우기','member-forget',{class:'button ghost small'}):'')+'</div></section>'+(view.storageUnavailable?'<p class="member-history-warning" role="status">브라우저 저장 공간을 사용할 수 없습니다. 새로고침하거나 창을 닫으면 현재 접수 내역의 조회 권한이 사라질 수 있습니다.</p>':'')+'<aside class="member-room-note"><span>'+icon('map-pin')+'<strong>우리의 공간, 함께 지켜요.</strong></span><p>외부인 방문은 승인된 일정에 부원과 동행해 주세요.<br> 사용한 자리와 도구는 다음 사람을 위해 정리해 주세요.</p></aside></div>';
 }
 function requestDetail(ctx,request){
  let body='<div class="member-detail-heading wide"><span>'+esc(kinds[request.kind]||'신청')+'</span>'+requestStatus(request)+'</div>';
@@ -133,10 +134,9 @@ function requestDetail(ctx,request){
 export async function memberPortalAction(ctx,action,id){
  if(action==='member-verify')return openVerification(ctx);
  if(action==='member-visit')return getMemberSessionKey(ctx)&&state(ctx).member?openForm(ctx,'visit'):openVerification(ctx,true);
- if(action==='member-join')return openForm(ctx,'join');
  if(action==='member-inquiry')return openForm(ctx,'inquiry');
  if(action==='member-refresh'){delete ctx.state.publicInfo;await ctx.render();return;}
- if(action==='member-forget')return modal('이 기기에서 나갈까요?','<p class="member-form-intro wide">부원 확인과 이 탭의 신청 조회 정보를 지웁니다. 접수한 신청은 취소되지 않습니다. 부원 확인 없이 보낸 가입 신청·문의는 저장한 개인 확인 링크가 있어야 다시 조회할 수 있습니다.</p>',async()=>{try{sessionStorage.removeItem(STORAGE);}catch{throw new Error('브라우저의 조회 정보를 지우지 못했습니다. 이 탭을 닫아 부원 확인을 종료해 주세요.');}delete ctx.state.memberLounge;await ctx.navigate('/members',{replace:true,discard:true});ctx.toast('이 기기의 부원 확인과 신청 조회 정보를 지웠습니다.');},{submit:'이 기기에서 나가기',busyText:'정리 중…'});
+ if(action==='member-forget')return modal('이 기기에서 나갈까요?','<p class="member-form-intro wide">부원 확인과 이 탭의 신청 조회 정보를 지웁니다. 접수한 신청은 취소되지 않습니다. 부원 확인 없이 보낸 신청·문의는 저장한 개인 확인 링크가 있어야 다시 조회할 수 있습니다.</p>',async()=>{try{sessionStorage.removeItem(STORAGE);}catch{throw new Error('브라우저의 조회 정보를 지우지 못했습니다. 이 탭을 닫아 부원 확인을 종료해 주세요.');}delete ctx.state.memberLounge;await ctx.navigate('/members',{replace:true,discard:true});ctx.toast('이 기기의 부원 확인과 신청 조회 정보를 지웠습니다.');},{submit:'이 기기에서 나가기',busyText:'정리 중…'});
  if(action==='member-receipt-copy'){
   const receipt=receiptFor(ctx,id);if(!receipt)throw new Error('이 탭의 접수 확인 정보가 없습니다.');
   const url=location.origin+'/members#request='+encodeURIComponent(receipt.id)+'&key='+encodeURIComponent(receipt.receiptKey);
@@ -165,7 +165,7 @@ export async function memberPortalSubmit(ctx,form,data){
   try{result=await ctx.api('memberAccess',{...identity(data),sessionKey});}catch(error){if(['functions/permission-denied','functions/not-found','functions/unauthenticated'].includes(error.code))throw new Error('부원 정보를 확인할 수 없습니다. 명단에 등록된 이름·학번·휴대전화 번호를 확인해 주세요. 계속 확인되지 않으면 운영진에게 문의해 주세요.');throw error;}
   storage(ctx).session={sessionKey,expiresAt:result.expiresAt};state(ctx).member=result.member;persist(ctx);await ctx.render();ctx.toast('부원 확인을 마쳤습니다.');return;
  }
- const kind=form.replace(/^member-/,'');if(!Object.hasOwn(kinds,kind))return;
+ const kind=form.replace(/^member-/,'');if(!activeKinds.includes(kind))return;
  if(!data.has('consent'))throw new Error('개인정보 수집·이용 동의를 확인해 주세요.');
  const payload={kind,consent:true},sessionKey=getMemberSessionKey(ctx);
  if(kind==='visit'){
@@ -177,8 +177,7 @@ export async function memberPortalSubmit(ctx,form,data){
   if(Date.parse(payload.endsAt)-Date.parse(payload.startsAt)>12*3600000)throw new Error('한 번의 방문은 최대 12시간까지 신청할 수 있습니다.');
   payload.guestCount=Number(data.get('guestCount'));if(!Number.isInteger(payload.guestCount)||payload.guestCount<1||payload.guestCount>20)throw new Error('외부인 인원은 1명부터 20명까지 입력해 주세요.');
   payload.guestNames=required(data,'guestNames','외부인 이름',300);payload.purpose=required(data,'purpose','방문 목적',1000);
- }else if(kind==='join'){Object.assign(payload,identity(data),{department:required(data,'department','학과 / 전공',100),grade:required(data,'grade','학년',30),message:required(data,'message','가입 신청 내용',1000)});}
- else{Object.assign(payload,sessionKey?{sessionKey}:identity(data),{subject:required(data,'subject','문의 제목',120),message:required(data,'message','문의 내용',3000)});}
+ }else{Object.assign(payload,sessionKey?{sessionKey}:identity(data),{subject:required(data,'subject','문의 제목',120),message:required(data,'message','문의 내용',3000)});}
  const saved=storage(ctx);saved.pending[kind]??={requestId:crypto.randomUUID(),receiptKey:secret()};persist(ctx);
  const pending=saved.pending[kind];let result,recovered=false;
  try{result=await ctx.api('submitClubRequest',{...payload,...pending});}
@@ -190,5 +189,5 @@ export async function memberPortalSubmit(ctx,form,data){
  saved.receipts=saved.receipts.filter(item=>item.id!==result.id).concat({id:result.id,receiptKey:pending.receiptKey}).slice(-20);delete saved.pending[kind];persist(ctx);
  state(ctx).lastReceiptId=result.id;
  if(result.request)state(ctx).receiptRows.push(result.request);
- await ctx.render();ctx.toast(recovered?'이전에 접수된 신청을 확인했습니다. 내 신청 내역에서 접수 내용을 확인해 주세요.':kind==='visit'?'출입 승인 요청을 보냈습니다. 승인 결과를 확인한 뒤 방문해 주세요.':kind==='join'?'가입 신청을 보냈습니다. 내 신청 내역에서 결과를 확인해 주세요.':'문의를 보냈습니다. 내 신청 내역에서 답변을 확인해 주세요.');
+ await ctx.render();ctx.toast(recovered?'이전에 접수된 신청을 확인했습니다. 내 신청 내역에서 접수 내용을 확인해 주세요.':kind==='visit'?'출입 승인 요청을 보냈습니다. 승인 결과를 확인한 뒤 방문해 주세요.':'문의를 보냈습니다. 내 신청 내역에서 답변을 확인해 주세요.');
 }

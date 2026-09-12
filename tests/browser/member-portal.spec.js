@@ -41,6 +41,8 @@ async function loginAdmin(page, baseURL) {
   await expect(page.getByRole('heading', { name: '운영 현황', exact: true })).toBeVisible();
   await page.goto(baseURL + '/admin/requests');
   await expect(page.getByRole('heading', { name: '신청 · 문의', exact: true })).toBeVisible();
+  await expect(page.locator('.request-queue-summary > div')).toHaveCount(2);
+  await expect(page.locator('.request-queue-summary')).not.toContainText('가입');
 }
 
 function visitTime(hours) {
@@ -66,7 +68,10 @@ async function submitVisit(page, purpose) {
 test('member verification rejects wrong identity and can be cleared on a shared device', async ({ page }) => {
   await page.goto('/members');
   await expect(page.locator('h1')).toBeVisible();
-  for (const name of ['member-verify', 'member-visit', 'member-join', 'member-inquiry']) await expect(action(page, name)).toBeVisible();
+  for (const name of ['member-verify', 'member-visit', 'member-inquiry']) await expect(action(page, name)).toBeVisible();
+  await expect(action(page, 'member-join')).toHaveCount(0);
+  await expect(page.getByRole('region', { name: '신청 바로가기' }).getByRole('button')).toHaveCount(2);
+  await expect(page.getByRole('heading', { name: '동아리 가입 신청', exact: true })).toHaveCount(0);
   await action(page, 'member-verify').click();
   await fillIdentity(page.getByRole('dialog'), { ...member, phone: '01099999999' });
   await page.getByRole('dialog').getByRole('button', { name: '부원 확인하기', exact: true }).click();
@@ -129,21 +134,13 @@ test('visitor request passes through officer approval and both future and pendin
   }
 });
 
-test('prospective member can submit a join request and read the officer reply to an inquiry', async ({ page, browser, baseURL }) => {
+test('visitor can recover an inquiry submission and read the officer reply through a personal link', async ({ page, browser, baseURL }) => {
   const suffix = unique();
-  const applicant = { name: '가입 검증 ' + suffix, studentId: '2099' + String(Date.now()).slice(-5), phone: '01088887777' };
-  const department = '검증학과 ' + suffix;
+  const applicant = { name: '문의 검증 ' + suffix, studentId: '2099' + String(Date.now()).slice(-5), phone: '01088887777' };
   await page.goto('/members');
-  await action(page, 'member-join').click();
-  await fillIdentity(page.getByRole('dialog'), applicant);
-  await page.getByRole('dialog').locator('[name=department]').fill(department);
-  await page.getByRole('dialog').locator('[name=grade]').selectOption('2학년');
-  await page.getByRole('dialog').locator('[name=message]').fill('칵테일 교육에 참여하고 싶습니다.');
-  await page.getByRole('dialog').locator('[name=consent]').check();
-  await submitDialog(page, '가입 신청 보내기');
-  await expect(page.locator('.member-request-row').filter({ hasText: /가입/ }).first().locator('.member-status')).toHaveText('승인 대기');
+  await expect(action(page, 'member-join')).toHaveCount(0);
 
-  const subject = '가입 전 문의 ' + suffix;
+  const subject = '동아리 활동 문의 ' + suffix;
   await action(page, 'member-inquiry').click();
   await fillIdentity(page.getByRole('dialog'), applicant);
   await page.getByRole('dialog').locator('[name=subject]').fill(subject);
@@ -173,13 +170,8 @@ test('prospective member can submit a join request and read the officer reply to
   const admin = await adminContext.newPage();
   try {
     await loginAdmin(admin, baseURL);
-    await adminRequest(admin, department).getByRole('button', { name: '검토', exact: true }).click();
-    await expect(admin.getByRole('dialog')).toContainText(applicant.name);
-    await admin.getByRole('dialog').locator('[name=decision]').selectOption('reject');
-    await admin.getByRole('dialog').locator('[name=response]').fill('가입 검증 완료: 이번 신청은 테스트이므로 반려합니다.');
-    await submitDialog(admin, '반려');
-    await expect(adminRequest(admin, department).locator('.request-status')).toHaveText('반려');
     await adminRequest(admin, subject).getByRole('button', { name: '검토', exact: true }).click();
+    await expect(admin.getByRole('dialog')).toContainText(applicant.name);
     const reply = '필요한 도구는 동아리에서 준비합니다. 편하게 참여해 주세요.';
     await admin.getByRole('dialog').locator('[name=response]').fill(reply);
     await submitDialog(admin, '답변 저장');
@@ -197,7 +189,7 @@ test('prospective member can submit a join request and read the officer reply to
     const receiptLink = await page.evaluate(() => window._portalCopiedLink);
     expect(Boolean(receiptLink && new URL(receiptLink).hash.startsWith('#request='))).toBeTruthy();
     await page.getByRole('dialog').getByRole('button', { name: '닫기', exact: true }).last().click();
-    await expect(page.locator('.member-request-row').filter({ hasText: '동아리 가입 신청' }).first().locator('.member-status')).toHaveText('반려');
+    await expect(page.locator('.member-request-row')).toHaveCount(1);
 
     const reopenedContext = await browser.newContext({ viewport: page.viewportSize() });
     try {

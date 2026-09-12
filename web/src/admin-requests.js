@@ -1,7 +1,7 @@
 import { esc, icon, button, field, textBlock, empty, modal } from './ui.js';
 import './admin-requests.css';
 
-const kinds={visit:'외부인 출입',join:'동아리 가입',inquiry:'문의'};
+const kinds={visit:'외부인 출입',join:'이전 가입 신청',inquiry:'문의'};
 const statuses={pending:'승인 대기',approved:'승인',rejected:'반려',answered:'답변 완료',cancelled:'취소'};
 const stamp=value=>value?new Intl.DateTimeFormat('ko-KR',{dateStyle:'medium',timeStyle:'short',timeZone:'Asia/Seoul'}).format(new Date(value)):'—';
 const status=r=>'<span class="badge request-status '+esc(r.status)+'">'+esc(r.kind==='inquiry'&&r.status==='pending'?'답변 대기':statuses[r.status]||r.status)+'</span>';
@@ -17,12 +17,12 @@ export async function renderAdminRequests(ctx){
  const result=ctx.state.requestPageReuse||await ctx.api('clubRequests');delete ctx.state.requestPageReuse;
  ctx.state.clubRequestPage=result;
  const rows=result.rows;
- return '<div class="page-heading"><div><h1 tabindex="-1">신청 · 문의</h1><p>방문 목적과 일정을 확인하고 출입을 승인하세요. 가입 신청과 문의도 함께 처리합니다.</p></div>'+button('새로고침','club-request-refresh',{class:'button secondary',icon:'refresh-cw'})+'</div>'+
- '<div class="request-queue-summary">'+[['visit','외부인 출입 대기','door-open'],['join','가입 승인 대기','user-plus'],['inquiry','답변 대기','message-circle']].map(([kind,label,i])=>'<div>'+icon(i)+'<span>'+label+'</span><strong>'+rows.filter(r=>r.kind===kind&&r.status==='pending').length+'<small>건</small></strong></div>').join('')+'</div><p class="data-caption">불러온 '+rows.length+'건 기준'+(result.nextCursor?' · 이전 기록은 아래에서 더 불러올 수 있습니다.':'.')+'</p>'+
- '<div class="toolbar"><label class="search-box">'+icon('search')+'<input type="search" data-search aria-label="신청 검색" placeholder="이름 · 목적 · 학번 검색"></label><select data-filter aria-label="상태 필터"><option value="all">전체 상태</option>'+Object.entries(statuses).map(([s,t])=>'<option value="'+s+'">'+(s==='pending'?'처리 대기':t)+'</option>').join('')+'</select><select data-event-type aria-label="신청 종류"><option value="all">전체 종류</option>'+Object.entries(kinds).map(([k,t])=>'<option value="'+k+'">'+t+'</option>').join('')+'</select><span id="filtered-count" class="muted" role="status"></span></div>'+
- (rows.length?'<div class="request-list">'+renderRows(rows)+'</div>':empty('접수된 신청이 없습니다','부원 라운지에서 외부인 출입, 가입 신청과 문의를 접수하면 이곳에 표시됩니다.','<a href="/members" data-nav class="button secondary">부원 라운지 열기</a>'))+
+ return '<div class="page-heading"><div><h1 tabindex="-1">신청 · 문의</h1><p>방문 목적과 일정을 확인하고 출입을 승인하거나 문의에 답변하세요.</p></div>'+button('새로고침','club-request-refresh',{class:'button secondary',icon:'refresh-cw'})+'</div>'+
+ '<div class="request-queue-summary">'+[['visit','외부인 출입 대기','door-open'],['inquiry','답변 대기','message-circle']].map(([kind,label,i])=>'<div>'+icon(i)+'<span>'+label+'</span><strong>'+rows.filter(r=>r.kind===kind&&r.status==='pending').length+'<small>건</small></strong></div>').join('')+'</div><p class="data-caption">불러온 '+rows.length+'건 기준'+(result.nextCursor?' · 이전 기록은 아래에서 더 불러올 수 있습니다.':'.')+'</p>'+
+ '<div class="toolbar"><label class="search-box">'+icon('search')+'<input type="search" data-search aria-label="신청 검색" placeholder="이름 · 목적 · 학번 검색"></label><select data-filter aria-label="상태 필터"><option value="all">전체 상태</option>'+Object.entries(statuses).map(([s,t])=>'<option value="'+s+'">'+(s==='pending'?'처리 대기':t)+'</option>').join('')+'</select><select data-event-type aria-label="신청 종류"><option value="all">전체 종류</option>'+Object.entries(kinds).filter(([kind])=>kind!=='join'||rows.some(row=>row.kind==='join')).map(([k,t])=>'<option value="'+k+'">'+t+'</option>').join('')+'</select><span id="filtered-count" class="muted" role="status"></span></div>'+
+ (rows.length?'<div class="request-list">'+renderRows(rows)+'</div>':empty('접수된 신청이 없습니다','부원 라운지에서 외부인 출입 신청이나 문의를 접수하면 이곳에 표시됩니다.','<a href="/members" data-nav class="button secondary">부원 라운지 열기</a>'))+
  (result.nextCursor?'<div class="pagination">'+button('이전 신청 더 보기','club-request-more',{class:'button secondary'})+'</div>':'')+
- '<section class="operations-note">'+icon('shield-check')+'<div><h3>출입 승인 안내</h3><p>승인된 시간과 방문 인원만 출입할 수 있습니다. 신청 부원이 동행하도록 안내하세요. 가입 승인 후에는 명부 등록을 별도로 진행해 주세요.</p></div></section>';
+ '<section class="operations-note">'+icon('shield-check')+'<div><h3>출입 승인 안내</h3><p>승인된 시간과 방문 인원만 출입할 수 있습니다. 신청 부원이 동행하도록 안내하세요.</p></div></section>';
 }
 export async function adminRequestAction(ctx,action,id){
  if(action==='club-request-refresh'){return ctx.render();}

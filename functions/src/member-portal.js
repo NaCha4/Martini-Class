@@ -9,12 +9,11 @@ const required=max=>text(max).min(1);
 const applicant={name:required(40),studentId:required(30),phone:required(30).transform(normalizePhone).refine(value=>/^[0-9]{8,15}$/.test(value),'전화번호를 확인해 주세요.')};
 const base={requestId:idSchema,receiptKey:key,consent:z.literal(true)};
 const visit=z.object({...base,kind:z.literal('visit'),sessionKey:key,startsAt:z.string().datetime(),endsAt:z.string().datetime(),guestCount:z.number().int().min(1).max(20),guestNames:required(300),purpose:required(1000)}).strict();
-const join=z.object({...base,kind:z.literal('join'),...applicant,department:required(100),grade:required(30),message:text(1000).default('')}).strict();
 const inquiry=z.object({...base,kind:z.literal('inquiry'),sessionKey:key.optional(),name:applicant.name.optional(),studentId:applicant.studentId.optional(),phone:applicant.phone.optional(),subject:required(120),message:required(3000)}).strict().superRefine((value,ctx)=>{
  if(value.sessionKey){if(value.name!==undefined||value.studentId!==undefined||value.phone!==undefined)ctx.addIssue({code:'custom',message:'부원 문의에는 인증된 명부 정보를 사용합니다.'});}
  else if(!value.name||!value.studentId||!value.phone)ctx.addIssue({code:'custom',message:'이름, 학번, 전화번호를 모두 입력해 주세요.'});
 });
-const schemas={visit,join,inquiry};
+const schemas={visit,inquiry};
 const receipt=z.object({id:idSchema,receiptKey:key}).strict();
 const DAY=86400000;
 const safeFields=['id','kind','status','revision','name','studentId','phone','semester','department','grade','message','subject','startsAt','endsAt','guestCount','guestNames','purpose','response','createdAt','updatedAt','decidedAt','cancelledAt','retentionUntil'];

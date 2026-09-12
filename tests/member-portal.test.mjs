@@ -18,11 +18,12 @@ const memberRef=id=>ref('semesters','2026-2').collection('members').doc(id);
 const person=(id=1)=>({name:'가상부원 '+id,studentId:'20260000'+id,phone:'0100000000'+id});
 const access=(id=1,sessionKey=session,extra={})=>service.handle({op:'memberAccess',...person(id),sessionKey,...extra},{ip:'access-'+id});
 const visit=(extra={})=>({op:'submitClubRequest',kind:'visit',requestId:'visit-one',receiptKey,consent:true,sessionKey:session,startsAt:time(3600000),endsAt:time(7200000),guestCount:2,guestNames:'가상 방문자 1, 가상 방문자 2',purpose:'동아리 교류 미팅',...extra});
-const join=(extra={})=>({op:'submitClubRequest',kind:'join',requestId:'join-one',receiptKey,consent:true,...person(3),department:'가상학과',grade:'1',message:'가입을 희망합니다.',...extra});
+const retiredJoin=(extra={})=>({op:'submitClubRequest',kind:'join',requestId:'join-one',receiptKey,consent:true,...person(3),department:'가상학과',grade:'1',message:'가입을 희망합니다.',...extra});
 const inquiry=(extra={})=>({op:'submitClubRequest',kind:'inquiry',requestId:'inquiry-one',receiptKey,consent:true,...person(3),subject:'운영 시간 문의',message:'방문 가능한 시간을 알려 주세요.',...extra});
 const command=(id,action,extra={})=>service.handle({op:'clubRequestCommand',id,revision:1,action,response:action==='approve'?'':'운영진 답변',...extra},owner);
 const lookup=id=>service.handle({op:'clubRequestReceipt',id,receiptKey},guest);
 const cancel=id=>service.handle({op:'cancelClubRequest',id,receiptKey},guest);
+const seedLegacyJoin=id=>ref('clubRequests',id).set({id,kind:'join',...person(3),department:'가상학과',grade:'1',message:'기존 가입 신청',semester:'2026-2',status:'pending',revision:1,response:'',receiptHash:hash(receiptKey),payloadHash:hash(id),consentedAt:stamp(),createdAt:stamp(),updatedAt:stamp(),retentionUntil:null});
 
 beforeEach(async()=>{
  now=baseline;
@@ -106,8 +107,15 @@ test('strict request schemas reject unverified visits, spoofed identities and un
  const {sessionKey:unused,...anonymous}=visit();await assert.rejects(service.handle(anonymous,guest),e=>e.code==='invalid-argument');
  await access();
  for(const extra of [{startsAt:time(-1)},{startsAt:time(91*86400000),endsAt:time(91*86400000+3600000)},{endsAt:time(3600000)},{endsAt:time(14*3600000)},{guestCount:0},{guestCount:21},{guestCount:1.5},{purpose:''},{name:'위조된 이름'}])await assert.rejects(service.handle(visit(extra),{ip:'invalid-'+JSON.stringify(extra)}),e=>e.code==='invalid-argument');
- await assert.rejects(service.handle(join({consent:false}),guest),e=>e.code==='invalid-argument');
+ await assert.rejects(service.handle(inquiry({consent:false}),guest),e=>e.code==='invalid-argument');
  await assert.rejects(service.handle(inquiry({sessionKey:session}),guest),e=>e.code==='invalid-argument');
+});
+
+test('retired membership application payloads cannot create requests',async()=>{
+ await assert.rejects(service.handle(retiredJoin(),guest),e=>e.code==='invalid-argument');
+ await access();
+ await assert.rejects(service.handle(retiredJoin({sessionKey:session}),guest),e=>e.code==='invalid-argument');
+ assert.equal((await db.collection('martini_v2_clubRequests').get()).size,0);
 });
 
 test('concurrent duplicate submissions are idempotent and changed payload or receipt is rejected',async()=>{
@@ -121,8 +129,8 @@ test('concurrent duplicate submissions are idempotent and changed payload or rec
 });
 
 test('admin request read and decisions require current members management scope',async()=>{
- await service.handle(join(),guest);
- for(const op of [{op:'clubRequests'},{op:'clubRequestCommand',id:'join-one',revision:1,action:'approve'}]){
+ await service.handle(inquiry(),guest);
+ for(const op of [{op:'clubRequests'},{op:'clubRequestCommand',id:'inquiry-one',revision:1,action:'reply',response:'운영진 답변'}]){
   await assert.rejects(service.handle(op,guest),e=>e.code==='unauthenticated');
   for(const uid of ['education','publicity'])await assert.rejects(service.handle(op,{uid}),e=>e.code==='permission-denied');
  }
@@ -144,14 +152,13 @@ test('visit approvals and rejections persist revision, safe response and free-te
 });
 
 test('stale concurrent decisions cannot overwrite the first terminal decision',async()=>{
- await service.handle(join(),guest);
- const results=await Promise.allSettled([command('join-one','approve'),command('join-one','reject')]);
+ await access();await service.handle(visit(),guest);
+ const results=await Promise.allSettled([command('visit-one','approve'),command('visit-one','reject')]);
  assert.equal(results.filter(row=>row.status==='fulfilled').length,1);
  assert.equal(results.find(row=>row.status==='rejected').reason.code,'aborted');
- assert.equal((await ref('clubRequests','join-one').get()).data().revision,2);
- await assert.rejects(command('join-one','approve',{revision:2}),e=>e.code==='failed-precondition');
+ assert.equal((await ref('clubRequests','visit-one').get()).data().revision,2);
+ await assert.rejects(command('visit-one','approve',{revision:2}),e=>e.code==='failed-precondition');
  assert.equal((await db.collection('martini_v2_audit').get()).size,1);
- assert.equal((await memberRef('member-3').get()).exists,false);
 });
 
 test('inquiries support public or authenticated applicants and only permit a nonempty reply',async()=>{
@@ -171,8 +178,8 @@ test('receipt capabilities isolate requests and cancellation is atomic and idemp
  await command('visit-one','approve');
  const results=await Promise.all([cancel('visit-one'),cancel('visit-one')]);assert.ok(results.every(row=>row.request.status==='cancelled'));
  assert.equal((await ref('clubRequests','visit-one').get()).data().revision,3);
- await service.handle(join(),guest);assert.equal((await cancel('join-one')).request.status,'cancelled');
- await service.handle(inquiry(),guest);await command('inquiry-one','reply');await assert.rejects(cancel('inquiry-one'),e=>e.code==='failed-precondition');
+ await service.handle(inquiry(),guest);assert.equal((await cancel('inquiry-one')).request.status,'cancelled');
+ await service.handle(inquiry({requestId:'answered-inquiry'}),guest);await command('answered-inquiry','reply');await assert.rejects(cancel('answered-inquiry'),e=>e.code==='failed-precondition');
 });
 
 test('past visits and members removed after submission cannot receive an approval',async()=>{
@@ -187,18 +194,31 @@ test('past visits and members removed after submission cannot receive an approva
 test('retention metadata follows the consent periods without deleting any records',async()=>{
  await access();const visitInput=visit();const savedVisit=await service.handle(visitInput,guest);
  assert.equal(Date.parse(savedVisit.request.retentionUntil),Date.parse(visitInput.endsAt)+180*86400000);
- assert.equal((await service.handle(join(),guest)).request.retentionUntil,null);
  assert.equal((await service.handle(inquiry(),guest)).request.retentionUntil,null);
- assert.equal(Date.parse((await command('join-one','approve')).request.retentionUntil),now+365*86400000);
  assert.equal(Date.parse((await command('inquiry-one','reply')).request.retentionUntil),now+180*86400000);
  now+=60000;assert.equal(Date.parse((await cancel('visit-one')).request.retentionUntil),now+180*86400000);
- assert.equal((await db.collection('martini_v2_clubRequests').get()).size,3);
+ assert.equal((await db.collection('martini_v2_clubRequests').get()).size,2);
+});
+
+test('existing membership application receipts, decisions and consent retention remain supported',async()=>{
+ await seedLegacyJoin('legacy-join');await seedLegacyJoin('legacy-cancel');
+ const existing=(await lookup('legacy-join')).request;
+ assert.equal(existing.kind,'join');assert.equal(existing.department,'가상학과');assert.equal(existing.grade,'1');assert.equal(existing.message,'기존 가입 신청');
+ for(const field of ['receiptHash','payloadHash','consentedAt'])assert.equal(existing[field],undefined);
+ await assert.rejects(service.handle({op:'clubRequestReceipt',id:'legacy-join',receiptKey:'e'.repeat(64)},guest),e=>e.code==='not-found');
+ assert.equal((await service.handle({op:'clubRequests'},owner)).rows.length,2);
+ const approved=(await command('legacy-join','approve')).request;
+ assert.equal(approved.status,'approved');assert.equal(Date.parse(approved.retentionUntil),now+365*86400000);
+ const cancelled=(await cancel('legacy-cancel')).request;
+ assert.equal(cancelled.status,'cancelled');assert.equal(Date.parse(cancelled.retentionUntil),now+365*86400000);
+ assert.equal((await memberRef('member-3').get()).exists,false);
+ assert.equal((await db.collection('martini_v2_clubRequests').get()).size,2);
 });
 
 test('identity guessing is throttled across IP addresses and receipt guesses are bounded',async()=>{
  for(let i=0;i<8;i++)await assert.rejects(service.handle({op:'memberAccess',...person(),phone:'01099999999',sessionKey:hash('guess-'+i)},{ip:'ip-'+i}),e=>e.code==='permission-denied');
  await assert.rejects(access(),e=>e.code==='resource-exhausted');
- await service.handle(join(),guest);
- for(let i=0;i<20;i++)await assert.rejects(service.handle({op:'clubRequestReceipt',id:'join-one',receiptKey:hash('wrong-'+i)},{ip:'receipt-ip-'+i}),e=>e.code==='not-found');
- await assert.rejects(lookup('join-one'),e=>e.code==='resource-exhausted');
+ await service.handle(inquiry(),guest);
+ for(let i=0;i<20;i++)await assert.rejects(service.handle({op:'clubRequestReceipt',id:'inquiry-one',receiptKey:hash('wrong-'+i)},{ip:'receipt-ip-'+i}),e=>e.code==='not-found');
+ await assert.rejects(lookup('inquiry-one'),e=>e.code==='resource-exhausted');
 });
