@@ -45,18 +45,25 @@ async function loginAdmin(page, baseURL) {
   await expect(page.locator('.request-queue-summary')).not.toContainText('가입');
 }
 
-function visitTime(hours) {
-  const time = new Date(Date.now() + hours * 3600000);
-  time.setMinutes(0, 0, 0);
-  const local = new Date(time.getTime() - time.getTimezoneOffset() * 60000);
-  return local.toISOString().slice(0, 16);
+function visitDay(days=2) {
+  return new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Seoul' }).format(new Date(Date.now() + days * 86400000));
+}
+
+async function selectVisitDay(dialog, day) {
+  while (await dialog.locator('[data-visit-calendar]').getAttribute('data-month') !== day.slice(0, 7)) {
+    const month = await dialog.locator('[data-visit-calendar]').getAttribute('data-month');
+    await dialog.getByRole('button', { name: month < day.slice(0, 7) ? '다음 달' : '이전 달', exact: true }).click();
+  }
+  await dialog.locator('[data-visit-day="' + day + '"]').click();
+  await expect(dialog.locator('[data-visit-day="' + day + '"]')).toHaveAttribute('aria-pressed', 'true');
 }
 
 async function submitVisit(page, purpose) {
   await action(page, 'member-visit').click();
   const dialog = page.getByRole('dialog');
-  await dialog.locator('[name=startsAt]').fill(visitTime(48));
-  await dialog.locator('[name=endsAt]').fill(visitTime(50));
+  await selectVisitDay(dialog, visitDay());
+  await dialog.locator('[name=startTime]').fill('18:00');
+  await dialog.locator('[name=endTime]').fill('20:00');
   await dialog.locator('[name=guestCount]').fill('2');
   await dialog.locator('[name=guestNames]').fill('가상 방문자 가, 가상 방문자 나');
   await dialog.locator('[name=purpose]').fill(purpose);
@@ -64,6 +71,69 @@ async function submitVisit(page, purpose) {
   await submitDialog(page, '출입 승인 요청');
   await expect(ownRequest(page, purpose).locator('.member-status')).toHaveText('승인 대기');
 }
+
+test('visit calendar preserves input across months and validates dates, duration and overnight requests', async ({ page }, info) => {
+  await verifyMember(page);
+  // Calendar arithmetic must stay in KST and cross month/year/leap-day boundaries correctly.
+  const dates = await page.evaluate(async () => {
+    const { koreaDay, visitSchedule } = await import('/src/visit-calendar.js');
+    const overnight = day => {
+      const data = new FormData();
+      for (const [key, value] of Object.entries({ visitDate: day, startTime: '23:00', endTime: '01:00', endNextDay: 'on' })) data.set(key, value);
+      return visitSchedule(data).endsAt;
+    };
+    return [koreaDay('2026-12-31T15:00:00Z'), overnight('2026-12-31'), overnight('2028-02-28'), overnight('2028-02-29')];
+  });
+  expect(dates).toEqual(['2027-01-01', '2027-01-01T01:00', '2028-02-29T01:00', '2028-03-01T01:00']);
+  await action(page, 'member-visit').click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog.getByRole('button', { name: '이전 달', exact: true })).toBeDisabled();
+  const today = visitDay(0);
+  for (const day of await dialog.locator('[data-visit-day]').all()) {
+    if (await day.getAttribute('data-visit-day') < today) await expect(day).toBeDisabled();
+  }
+  await dialog.locator('[name=startTime]').fill('23:00');
+  await dialog.locator('[name=endTime]').fill('01:00');
+  await dialog.locator('[name=guestCount]').fill('3');
+  const purpose = '달력 야간 방문 ' + unique();
+  await dialog.locator('[name=purpose]').fill(purpose);
+  await dialog.locator('[name=guestNames]').fill('가상 가, 가상 나, 가상 다');
+  await dialog.locator('[name=consent]').check();
+  const submit = dialog.getByRole('button', { name: '출입 승인 요청', exact: true });
+  await submit.click();
+  await expect(dialog.locator('.form-error')).toContainText('달력에서 방문 날짜');
+  await selectVisitDay(dialog, visitDay());
+  await dialog.getByRole('button', { name: '다음 달', exact: true }).click();
+  await dialog.getByRole('button', { name: '이전 달', exact: true }).click();
+  await expect(dialog.locator('[data-visit-day="' + visitDay() + '"]')).toHaveAttribute('aria-pressed', 'true');
+  await expect(dialog.locator('[name=purpose]')).toHaveValue(purpose);
+  await expect(dialog.locator('[name=guestCount]')).toHaveValue('3');
+  await submit.click();
+  await expect(dialog.locator('.form-error')).toContainText('종료는 시작 시간 이후');
+  await dialog.locator('[name=endNextDay]').check();
+  await dialog.locator('[name=endTime]').fill('12:00');
+  await submit.click();
+  await expect(dialog.locator('.form-error')).toContainText('최대 12시간');
+  await dialog.locator('[name=endTime]').fill('01:00');
+  await expect(dialog.locator('[data-visit-summary]')).toContainText('23:00 → 다음 날 01:00 · 외부인 3명');
+  await selectVisitDay(dialog, visitDay(90));
+  await expect(dialog.getByRole('button', { name: '다음 달', exact: true })).toBeDisabled();
+  for (const day of await dialog.locator('[data-visit-day]').all()) {
+    if (await day.getAttribute('data-visit-day') > visitDay(90)) await expect(day).toBeDisabled();
+  }
+  await selectVisitDay(dialog, visitDay());
+  await dialog.locator('.dialog-scroll').evaluate(el => { el.scrollTop = 0; });
+  await page.screenshot({ path: '.local/screenshots/visit-calendar-' + info.project.name + '.png' });
+  expect(await dialog.evaluate(el => el.scrollWidth <= el.clientWidth + 1)).toBeTruthy();
+  await dialog.locator('[name=purpose]').scrollIntoViewIfNeeded();
+  await page.screenshot({ path: '.local/screenshots/visit-calendar-details-' + info.project.name + '.png' });
+  const requestPromise = page.waitForRequest(request => request.method() === 'POST' && request.url().endsWith('/martiniApi') && request.postDataJSON()?.data?.op === 'submitClubRequest');
+  await submitDialog(page, '출입 승인 요청');
+  const payload = (await requestPromise).postDataJSON().data;
+  expect(payload.startsAt).toBe(new Date(visitDay() + 'T23:00:00+09:00').toISOString());
+  expect(payload.endsAt).toBe(new Date(visitDay(3) + 'T01:00:00+09:00').toISOString());
+  await expect(ownRequest(page, purpose)).toContainText('외부인 3명');
+});
 
 test('member verification rejects wrong identity and can be cleared on a shared device', async ({ page }) => {
   await page.goto('/members');
