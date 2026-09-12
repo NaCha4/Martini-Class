@@ -214,7 +214,7 @@ async function exportRecords(ctx,kind){
  modal('자료 내보내기','<p class="wide prose">현재 불러온 기록 <strong>'+rows.length+'건</strong>을 CSV로 내려받습니다. 검색과 상태 필터는 내보내기에 적용되지 않습니다.'+(more?' 전체 기록이 필요하면 목록에서 기록을 더 불러온 뒤 다시 진행해 주세요.':'')+'</p>'+field('reason','사용 목적','',{required:true,wide:true,maxLength:200})+'<p class="wide help">명부 파일은 필요한 담당자에게만 전달하고 사용 후 정리해 주세요.</p>',async f=>{
   await ctx.api('recordExport',{kind,reason:val(f,'reason')});
   const columns=kind==='members'?['name','studentId','phone','college','department','grade','gender']:['title','status','semester','updatedAt'];
-  downloadCSV('martini-'+kind+(kind==='members'?'-'+rosterSemester(ctx):'')+'.csv',[columns,...rows.map(r=>columns.map(k=>r[k]))]);
+  downloadCSV('martini-'+kind+(kind==='members'?'-'+rosterSemester(ctx):'')+'.csv',[columns,...rows.map(r=>columns.map(k=>k==='phone'?String(r[k]??'').replace(/^(010)[ -]?(\d{4})[ -]?(\d{4})$/,'$1-$2-$3'):r[k]))]);
  });
 }
 export async function handleAdminAction(ctx,action,id,target){
