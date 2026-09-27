@@ -139,6 +139,12 @@ document.addEventListener('change',async event=>{
   if(event.target.matches('[data-filter]')){state.filter=event.target.value;filterRows();}
   if(event.target.matches('[data-staff-id]')){await adminAction(ctx,'application-staff',event.target.dataset.staffId,event.target);return;}
   if(event.target.matches('[data-member-sort]'))sortMemberRows(ctx,event.target);
+  if(event.target.matches('[data-ontherock-group]')){
+    const control=event.target,previous=new URLSearchParams(location.search).get('group')||'';control.disabled=true;
+    try{if(!await navigate('/admin/on-the-rock?'+new URLSearchParams({semester:control.dataset.semester,...(control.value?{group:control.value}:{})})))control.value=previous;}
+    catch(error){control.value=previous;toast(error.message||'조 기록을 불러오지 못했습니다.');}
+    finally{control.disabled=false;}
+  }
   if(event.target.matches('[data-decision-category]')){
     const control=event.target,previous=decisionCategoryId();control.disabled=true;
     try{if(!await navigate(decisionBoardUrl(control.value)))control.value=previous;}

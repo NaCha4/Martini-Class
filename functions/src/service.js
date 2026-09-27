@@ -8,6 +8,7 @@ import { createPrivacy } from './privacy.js';
 import { createDeletion } from './deletion.js';
 import { createDecisionCategories } from './decision-categories.js';
 import { createMemberPortal } from './member-portal.js';
+import { createOnTheRock } from './on-the-rock.js';
 import { Timestamp, FieldValue } from 'firebase-admin/firestore';
 import { schemas, parse, fail, ensureScope, hash, secret, identity, normalizePhone, validateEvent, allocate, changeStock, stockTotal, matches, publicEvent, requireRevision, occupied, idSchema, roles } from './domain.js';
 const PREFIX='martini_v2_';
@@ -45,6 +46,7 @@ export function createService(db,clock=Date.now){
  const deleteRecord=createDeletion({db,col,clock,audit});
  const decisionCategories=createDecisionCategories({db,col,clock,now,audit});
  const staffPricing=createStaffPricing({db,col,clock,now,audit});
+ const onTheRock=createOnTheRock({db,col,now,audit});
  // Serialize hot-event transactions within an instance; Firestore still guards cross-instance capacity.
  const eventQueues=new Map(),queueSizes=new Map();
  function serializeEvent(id,run){
@@ -337,6 +339,7 @@ export function createService(db,clock=Date.now){
   if(op==='clubRequestReceipt')return memberPortal.getReceipt(data,ctx);
   if(op==='cancelClubRequest')return memberPortal.cancel(data,ctx);
   const who=await admin(ctx);
+  if(['onTheRockBoard','saveOnTheRockGroup','recordOnTheRockMission','updateOnTheRockRecord','voidOnTheRockRecord'].includes(op))return onTheRock(op,data,who);
   if(op==='clubRequests')return memberPortal.list(data,who);
   if(op==='clubRequestCommand')return memberPortal.command(data,who);
   if(op==='profile')return {uid:who.uid,displayName:who.displayName,role:who.role,roleName:who.roleName,permissions:who.permissions,expiresAt:who.expiresAt};
