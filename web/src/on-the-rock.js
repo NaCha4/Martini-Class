@@ -7,23 +7,34 @@ const missions={bingo:BINGO_MISSIONS,repeat:REPEAT_MISSIONS,special:SPECIAL_MISS
 const points=value=>Number(value||0).toLocaleString('ko-KR');
 const stampDate=value=>new Intl.DateTimeFormat('ko-KR',{dateStyle:'medium',timeStyle:'short',timeZone:'Asia/Seoul'}).format(new Date(value));
 const localDate=value=>new Date(new Date(value||Date.now()).getTime()+9*60*60*1000).toISOString().slice(0,16);
-const boardUrl=(semester,group)=>'/admin/on-the-rock?'+new URLSearchParams({semester,...(group?{group}:{})});
+// Preserve this one-off event's existing records independently of the club's current term.
+const eventStorage='2026-2';
+const boardUrl=group=>'/admin/on-the-rock'+(group?'?'+new URLSearchParams({group}):'');
+function groupSlots(groups){
+ const slots=Array.from({length:5},(_,index)=>({number:index+1,name:(index+1)+'조',id:'ontherock-group-'+(index+1),group:null}));
+ const used=new Set();
+ for(const slot of slots){const group=groups.find(group=>group.id===slot.id);if(group){slot.group=group;used.add(group.id);}}
+ for(const slot of slots.filter(slot=>!slot.group)){const group=groups.find(group=>!used.has(group.id)&&group.name.replace(/\s/g,'')===slot.name);if(group){slot.group=group;used.add(group.id);}}
+ const remaining=groups.filter(group=>!used.has(group.id)).sort((a,b)=>a.id.localeCompare(b.id));
+ for(const slot of slots.filter(slot=>!slot.group))slot.group=remaining.shift()||null;
+ return slots;
+}
 const activeRecords=board=>(board.records||[]).filter(record=>!record.voidedAt);
 const missionFor=record=>missions[record.kind]?.find(mission=>mission.id===record.missionId);
 const stamp=(all=false,small=false)=>'<span class="ontherock-stamp'+(all?' is-all':'')+(small?' is-small':'')+'" aria-hidden="true">樂</span>';
 const blankScore={bingoPoints:0,participationBonus:0,bingoLinePoints:0,repeatPoints:0,specialPoints:0,total:0,completedCells:[],completedLines:0};
 
-function semesterControls(board){
- return '<section class="ontherock-controls" aria-label="학기와 조 선택"><form data-form="ontherock-semester" class="ontherock-semester">'+field('semester','활동 학기',board.semester,{required:true,pattern:'20[0-9]{2}-[12]',maxLength:6,placeholder:'2026-2',hint:'예: 2026-2'})+'<button type="submit" class="button secondary">학기 조회</button><p class="form-error" role="alert"></p></form><label class="field ontherock-group-select" for="ontherock-group"><span>우리 조 선택</span><select id="ontherock-group" data-ontherock-group data-semester="'+esc(board.semester)+'"><option value="">조를 선택하세요</option>'+board.groups.map(group=>'<option value="'+esc(group.id)+'"'+(board.group?.id===group.id?' selected':'')+'>'+esc(group.name)+(group.memberCount?' · '+group.memberCount+'명':'')+'</option>').join('')+'</select><small>조를 선택하면 빙고와 수행 기록을 확인할 수 있어요.</small></label>'+button('조 만들기','ontherock-group-add',{class:'button secondary',icon:'plus'})+'</section>';
+function groupControls(board){
+ return '<section class="ontherock-controls" aria-label="우리 조 선택"><div class="ontherock-group-heading"><h2>우리 조 선택</h2><p>조 버튼을 누르면 빙고와 수행 기록이 열려요.</p></div><div class="ontherock-group-buttons">'+groupSlots(board.groups).map(slot=>'<button type="button" class="ontherock-group-button" data-action="ontherock-select-group" data-id="'+slot.number+'" aria-pressed="'+(slot.group?.id===board.group?.id&&!!board.group)+'">'+slot.name+'</button>').join('')+'</div></section>';
 }
 
 function leaderboard(board){
  if(!board.groups.length)return '';
  const groups=[...board.groups].sort((a,b)=>Number(b.score?.total||0)-Number(a.score?.total||0)||a.name.localeCompare(b.name,'ko',{numeric:true}));
  let rank=0,previous=null;
- return '<section class="ontherock-leaderboard" aria-labelledby="ontherock-ranking"><div class="ontherock-section-heading"><h2 id="ontherock-ranking">우리들의 점수</h2><span>'+groups.length+'개 조 · '+esc(board.semester)+'</span></div><ol>'+groups.map((group,index)=>{
+ return '<section class="ontherock-leaderboard" aria-labelledby="ontherock-ranking"><div class="ontherock-section-heading"><h2 id="ontherock-ranking">우리들의 점수</h2><span>5개 조</span></div><ol>'+groups.map((group,index)=>{
   const total=Number(group.score?.total||0);if(total!==previous){rank=index+1;previous=total;}
-  return '<li><a data-nav href="'+esc(boardUrl(board.semester,group.id))+'"'+(group.id===board.group?.id?' aria-current="true"':'')+'><span class="ontherock-rank">'+rank+'<span class="sr-only">위</span></span><span class="ontherock-team-name">'+esc(group.name)+'<small>'+(group.memberCount?group.memberCount+'명 · ':'')+'빙고 '+points(group.score?.completedLines)+'줄</small></span><strong>'+points(total)+'<small>P</small></strong></a></li>';
+  return '<li><a data-nav href="'+esc(boardUrl(group.id))+'"'+(group.id===board.group?.id?' aria-current="true"':'')+'><span class="ontherock-rank">'+rank+'<span class="sr-only">위</span></span><span class="ontherock-team-name">'+esc(group.name)+'<small>'+(group.memberCount?group.memberCount+'명 · ':'')+'빙고 '+points(group.score?.completedLines)+'줄</small></span><strong>'+points(total)+'<small>P</small></strong></a></li>';
  }).join('')+'</ol></section>';
 }
 
@@ -62,20 +73,10 @@ function history(board){
 }
 
 export async function renderOnTheRock(ctx){
- const query=new URLSearchParams(location.search),semester=query.get('semester')||ctx.state.settings.semester,groupId=query.get('group');
- const board=await ctx.api('onTheRockBoard',{semester,...(groupId?{groupId}:{})});
+ const groupId=new URLSearchParams(location.search).get('group');
+ const board=await ctx.api('onTheRockBoard',{semester:eventStorage,...(groupId?{groupId}:{})});
  ctx.state.onTheRock=board;
- return '<div class="ontherock-page"><div class="page-heading ontherock-heading"><div><span class="ontherock-eyebrow">우리 조의 친해지길 바래</span><h1 id="page-title" tabindex="-1">마티니 온더<span>樂</span></h1><p>함께한 미션을 기록하고, 우리 조의 빙고를 완성해요.</p></div>'+button('새로고침','ontherock-refresh',{class:'button secondary',icon:'refresh-cw'})+'</div>'+semesterControls(board)+leaderboard(board)+(board.group?'<div class="ontherock-selected"><div>'+icon('users-round')+'<strong>'+esc(board.group.name)+'</strong>'+(board.group.memberCount?'<span>'+board.group.memberCount+'명</span>':'')+'</div>'+button('조 정보 수정','ontherock-group-edit',{class:'button small secondary',icon:'pencil'})+'</div><div class="ontherock-board-layout">'+bingo(board)+'<aside class="ontherock-sidebar">'+scoreSummary(board)+extraMissions(board,'repeat')+extraMissions(board,'special')+'</aside></div>'+history(board):'<section class="panel ontherock-empty">'+empty(board.groups.length?(groupId?'선택한 조를 찾을 수 없습니다':'우리 조를 선택해 주세요'):'첫 번째 조를 만들어 주세요',board.groups.length?'위에서 본인의 조를 선택하면 미션을 기록할 수 있어요.':'조 배정이 끝나면 조 이름을 등록하고 시작할 수 있어요.',board.groups.length?'':button('조 만들기','ontherock-group-add',{class:'button secondary',icon:'plus'}))+'</section>')+'</div>';
-}
-
-function groupDialog(ctx,group){
- const board=ctx.state.onTheRock,requestId=crypto.randomUUID();
- modal(group?'조 정보 수정':'새로운 조 만들기',field('name','조 이름',group?.name||'',{required:true,maxLength:60,wide:true,placeholder:'예: 1조'})+field('memberCount','조원 수 (선택)',group?.memberCount||'',{type:'number',min:1,max:100,step:1,wide:true}),async data=>{
-  const result=await ctx.api('saveOnTheRockGroup',{...(group?{id:group.id,revision:group.revision}:{requestId}),semester:board.semester,name:String(data.get('name')||'').trim(),memberCount:Number(data.get('memberCount'))});
-  const id=result.id||result.group?.id||group?.id;
-  if(id)await ctx.navigate(boardUrl(board.semester,id),{discard:true});else await ctx.render();
-  ctx.toast(group?'조 정보를 저장했습니다.':'새로운 조를 만들었습니다.');
- },{submit:group?'변경 저장':'조 만들기'});
+ return '<div class="ontherock-page"><div class="page-heading ontherock-heading"><div><span class="ontherock-eyebrow">우리 조의 친해지길 바래</span><h1 id="page-title" tabindex="-1">마티니 온더<span>樂</span></h1><p>함께한 미션을 기록하고, 우리 조의 빙고를 완성해요.</p></div>'+button('새로고침','ontherock-refresh',{class:'button secondary',icon:'refresh-cw'})+'</div>'+groupControls(board)+leaderboard(board)+(board.group?'<div class="ontherock-selected"><div>'+icon('users-round')+'<strong>'+esc(board.group.name)+'</strong>'+(board.group.memberCount?'<span>'+board.group.memberCount+'명</span>':'')+'</div></div><div class="ontherock-board-layout">'+bingo(board)+'<aside class="ontherock-sidebar">'+scoreSummary(board)+extraMissions(board,'repeat')+extraMissions(board,'special')+'</aside></div>'+history(board):'<section class="panel ontherock-empty">'+empty('우리 조를 선택해 주세요','위의 1조부터 5조 중 본인의 조를 누르면 바로 미션을 기록할 수 있어요.')+'</section>')+'</div>';
 }
 
 function recordDialog(ctx,kind,missionId,record){
@@ -106,8 +107,13 @@ function recordDialog(ctx,kind,missionId,record){
 
 export async function onTheRockAction(ctx,action,id){
  if(action==='ontherock-refresh')return ctx.render();
- if(action==='ontherock-group-add')return groupDialog(ctx);
- if(action==='ontherock-group-edit')return groupDialog(ctx,ctx.state.onTheRock?.group);
+ if(action==='ontherock-select-group'){
+  const slot=groupSlots(ctx.state.onTheRock?.groups||[]).find(slot=>String(slot.number)===String(id));
+  if(!slot)return;
+  const group=slot.group||await ctx.api('saveOnTheRockGroup',{requestId:slot.id,semester:eventStorage,name:slot.name,memberCount:0});
+  return ctx.navigate(boardUrl(group.id));
+ }
+
  if(action==='ontherock-record'){
   const [kind,missionId]=String(id||'').split(':');return recordDialog(ctx,kind,missionId);
  }
@@ -118,11 +124,4 @@ export async function onTheRockAction(ctx,action,id){
   await ctx.api('voidOnTheRockRecord',{id:record.id,groupId:board.group.id,semester:board.semester,revision:record.revision});
   await ctx.render();ctx.toast('수행 기록을 취소하고 점수를 다시 집계했습니다.');
  },{submit:'기록 취소',submitClass:'button danger'});
-}
-
-export async function onTheRockSubmit(ctx,form,data){
- if(form!=='ontherock-semester')return;
- const semester=String(data.get('semester')||'').trim();
- if(!/^20\d{2}-[12]$/.test(semester))throw new Error('학기는 2026-2 형식으로 입력해 주세요.');
- return ctx.navigate(boardUrl(semester,semester===ctx.state.onTheRock?.semester?ctx.state.onTheRock?.group?.id:null),{discard:true});
 }
