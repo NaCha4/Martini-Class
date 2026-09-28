@@ -28,16 +28,6 @@ function groupControls(board){
  return '<section class="ontherock-controls" aria-label="우리 조 선택"><div class="ontherock-group-heading"><h2>우리 조 선택</h2><p>조 버튼을 누르면 빙고와 수행 기록이 열려요.</p></div><div class="ontherock-group-buttons">'+groupSlots(board.groups).map(slot=>'<button type="button" class="ontherock-group-button" data-action="ontherock-select-group" data-id="'+slot.number+'" aria-pressed="'+(slot.group?.id===board.group?.id&&!!board.group)+'">'+slot.name+'</button>').join('')+'</div></section>';
 }
 
-function leaderboard(board){
- if(!board.groups.length)return '';
- const groups=[...board.groups].sort((a,b)=>Number(b.score?.total||0)-Number(a.score?.total||0)||a.name.localeCompare(b.name,'ko',{numeric:true}));
- let rank=0,previous=null;
- return '<section class="ontherock-leaderboard" aria-labelledby="ontherock-ranking"><div class="ontherock-section-heading"><h2 id="ontherock-ranking">우리들의 점수</h2><span>5개 조</span></div><ol>'+groups.map((group,index)=>{
-  const total=Number(group.score?.total||0);if(total!==previous){rank=index+1;previous=total;}
-  return '<li><a data-nav href="'+esc(boardUrl(group.id))+'"'+(group.id===board.group?.id?' aria-current="true"':'')+'><span class="ontherock-rank">'+rank+'<span class="sr-only">위</span></span><span class="ontherock-team-name">'+esc(group.name)+'<small>'+(group.memberCount?group.memberCount+'명 · ':'')+'빙고 '+points(group.score?.completedLines)+'줄</small></span><strong>'+points(total)+'<small>P</small></strong></a></li>';
- }).join('')+'</ol></section>';
-}
-
 function scoreSummary(board){
  const score=board.score||board.group.score||blankScore;
  return '<section class="ontherock-score" aria-label="'+esc(board.group.name)+' 점수 집계"><div class="ontherock-score-total"><div><span>함께 쌓은 점수</span><h2>'+esc(board.group.name)+'</h2></div><strong>'+points(score.total)+'<small>P</small></strong></div><dl>'+[
@@ -76,7 +66,7 @@ export async function renderOnTheRock(ctx){
  const groupId=new URLSearchParams(location.search).get('group');
  const board=await ctx.api('onTheRockBoard',{semester:eventStorage,...(groupId?{groupId}:{})});
  ctx.state.onTheRock=board;
- return '<div class="ontherock-page"><div class="page-heading ontherock-heading"><div><span class="ontherock-eyebrow">우리 조의 친해지길 바래</span><h1 id="page-title" tabindex="-1">마티니 온더<span>樂</span></h1><p>함께한 미션을 기록하고, 우리 조의 빙고를 완성해요.</p></div>'+button('새로고침','ontherock-refresh',{class:'button secondary',icon:'refresh-cw'})+'</div>'+groupControls(board)+leaderboard(board)+(board.group?'<div class="ontherock-selected"><div>'+icon('users-round')+'<strong>'+esc(board.group.name)+'</strong>'+(board.group.memberCount?'<span>'+board.group.memberCount+'명</span>':'')+'</div></div><div class="ontherock-board-layout">'+bingo(board)+'<aside class="ontherock-sidebar">'+scoreSummary(board)+extraMissions(board,'repeat')+extraMissions(board,'special')+'</aside></div>'+history(board):'<section class="panel ontherock-empty">'+empty('우리 조를 선택해 주세요','위의 1조부터 5조 중 본인의 조를 누르면 바로 미션을 기록할 수 있어요.')+'</section>')+'</div>';
+ return '<div class="ontherock-page"><div class="page-heading ontherock-heading"><div><span class="ontherock-eyebrow">우리 조의 친해지길 바래</span><h1 id="page-title" tabindex="-1">마티니 온더<span>樂</span></h1><p>함께한 미션을 기록하고, 우리 조의 빙고를 완성해요.</p></div>'+button('새로고침','ontherock-refresh',{class:'button secondary',icon:'refresh-cw'})+'</div>'+groupControls(board)+(board.group?'<div class="ontherock-selected"><div>'+icon('users-round')+'<strong>'+esc(board.group.name)+'</strong>'+(board.group.memberCount?'<span>'+board.group.memberCount+'명</span>':'')+'</div></div><div class="ontherock-board-layout">'+bingo(board)+'<aside class="ontherock-sidebar">'+scoreSummary(board)+extraMissions(board,'repeat')+extraMissions(board,'special')+'</aside></div>'+history(board):'<section class="panel ontherock-empty">'+empty('우리 조를 선택해 주세요','위의 1조부터 5조 중 본인의 조를 누르면 바로 미션을 기록할 수 있어요.')+'</section>')+'</div>';
 }
 
 function recordDialog(ctx,kind,missionId,record){
