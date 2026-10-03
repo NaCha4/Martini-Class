@@ -217,6 +217,7 @@ test('uncommitted application retries keep tokens only for the same session or l
     const { setMemberSession, MEMBER_STORAGE_KEY } = await import('/src/member-session.js');
     const pendingKey = 'martini-pending-scope-regression';
     const previousSession = sessionStorage.getItem(MEMBER_STORAGE_KEY), previousPending = sessionStorage.getItem(pendingKey), originalUrl = location.href;
+    const previousCookie = document.cookie.split('; ').find(value => value.startsWith('martini-member-session-local='));
     const privateValues = ['e'.repeat(64), 'f'.repeat(64), 'a'.repeat(64), 'b'.repeat(64), 'scope-private-name-one', 'scope-private-name-two', 'scope-private-student-one', 'scope-private-student-two', 'scope-private-answer-one', 'scope-private-answer-two'];
     const results = [];
     const ctx = {
@@ -264,6 +265,7 @@ test('uncommitted application retries keep tokens only for the same session or l
       return results;
     } finally {
       history.replaceState(history.state, '', originalUrl);
+      document.cookie = (previousCookie || 'martini-member-session-local=') + '; Path=/; SameSite=Lax; Max-Age=' + (previousCookie ? 7200 : 0);
       for (const [key, saved] of [[MEMBER_STORAGE_KEY, previousSession], [pendingKey, previousPending]]) {
         if (saved === null) sessionStorage.removeItem(key);else sessionStorage.setItem(key, saved);
       }
@@ -299,6 +301,7 @@ async function pendingRecoveryAttempt(page, options = {}) {
     const { setMemberSession, MEMBER_STORAGE_KEY } = await import('/src/member-session.js');
     const eventId = 'legacy-scope-regression', storageKey = 'martini-pending-' + eventId;
     const previousSession = sessionStorage.getItem(MEMBER_STORAGE_KEY), previousPending = sessionStorage.getItem(storageKey);
+    const previousCookie = document.cookie.split('; ').find(value => value.startsWith('martini-member-session-local='));
     let pending = { requestId: '11111111-1111-4111-8111-111111111111', receiptKey: 'd'.repeat(24) };
     let original = JSON.stringify(pending);
     const calls = [], navigations = [];
@@ -349,6 +352,7 @@ async function pendingRecoveryAttempt(page, options = {}) {
       try { await eventSubmit(ctx, 'apply', form); } catch (caught) { error = caught.message; }
       return { calls, navigations, error, pending, memoryPending: ctx.state.pendingApplications?.[storageKey] || null, savedPending: JSON.parse(sessionStorage.getItem(storageKey)), storageUnchanged: sessionStorage.getItem(storageKey) === original, expectedReceiptPath: shortLink('r', pending.receiptKey) };
     } finally {
+      document.cookie = (previousCookie || 'martini-member-session-local=') + '; Path=/; SameSite=Lax; Max-Age=' + (previousCookie ? 7200 : 0);
       for (const [key, saved] of [[MEMBER_STORAGE_KEY, previousSession], [storageKey, previousPending]]) {
         if (saved === null) sessionStorage.removeItem(key);else sessionStorage.setItem(key, saved);
       }

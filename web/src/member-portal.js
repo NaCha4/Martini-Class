@@ -36,14 +36,14 @@ function openForm(ctx){
 }
 export function renderMemberVerificationGate(ctx,{returnTo,title='부원 로그인',description='부원 명단에 등록된 이름과 학번으로 로그인해 주세요.',message=''}={}){
  const path=safeMemberReturnTarget(returnTo||location.pathname);ctx.state.memberVerificationReturnTo=path;
- return '<section class="member-login-page"><div class="member-login-card"><h1 id="page-title" tabindex="-1">'+esc(title)+'</h1><p class="member-login-description">'+esc(description)+'</p>'+(message?'<p class="member-login-message" role="status">'+esc(message)+'</p>':'')+'<form data-form="member-login"><input type="hidden" name="returnTo" value="'+esc(path)+'">'+identityFields()+'<p class="form-error" role="alert"></p><button type="submit" class="button full">로그인</button></form><p class="member-login-help">로그인이 되지 않으면 이름·학번을 확인하거나 운영진에게 문의해 주세요.</p><a href="/" data-nav class="member-login-back">'+icon('arrow-left')+' 홈페이지로 돌아가기</a></div></section>';
+ return '<section class="member-login-page"><div class="member-login-card"><h1 id="page-title" tabindex="-1">'+esc(title)+'</h1><p class="member-login-description">'+esc(description)+'</p>'+(message?'<p class="member-login-message" role="status">'+esc(message)+'</p>':'')+'<form data-form="member-login"><input type="hidden" name="returnTo" value="'+esc(path)+'">'+identityFields()+'<p class="form-error" role="alert"></p><button type="submit" class="button full">로그인</button></form><p class="member-login-help">로그인은 7일간 유지됩니다. 공용 기기에서는 이용 후 로그아웃해 주세요.</p><a href="/" data-nav class="member-login-back">'+icon('arrow-left')+' 홈페이지로 돌아가기</a></div></section>';
 }
 function portalUnavailable(){
  return '<section class="member-login-page member-retry-page"><div class="member-login-card member-retry-card">'+icon('circle-x')+'<h1 id="page-title" tabindex="-1">로그인 상태를 확인하지 못했습니다</h1><p class="member-login-description">잠시 후 다시 시도해 주세요.</p>'+button('다시 불러오기','member-refresh',{class:'button full',icon:'refresh-cw'})+'<a href="/" data-nav class="member-login-back">'+icon('arrow-left')+' 홈페이지로 돌아가기</a></div></section>';
 }
 export function openMemberVerification(ctx,{returnTo,continueToVisit=false}={}){
  const target=safeMemberReturnTarget(returnTo||ctx.state.memberVerificationReturnTo||location.pathname);
- const dialog=modal('부원 로그인','<p class="member-form-intro wide">부원 명단에 등록된 이름과 학번으로 로그인해 주세요.</p>'+identityFields()+'<p class="member-form-note wide">공용 기기에서는 이용 후 로그아웃해 주세요.</p>',async(data,node)=>{
+ const dialog=modal('부원 로그인','<p class="member-form-intro wide">부원 명단에 등록된 이름과 학번으로 로그인해 주세요.</p>'+identityFields()+'<p class="member-form-note wide">로그인은 7일간 유지됩니다. 공용 기기에서는 이용 후 로그아웃해 주세요.</p>',async(data,node)=>{
   if(!await memberPortalSubmit(ctx,'member-verify',data,node))return;
   dialog.addEventListener('close',()=>setTimeout(async()=>{
    try{
@@ -218,7 +218,14 @@ function requestDetail(ctx,request){
 export async function memberPortalAction(ctx,action,id){
  if(action==='member-verify')return openMemberVerification(ctx);
  if(action==='member-refresh'){await ctx.render();return;}
- if(action==='member-forget'){forgetMemberDevice(ctx);await ctx.navigate('/members',{replace:true,discard:true});ctx.toast('로그아웃했습니다.');return;}
+ if(action==='member-forget'){
+  const sessionKey=getMemberSessionKey(ctx);
+  const revoked=sessionKey?ctx.api('memberLogout',{sessionKey}).then(()=>true,()=>false):Promise.resolve(true);
+  let removalError;try{forgetMemberDevice(ctx);}catch(error){removalError=error;}
+  await ctx.navigate('/members',{replace:true,discard:true});
+  const serverCleared=await revoked;
+  ctx.toast(removalError?.message||(serverCleared?'로그아웃했습니다.':'이 기기에서 로그아웃했습니다. 서버 연결이 끊겨 인증 해제를 확인하지 못했습니다.'));return;
+ }
  if(!getMemberSessionKey(ctx))return ctx.render();
  if(action==='member-visit')return getVerifiedMember(ctx)?openForm(ctx):ctx.render();
  if(action==='member-events'){
@@ -272,7 +279,7 @@ export async function memberPortalSubmit(ctx,form,data,node){
   view.loginAttempt=attempt;
   const current=()=>ctx.state.memberLounge===view&&view.loginAttempt===attempt&&getMemberSessionKey(ctx)===previousSession&&routeSnapshot()===route;
   const target=safeMemberReturnTarget(data.get('returnTo')||ctx.state.memberVerificationReturnTo||location.pathname),sessionKey=secret();let result;
-  try{result=await ctx.api('memberAccess',{...identity(data),sessionKey});}
+  try{result=await ctx.api('memberAccess',{...identity(data),sessionKey,remember:true});}
   catch(error){if(!current())return;if(isMemberAccessError(error)||['functions/not-found','not-found'].includes(error.code))throw new Error('로그인할 수 없습니다. 부원 명단에 등록된 이름·학번을 확인해 주세요.');throw error;}
   if(!current())return;
   setMemberSession(ctx,{sessionKey,expiresAt:result.expiresAt,member:result.member});
@@ -282,7 +289,7 @@ export async function memberPortalSubmit(ctx,form,data,node){
    if(currentPath!==target)await ctx.navigate(target,{discard:true});
    else await ctx.render();
   }else if(!node?.closest?.('dialog'))await ctx.render();
-  ctx.toast('로그인했습니다.');return true;
+  ctx.toast(state(ctx).cookieUnavailable?'로그인했습니다. 쿠키를 저장할 수 없어 이 탭에서만 유지됩니다.':'로그인했습니다.');return true;
  }
  const kind=form.replace(/^member-/,'');if(!activeKinds.includes(kind))return;
  if(!data.has('consent'))throw new Error('개인정보 수집·이용 동의를 확인해 주세요.');

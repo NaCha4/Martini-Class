@@ -4,16 +4,18 @@ import { esc, icon, refreshIcons, toast, modal, closeModal, formSignature, captu
 import { renderScreen, screenAction, screenSubmit, isAdminScreen } from './screen-router.js';
 import { sortMemberRows } from './admin.js';
 import { filterListRows } from './list-filters.js';
-import { isMemberRoute, getMemberSessionKey, memberStorage } from './member-session.js';
+import { isMemberRoute, getMemberSessionKey, memberStorage, MEMBER_SESSION_CHANNEL } from './member-session.js';
 import { mountMemberDetail } from './member-detail.js';
 export const state={profile:null,user:null,authReady:false,data:{},settings:{},search:'',filter:'all',eventType:'all'};
 export const ctx={state,api,toast,navigate,render,mayLeave};
 const app=document.querySelector('#app');
 let renderNumber=0,rendering=false,trackedForm=null,navigating=false;
-let memberExpiryTimer;
+let memberExpiryTimer,renderedMemberSession='';
 function expireMemberView(){
-  if(!isMemberRoute()||getMemberSessionKey(ctx))return;
-  if(!app.querySelector('.member-shell,.member-retry-page')&&!document.querySelector('.member-dialog'))return;
+  if(!isMemberRoute())return;
+  const session=getMemberSessionKey(ctx);
+  if(session===renderedMemberSession&&(session||!app.querySelector('.member-shell,.member-retry-page')&&!document.querySelector('.member-dialog')))return;
+  // A cookie changed in another tab. Remove the previous member's view immediately.
   void closeModal({discard:true});
   void render({focus:true});
 }
@@ -24,7 +26,9 @@ function scheduleMemberExpiry(){
   memberExpiryTimer=setTimeout(()=>{expireMemberView();scheduleMemberExpiry();},Math.max(0,Math.min(remaining+20,2147483647)));
 }
 window.addEventListener('focus',expireMemberView);
+window.addEventListener('pageshow',expireMemberView);
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')expireMemberView();});
+try{if(window.BroadcastChannel){const channel=new window.BroadcastChannel(MEMBER_SESSION_CHANNEL);channel.addEventListener('message',expireMemberView);}}catch{}
 let currentIndex=Number(history.state?.martiniIndex||0),currentUrl=location.pathname+location.search+location.hash,restoringHistory=false;
 const positions=new Map();
 history.replaceState({...history.state,martiniIndex:currentIndex},'');
@@ -161,7 +165,7 @@ document.addEventListener('change',async event=>{
 const filterRows=()=>filterListRows(app,state);
 export async function render({focus=false,scroll}={}) {
   const current=++renderNumber,savedFocus=captureFocus(),savedScroll=scrollY;
-  const memberLocked=isMemberRoute()&&!getMemberSessionKey(ctx);
+  const session=isMemberRoute()?getMemberSessionKey(ctx):'',memberLocked=isMemberRoute()&&(!session||session!==renderedMemberSession);
   if(memberLocked)void closeModal({discard:true});
   rendering=true;app.setAttribute('aria-busy','true');
   let progress=document.querySelector('#page-progress');
@@ -174,10 +178,10 @@ export async function render({focus=false,scroll}={}) {
   }
   try{
     let html=await renderScreen(ctx);
-    if(current===renderNumber&&!html&&isMemberRoute()&&!getMemberSessionKey(ctx))html=await renderScreen(ctx);
+    if(current===renderNumber&&!html&&isMemberRoute())html=await renderScreen(ctx);
     if(current!==renderNumber)return;
     if(isMemberRoute()&&!getMemberSessionKey(ctx))await closeModal({discard:true});
-    app.innerHTML=html;refreshIcons();
+    app.innerHTML=html;renderedMemberSession=isMemberRoute()?getMemberSessionKey(ctx):'';refreshIcons();
     const search=app.querySelector('[data-search]'),filter=app.querySelector('[data-filter]');
     if(search)search.value=state.search;if(filter)filter.value=state.filter;const type=app.querySelector('[data-event-type]');if(type)type.value=state.eventType;filterRows();
     document.title=location.pathname==='/'?'Martini · 마티니':(app.querySelector('h1')?.textContent||'마티니')+' · Martini';

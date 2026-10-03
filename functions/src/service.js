@@ -381,6 +381,7 @@ export function createService(db,clock=Date.now){
   if(op==='apply')return apply(data,ctx);
   if(op==='receipt')return receipt(data,ctx);
   if(op==='memberAccess')return memberPortal.access(data,ctx);
+  if(op==='memberLogout')return memberPortal.logout(data,ctx);
   if(op==='memberPortal')return memberPortal.portal(data,ctx);
   if(op==='memberEventAccess')return memberPortal.eventAccess(data,ctx);
   if(op==='memberApplications')return memberApplications(data,ctx);

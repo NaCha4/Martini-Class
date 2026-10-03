@@ -193,6 +193,33 @@ test('member verification rejects wrong identity and can be cleared on a shared 
   await expect(action(page, 'member-forget')).toHaveCount(0);
 });
 
+test('remembered member login reopens in a new tab and logout clears access for both tabs', async ({ page, context }) => {
+  await verifyMember(page);
+  const cookies = (await context.cookies()).filter(cookie => ['__Host-martini-member-session', 'martini-member-session-local'].includes(cookie.name));
+  expect(cookies).toHaveLength(1);
+  expect(cookies[0].expires).toBeGreaterThan(Date.now() / 1000 + 6 * 86400);
+  const saved = await page.evaluate(() => JSON.parse(sessionStorage.getItem('martini-member-lounge-v1')));
+  expect(saved.sessionMigrated).toBe(true);
+  expect(saved).not.toHaveProperty('session');
+  const reopened = await context.newPage();
+  try {
+    await reopened.goto(new URL('/members', page.url()).href);
+    await expect(reopened.locator('.member-account-bar')).toContainText(member.name);
+    await expect(reopened.locator('form[data-form="member-login"]')).toHaveCount(0);
+    await expect(reopened.locator('.member-services > button.member-service-card')).toHaveCount(3);
+    await page.bringToFront();
+    await action(page, 'member-forget').click();
+    await expect(page.locator('form[data-form="member-login"]')).toBeVisible();
+    expect((await context.cookies()).some(cookie => cookies.some(previous => previous.name === cookie.name))).toBe(false);
+    await reopened.bringToFront();
+    await reopened.reload();
+    await expect(reopened.locator('form[data-form="member-login"]')).toBeVisible();
+    await expect(reopened.locator('.member-services')).toHaveCount(0);
+  } finally {
+    await reopened.close();
+  }
+});
+
 test('three large service buttons open popups and leave all application records below the cards', async ({ page }) => {
   await verifyMember(page);
   const destination = page.url();

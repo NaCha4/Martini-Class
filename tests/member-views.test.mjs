@@ -97,6 +97,7 @@ function context({events=[event('one')],requests=[],applications=[],verified=tru
   if(op==='memberApplication'||op==='receipt')return application(data.id);
   if(op==='resolveLink')return {id:data.kind==='e'?'event-one':'request-one'};
   if(op==='memberAccess')return {member,expiresAt:time(60000)};
+  if(op==='memberLogout')return {ok:true};
   throw Error('Unexpected API '+op);
  }};
  if(verified)setMemberSession(ctx,{sessionKey,member,expiresAt:time(60000)});
@@ -362,19 +363,27 @@ test('transient primary validation failures reveal no cached member content and 
  assert.deepEqual(calls.map(call=>call.op),['memberPortal']);assert.equal(getMemberSessionKey(ctx),sessionKey);
 });
 
-test('login submits only name and student ID to memberAccess and waits for the verified server response',async()=>{
+test('login requests a remembered session with name and student ID and waits for the verified server response',async()=>{
  route('/members/events/event-one');const {ctx,calls,navigations}=context({verified:false}),barrier=deferred();
  renderMemberVerificationGate(ctx,{returnTo:location.pathname});
  ctx.api=async(op,data)=>{calls.push({op,data});return barrier.promise;};
  const form=new FormData();form.set('name','  테스트 부원  ');form.set('studentId','  2026001  ');
  const pending=memberPortalSubmit(ctx,'member-login',form);
  assert.equal(calls.length,1);assert.equal(calls[0].op,'memberAccess');
- assert.deepEqual(Object.keys(calls[0].data).sort(),['name','sessionKey','studentId']);assert.equal(calls[0].data.name,'테스트 부원');assert.equal(calls[0].data.studentId,'2026001');
+ assert.deepEqual(Object.keys(calls[0].data).sort(),['name','remember','sessionKey','studentId']);assert.equal(calls[0].data.name,'테스트 부원');assert.equal(calls[0].data.studentId,'2026001');assert.equal(calls[0].data.remember,true);
  assert.equal(getMemberSessionKey(ctx),'');assert.match(calls[0].data.sessionKey,/^[a-f0-9]{64}$/);
  barrier.resolve({member,expiresAt:time(60000)});await pending;
  assert.equal(getMemberSessionKey(ctx),calls[0].data.sessionKey);assert.equal(memberState(ctx).member.name,member.name);
  assert.ok(navigations.length===0||navigations.every(path=>path==='/members/events/event-one'));
  const stored=values.get(MEMBER_STORAGE_KEY);assert.doesNotMatch(stored,/테스트 부원|2026001/);
+});
+
+test('logout revokes only the current capability and clears local identity even if server revocation fails',async()=>{
+ for(const failure of [false,true]){
+  const {ctx,calls,navigations}=context({fail:failure?{memberLogout:{code:'functions/unavailable'}}:{}});memberState(ctx).requests=[{id:'private-request'}];ctx.state.currentEvent={id:'private-event'};
+  await memberPortalAction(ctx,'member-forget');
+  assert.deepEqual(calls,[{op:'memberLogout',data:{sessionKey}}]);assert.equal(getMemberSessionKey(ctx),'');assert.equal(memberState(ctx).member,null);assert.deepEqual(memberState(ctx).requests,[]);assert.equal(ctx.state.currentEvent,undefined);assert.deepEqual(navigations,['/members']);
+ }
 });
 
 test('a rejected login cannot establish a client session or expose previous cached content',async()=>{
