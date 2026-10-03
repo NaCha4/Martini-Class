@@ -8,13 +8,13 @@ import { hasStaffFee, staffCheckbox } from './staff-pricing.js';
 import { decisionCategoryId, decisionBoardUrl, readDecisionCategories, decisionCategoryOptions } from './decision-categories.js';
 import { renderAdminRequests, adminRequestAction } from './admin-requests.js';
 import { renderOnTheRock, onTheRockAction } from './on-the-rock.js';
-const navigation=[['','layout-dashboard','오늘의 운영'],['events','calendar-days','행사 · 교육'],['members','users-round','부원 명부'],['inventory','package','재고 관리'],['finance','wallet','회비 · 정산'],['meetings','notebook-pen','회의록'],['decisions','list-checks','결정 · 할 일'],['content','megaphone','공지 · 활동'],['settings','settings-2','학기 · 운영 설정'],['roles','list-checks','역할 관리'],['admins','shield-check','임원 배정'],['privacy','shield-check','학기말 정보 정리'],['audit','history','변경 이력']];
+const navigation=[['','layout-dashboard','오늘의 운영'],['events','calendar-days','행사 · 교육'],['members','users-round','부원 명부'],['inventory','package','재고 관리'],['finance','wallet','회비 · 정산'],['meetings','notebook-pen','회의록'],['decisions','list-checks','결정 · 할 일'],['content','notebook-pen','활동 기록'],['settings','settings-2','학기 · 운영 설정'],['roles','list-checks','역할 관리'],['admins','shield-check','임원 배정'],['privacy','shield-check','학기말 정보 정리'],['audit','history','변경 이력']];
 navigation.splice(3,0,['requests','door-open','신청 · 문의']);
 navigation.splice(4,0,['on-the-rock','martini','마티니 온더락']);
 const can=(ctx,kind)=>kind==='on-the-rock'?!!ctx.state.profile:hasPermission(ctx.state.profile,['roles','privacy'].includes(kind)?'admins':kind==='events'?'eventRead':kind==='requests'?'members':kind);
 const scopeEvent=ctx=>hasPermission(ctx.state.profile,'events');
 const menuGroups=[['활동 운영',['','events','members','requests','content']],['운영 지원',['on-the-rock','inventory','finance','meetings','decisions']],['관리 · 설정',['settings','roles','admins','privacy','audit']]];
-const menuKeywords={events:'신청 참가자 출석 교육 행사',members:'회원 연락처 명부',inventory:'재료 주류 구매 도구 재고',finance:'예산 지출 수입 회비 정산',meetings:'회의 안건 회의록',decisions:'업무 담당 기한 결정 할 일',content:'공지 홍보 게시글',settings:'학기 장소 가입 링크',roles:'권한 역할',admins:'임원 계정 배정',privacy:'개인정보 삭제 학기말',audit:'변경 기록 이력'};
+const menuKeywords={events:'신청 참가자 출석 교육 행사',members:'회원 연락처 명부',inventory:'재료 주류 구매 도구 재고',finance:'예산 지출 수입 회비 정산',meetings:'회의 안건 회의록',decisions:'업무 담당 기한 결정 할 일',content:'활동 이야기 기록',settings:'학기 장소 가입 링크',roles:'권한 역할',admins:'임원 계정 배정',privacy:'개인정보 삭제 학기말',audit:'변경 기록 이력'};
 function groupedNavigation(ctx,kind){
  return menuGroups.map(([title,keys])=>{
   const links=navigation.filter(([k])=>keys.includes(k)&&(!k||can(ctx,k)));
@@ -61,7 +61,7 @@ export async function readAll(ctx,kind,params={}){
 }
 function heading(eyebrow,title,description,action=''){return '<div class="page-heading"><div><h1 id="page-title" tabindex="-1">'+title+'</h1><p>'+description+'</p></div>'+action+'</div>';}
 function toolbar(kind,choices=[],extra=''){
- const inventory=kind==='inventory',config={events:['행사 이름 · 장소','행사'],members:['이름 · 학번 · 연락처 · 학과','부원'],inventory:['품목 이름 · 보관 위치','품목'],meetings:['회의 이름 · 안건 · 내용','회의'],decisions:['제목 · 내용 · 담당자','결정 · 할 일'],finance:['내용 · 메모','정산'],content:['제목 · 내용','게시글'],admins:['이름 · 역할','임원'],audit:['작업 · 처리자','변경 이력'],applications:['신청자 이름','신청자']}[kind]||['이름 · 내용','목록'];
+ const inventory=kind==='inventory',config={events:['행사 이름 · 장소','행사'],members:['이름 · 학번 · 연락처 · 학과','부원'],inventory:['품목 이름 · 보관 위치','품목'],meetings:['회의 이름 · 안건 · 내용','회의'],decisions:['제목 · 내용 · 담당자','결정 · 할 일'],finance:['내용 · 메모','정산'],content:['제목 · 내용','활동 기록'],admins:['이름 · 역할','임원'],audit:['작업 · 처리자','변경 이력'],applications:['신청자 이름','신청자']}[kind]||['이름 · 내용','목록'];
  return '<div class="toolbar"><label class="search-box">'+icon('search')+'<input type="search" data-search placeholder="'+config[0]+' 검색" aria-label="'+config[1]+' 검색" autocomplete="off" spellcheck="false" aria-describedby="filtered-count"></label>'+(choices.length?'<select data-filter aria-label="'+(inventory?'분류':'상태')+' 필터"><option value="all">전체 '+(inventory?'분류':'상태')+'</option>'+choices.map(c=>'<option value="'+c+'">'+esc(label(c))+'</option>').join('')+'</select>':'')+extra+'<span id="filtered-count" class="muted" role="status" aria-live="polite" aria-atomic="true"></span></div>';
 }
 function deleteButton(kind,id,title='기록'){
@@ -108,10 +108,10 @@ async function list(ctx,kind){
  if(kind==='roles'){
   const result=await ctx.api('listRoles'),roles=result.rows;ctx.state.roles=roles;
   const heads=['역할','사용할 수 있는 업무','배정 인원','관리'];
-  return heading('','역할 관리','역할을 만들고 업무 권한을 정한 뒤 임원에게 배정합니다.',button('역할 만들기','role-edit',{icon:'plus'}))+table(heads,roles.map(r=>row(r,r.name,['<span class="role-name">'+esc(r.name)+'</span>',r.permissions.map(p=>esc(permissionLabels[p]||'역할·임원 관리')).join(' · '),r.assigned+'명',['owner','chair'].includes(r.id)?'<span class="help">필수 관리 권한 유지</span>':managementActions('role',r.id)],heads)))+'<p class="help">회비·정산 권한은 기본적으로 회장·부회장·재무부에만 부여됩니다. 권한을 수정하면 배정된 임원 모두에게 적용됩니다. 회장·부회장을 제외한 역할은 삭제할 수 있으며, 배정 인원이 있으면 먼저 다른 역할로 변경해야 합니다.</p>';
+  return heading('','역할 관리','역할을 만들고 업무 권한을 정한 뒤 임원에게 배정합니다.',button('역할 만들기','role-edit',{icon:'plus'}))+table(heads,roles.map(r=>row(r,r.name,['<span class="role-name">'+esc(r.name)+'</span>',r.permissions.map(p=>esc(p==='content'?'활동 기록 게시':permissionLabels[p]||'역할·임원 관리')).join(' · '),r.assigned+'명',['owner','chair'].includes(r.id)?'<span class="help">필수 관리 권한 유지</span>':managementActions('role',r.id)],heads)))+'<p class="help">회비·정산 권한은 기본적으로 회장·부회장·재무부에만 부여됩니다. 권한을 수정하면 배정된 임원 모두에게 적용됩니다. 회장·부회장을 제외한 역할은 삭제할 수 있으며, 배정 인원이 있으면 먼저 다른 역할로 변경해야 합니다.</p>';
  }
 
- let {rows}=['events','finance','members','meetings','decisions'].includes(kind)?await readAll(ctx,kind):await read(ctx,kind);
+ let {rows}=['events','finance','members','meetings','decisions','content'].includes(kind)?await readAll(ctx,kind):await read(ctx,kind);
  if(kind==='events'){
   const writable=hasPermission(ctx.state.profile,'events');
   const rank=e=>e.status==='draft'?1:e.status==='cancelled'||Date.parse(e.endsAt)<Date.now()?2:0;
@@ -172,9 +172,10 @@ async function list(ctx,kind){
   (rows.length?table(actualHeads,rows.map(r=>row(r,r.title,[esc(r.title)+'<small>'+esc(r.note)+'</small>',esc({income:'수입',expense:'지출',dues:'학기 회비',refund:'환불'}[r.kind]),money(r.amount),esc(r.semester),esc(r.actor),date(r.createdAt),deleteButton('finance',r.id,'입출금 기록')],actualHeads))):'<p class="help">기록된 입출금이 없습니다. 보유 금액은 수입 기록으로 입력해 주세요.</p>')+'</details>';
  }
  if(kind==='content'){
-  const heads=['제목','유형','공개 상태','수정일','관리'];
-  return heading('SHARE OUR STORY','공지 · 활동','홈페이지에 공개할 공지와 활동 이야기를 관리합니다.',button('글 작성','content-edit',{icon:'plus'}))+toolbar(kind)+
-  (rows.length?table(heads,rows.map(c=>row(c,c.title+' '+c.body,[esc(c.title),c.type==='notice'?'공지':'활동 기록',badge(c.published?'final':'draft'),date(c.updatedAt),'<div class="row-actions">'+button('수정','content-edit',{id:c.id,class:'button small secondary'})+deleteButton('content',c.id,'게시글')+'</div>'],heads))):empty('아직 작성한 글이 없습니다','초안으로 저장한 글은 홈페이지에 보이지 않습니다.',button('첫 글 작성','content-edit',{class:'button secondary'})))+next(ctx,kind);
+  rows=rows.filter(record=>record.type==='activity');
+  const heads=['제목','공개 상태','수정일','관리'];
+  return heading('SHARE OUR STORY','활동 기록','홈페이지에 공개할 활동 이야기를 관리합니다.',button('활동 기록 작성','content-edit',{icon:'plus'}))+toolbar(kind)+
+  (rows.length?table(heads,rows.map(c=>row(c,c.title+' '+c.body,[esc(c.title),badge(c.published?'final':'draft'),date(c.updatedAt),'<div class="row-actions">'+button('수정','content-edit',{id:c.id,class:'button small secondary'})+deleteButton('content',c.id,'활동 기록')+'</div>'],heads))):empty('아직 작성한 활동 기록이 없습니다','초안으로 저장한 기록은 홈페이지에 보이지 않습니다.',button('첫 활동 기록 작성','content-edit',{class:'button secondary'})));
  }
  if(kind==='admins'){
   const roleRows=(await ctx.api('listRoles')).rows,roleName=id=>roleRows.find(r=>r.id===id)?.name||id;

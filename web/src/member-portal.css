@@ -4,8 +4,8 @@
 .member-shell{max-width:1040px;margin:0 auto}
 .member-lounge{padding-top:0;margin:0 auto}
 .member-shell-title{font-size:30px;letter-spacing:-.04em;margin:0 0 24px}
-.member-navigation{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px;padding:5px;margin:0 0 32px;border:1px solid var(--member-line);border-radius:10px;background:var(--member-panel)}
-.member-navigation-link{display:flex;align-items:center;justify-content:center;gap:9px;min-width:0;min-height:48px;padding:10px 8px;border-radius:6px;color:var(--muted);font-size:14px;font-weight:500;transition:background .15s,color .15s}
+.member-navigation{position:sticky;top:12px;z-index:15;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px;padding:5px;margin:0 0 32px;border:1px solid var(--member-line);border-radius:10px;background:var(--member-panel)}
+.member-navigation-link{display:flex;align-items:center;justify-content:center;gap:9px;min-width:0;min-height:48px;padding:10px 8px;border:0;border-radius:6px;background:transparent;color:var(--muted);font-family:inherit;font-size:14px;font-weight:500;transition:background .15s,color .15s}
 .member-navigation-link>svg{width:19px;height:19px;flex-shrink:0}
 .member-navigation-link:hover{background:#ffffff05;color:var(--text)}
 .member-navigation-link.is-active{color:#edcca0;background:#d7b58015}
@@ -44,15 +44,16 @@
 .member-welcome>.member-heading{margin:0}
 .member-welcome small{display:block;font-size:12px;color:var(--muted);line-height:1.8;margin-top:8px}
 .member-welcome strong{color:var(--text)}
-.member-home-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px;align-items:start;margin:0 0 24px}
+.member-page-section{margin-top:24px;scroll-margin-top:20px;scroll-margin-bottom:100px}
+#member-home{scroll-margin-top:20px}
+.member-page-section:focus,#member-home:focus{outline:none}
 .member-section{min-width:0;padding:22px 24px;border:1px solid var(--member-line);border-radius:10px;background:var(--member-panel)}
 .member-section+.member-section{margin-top:24px}
-.member-home-grid>.member-section+.member-section{margin-top:0}
 .member-section-heading{display:flex;align-items:center;justify-content:space-between;gap:16px;min-height:34px;padding-bottom:16px;border-bottom:1px solid var(--member-line)}
 .member-section-heading h2{display:flex;align-items:center;gap:8px;font-size:18px;line-height:1.5;font-weight:600;letter-spacing:-.025em;margin:0}
 .member-section-heading>svg{width:20px;height:20px;color:var(--muted)}
 .member-section-kicker{display:block;font-size:11px;font-weight:500;color:var(--muted);line-height:1.6;margin:0 0 5px}
-.member-text-link{display:inline-flex;align-items:center;gap:6px;min-height:44px;color:var(--muted);font-size:12px;white-space:nowrap}
+.member-text-link{display:inline-flex;align-items:center;gap:6px;min-height:44px;border:0;background:none;color:var(--muted);font-size:12px;white-space:nowrap}
 .member-text-link:hover{color:var(--gold)}
 .member-text-link>svg{width:15px;height:15px}
 .member-count{font-size:11px;line-height:1.5;padding:3px 7px;border-radius:4px;background:#d7b58012;color:#dfc498;font-weight:500}
@@ -60,22 +61,19 @@
 .member-event-applications{margin-bottom:24px}
 .member-event-applications+.member-history{margin-top:0}
 .member-history{margin-top:24px}
-.member-home-notices{margin-top:24px}
-.member-home-coupon{margin-bottom:24px}
-.member-section.member-home-coupon{padding:0;border:0;background:none}
 
 /* Event and application rows. */
-.member-event{display:flex;align-items:center;gap:15px;padding:20px 0;border-bottom:1px solid var(--member-line);color:var(--text)}
+.member-event{display:flex;align-items:center;gap:15px;width:100%;padding:20px 0;border:0;border-bottom:1px solid var(--member-line);background:transparent;color:var(--text);text-align:left}
 .member-event:last-child,.member-request-row:last-child,.member-application-row:last-child{border-bottom:0}
 .member-event-date{width:48px;min-width:48px;align-self:flex-start;padding:8px 3px;border:1px solid #4b453b;border-radius:7px;text-align:center}
 .member-event-date>span{display:block;font-size:11px;color:var(--muted)}
 .member-event-date>strong{display:block;font-size:23px;line-height:1.2;font-weight:500;color:var(--member-accent);margin-top:3px}
-.member-event-copy{min-width:0}
+.member-event-copy{display:block;min-width:0}
 .member-event-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px;font-size:11px;color:var(--muted)}
-.member-event h3{font-size:16px;font-weight:600;line-height:1.6;overflow-wrap:anywhere;transition:color .15s}
-.member-event p,.member-event small{display:block;font-size:12px;line-height:1.8;color:var(--muted);overflow-wrap:anywhere;margin-top:5px}
+.member-event-title{display:block;font-size:16px;font-weight:600;line-height:1.6;overflow-wrap:anywhere;transition:color .15s}
+.member-event-summary,.member-event small{display:block;font-size:12px;line-height:1.8;color:var(--muted);overflow-wrap:anywhere;margin-top:5px}
 .member-event small{font-size:11px;margin-top:2px}
-.member-event:hover h3{color:var(--gold)}
+.member-event:hover .member-event-title{color:var(--gold)}
 .member-event>svg{width:16px;height:16px;flex-shrink:0;margin-left:auto;color:var(--muted)}
 .member-request-row,.member-application-row{display:flex;align-items:center;gap:14px;min-width:0;width:100%;padding:20px 0;border:0;border-bottom:1px solid var(--member-line);background:transparent;color:var(--text);text-align:left;transition:background .15s}
 .member-request-row:hover,.member-application-row:hover{background:#ffffff03}
@@ -109,15 +107,6 @@
 .member-history-footnote>.button{flex-shrink:0;font-size:12px}
 
 /* Supporting information and account menu. */
-.member-notices details{border-bottom:1px solid var(--member-line)}
-.member-notices details:last-child{border-bottom:0}
-.member-notices summary{display:grid;grid-template-columns:1fr auto;gap:4px 16px;min-height:76px;padding:18px 0;list-style:none;cursor:pointer}
-.member-notices summary::-webkit-details-marker{display:none}
-.member-notices summary>span{min-width:0;font-size:14px;line-height:1.7;font-weight:500;overflow-wrap:anywhere}
-.member-notices summary>small{grid-row:2;font-size:11px;color:var(--muted);line-height:1.6}
-.member-notices summary>svg{grid-column:2;grid-row:1/3;align-self:center;width:16px;height:16px;color:var(--muted)}
-.member-notices details[open] summary>svg{transform:rotate(45deg)}
-.member-notices .prose{padding:0 0 18px;font-size:13px;line-height:1.9}
 .member-quiet-empty{display:flex;flex-direction:column;justify-content:center;align-items:center;gap:12px;min-height:140px;padding:24px 0;color:var(--muted);font-size:13px;line-height:1.8;text-align:center}
 .member-quiet-empty>svg{width:22px;height:22px;color:#a39379}
 .member-quiet-empty p{font-size:13px;line-height:1.8}
@@ -160,12 +149,21 @@
 .member-inline-message .button{margin-top:12px}
 
 /* Member event detail pages keep their existing forms and receipt functions. */
+.member-inline-detail{margin:0 0 28px;padding:24px;border:1px solid #786344;border-radius:10px;background:#24221f;scroll-margin-top:20px}
+.member-inline-detail:focus{outline:none}
+.member-inline-heading{display:flex;align-items:center;justify-content:space-between;gap:16px;padding-bottom:18px;margin-bottom:20px;border-bottom:1px solid #554a38}
+.member-inline-heading>span{font-size:15px;font-weight:600;line-height:1.5;letter-spacing:-.03em;color:#dec79e}
+.member-inline-heading :is(button,.button){flex-shrink:0}
+.member-inline-detail .application-layout{margin-top:0}
+.member-inline-detail .receipt-card{margin:0 auto;background:var(--member-panel)}
+.member-inline-detail .event-public-detail>h2{font-size:26px;line-height:1.45;margin:14px 0 22px}
+.member-inline-detail .receipt-card>h2{font-size:24px;line-height:1.5;margin:12px 0}
 .member-shell .application-layout{grid-template-columns:minmax(0,1fr) minmax(280px,340px);gap:32px;margin-top:16px}
-.member-shell .event-public-detail>h1{font-size:30px;margin:16px 0 24px}
+.member-shell .event-public-detail>:is(h1,h2){font-size:30px;margin:16px 0 24px}
 .member-shell .apply-card{padding:24px}
 .member-shell .apply-card h2{font-size:22px}
 .member-shell .receipt-card{max-width:680px;padding:28px;border-radius:10px}
-.member-shell .receipt-card h1{font-size:26px;line-height:1.5}
+.member-shell .receipt-card>:is(h1,h2){font-size:26px;line-height:1.5}
 .member-shell .receipt-card .success-mark{width:44px;height:44px;margin-bottom:20px}
 .member-shell .receipt-card .success-mark>svg{width:23px;height:23px}
 .member-receipt-recovery>summary{min-height:44px;line-height:1.7}
@@ -184,13 +182,9 @@
 @media(max-width:680px){.member-receipt-banner{padding:16px;flex-wrap:wrap;gap:12px}.member-receipt-banner>p{flex-basis:calc(100% - 36px);font-size:12px}.member-receipt-banner>.button{margin-left:32px;min-height:44px;font-size:12px}.member-save-receipt{padding:14px}}
 @media(max-width:900px){
  .member-section{padding:20px}
- .member-home-grid{gap:16px}
- .member-home-grid .member-application-row>svg{display:none}
- .member-home-grid .member-application-statuses .member-status{font-size:10px}
  .member-shell .application-layout{grid-template-columns:1fr;gap:24px}
 }
 @media(max-width:760px){
- .member-home-grid{grid-template-columns:1fr;gap:20px}
  .member-heading,.member-welcome{margin-bottom:24px}
  .member-heading h1{font-size:28px}
  .member-heading p{font-size:13px}
@@ -199,7 +193,7 @@
 }
 @media(max-width:600px){
  .member-shell{padding-bottom:calc(82px + env(safe-area-inset-bottom,0px))}
- .member-navigation{position:fixed;left:0;right:0;bottom:0;z-index:25;gap:3px;padding:6px 7px calc(6px + env(safe-area-inset-bottom,0px));margin:0;border:0;border-top:1px solid var(--member-line);border-radius:0;background:#202022;box-shadow:0 -4px 16px #0000001a}
+ .member-navigation{position:fixed;top:auto;left:0;right:0;bottom:0;z-index:25;gap:3px;padding:6px 7px calc(6px + env(safe-area-inset-bottom,0px));margin:0;border:0;border-top:1px solid var(--member-line);border-radius:0;background:#202022;box-shadow:0 -4px 16px #0000001a}
  .member-navigation-link{flex-direction:column;gap:5px;min-height:58px;padding:7px 3px;font-size:11px}
  .member-navigation-link>svg{width:20px;height:20px}
  .member-navigation-link.is-active{background:#d7b58012}
@@ -212,8 +206,8 @@
  .member-heading{gap:10px}
  .member-heading>.button{font-size:11px;padding:9px}
  .member-event{gap:12px;padding:18px 0}
- .member-event h3{font-size:15px}
- .member-event p{font-size:11px}
+ .member-event-title{font-size:15px}
+ .member-event-summary{font-size:11px}
  .member-event>svg{display:none}
  .member-event-meta{gap:6px}
  .member-event-meta .member-status{font-size:10px}
@@ -242,8 +236,12 @@
  .member-dialog .member-form-intro{font-size:13px}
  .member-visit-guidance,.member-consent-note{padding:14px}
  .member-shell .receipt-card,.member-shell .apply-card{padding:22px 18px}
- .member-shell .event-public-detail>h1,.member-shell .receipt-card h1{font-size:25px}
+ .member-inline-detail{padding:18px 14px;margin-bottom:24px}
+ .member-inline-heading{gap:10px;padding-bottom:14px;margin-bottom:16px}
+ .member-inline-heading>span{font-size:13px}
+ .member-inline-heading>.button{font-size:11px;padding:9px 12px}
+ .member-shell .event-public-detail>:is(h1,h2),.member-shell .receipt-card>:is(h1,h2){font-size:25px}
 }
 @media(prefers-reduced-motion:reduce){
- .member-navigation-link,.member-event h3,.member-request-row,.member-application-row,.visit-guest-option span{transition:none}
+ .member-navigation-link,.member-event-title,.member-request-row,.member-application-row,.visit-guest-option span{transition:none}
 }

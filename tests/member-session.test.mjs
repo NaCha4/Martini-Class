@@ -40,7 +40,7 @@ test('network and missing content errors remain distinct from session access rej
 test('device exit removes member and interrupted event capabilities before another member verifies',()=>{
  const current=ctx();setMemberSession(current,{sessionKey:token,expiresAt:expiresAt(),member:{name:'첫 부원'}});
  values.set('martini-pending-event-one',JSON.stringify({requestId:'request-one',receiptKey:receipt}));values.set('martini-pending-event-two',JSON.stringify({requestId:'request-two',receiptKey:receipt}));values.set('unrelated-setting','keep');
- Object.assign(current.state,{pendingApplications:{'martini-pending-event-one':{receiptKey:receipt}},currentEvent:{id:'event-one'},currentReceipt:{key:receipt},memberVerificationReturnTo:'/members/applications/request-one'});
+ Object.assign(current.state,{pendingApplications:{'martini-pending-event-one':{receiptKey:receipt}},currentEvent:{id:'event-one'},currentReceipt:{key:receipt},memberInlineDetail:{kind:'application',id:'private-application'},memberActiveSection:'applications',memberVerificationReturnTo:'/members/applications/request-one'});
  forgetMemberDevice(current);
  assert.deepEqual([...values.entries()],[['unrelated-setting','keep']]);assert.deepEqual(current.state,{});
  setMemberSession(current,{sessionKey:'c'.repeat(64),expiresAt:expiresAt(),member:{name:'다음 부원'}});assert.deepEqual(memberStorage(current).receipts,[]);assert.deepEqual(memberStorage(current).pending,{});assert.equal(current.state.pendingApplications,undefined);
@@ -55,9 +55,9 @@ test('new verification clears all rendered prior session records while preservin
 test('clearing or replacing identity invalidates cached event and application details',()=>{
  for(const replace of [false,true]){
   const current=ctx();setMemberSession(current,{sessionKey:token,expiresAt:expiresAt(),member:{name:'첫 부원'}});
-  Object.assign(current.state,{currentEvent:{id:'private-event'},currentReceipt:{id:'private-application'}});memberState(current).receiptRows=[{id:'private-request'}];
+  Object.assign(current.state,{currentEvent:{id:'private-event'},currentReceipt:{id:'private-application'},memberInlineDetail:{kind:'application',id:'private-application'}});memberState(current).receiptRows=[{id:'private-request'}];
   if(replace)setMemberSession(current,{sessionKey:'c'.repeat(64),expiresAt:expiresAt(),member:{name:'다음 부원'}});else clearMemberIdentity(current);
-  assert.equal(current.state.currentEvent,undefined);assert.equal(current.state.currentReceipt,undefined);assert.deepEqual(memberState(current).receiptRows,[]);
+  assert.equal(current.state.currentEvent,undefined);assert.equal(current.state.currentReceipt,undefined);assert.equal(current.state.memberInlineDetail,undefined);assert.deepEqual(memberState(current).receiptRows,[]);
  }
 });
 });

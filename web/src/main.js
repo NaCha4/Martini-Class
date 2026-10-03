@@ -7,7 +7,7 @@ import { filterListRows } from './list-filters.js';
 import { decisionCategoryId, decisionBoardUrl } from './decision-categories.js';
 import { isMemberRoute, getMemberSessionKey, memberStorage } from './member-session.js';
 export const state={profile:null,user:null,authReady:false,data:{},settings:{},search:'',filter:'all',eventType:'all'};
-export const ctx={state,api,toast,navigate,render};
+export const ctx={state,api,toast,navigate,render,mayLeave};
 const app=document.querySelector('#app');
 let renderNumber=0,rendering=false,trackedForm=null,navigating=false;
 let memberExpiryTimer;
@@ -190,6 +190,10 @@ export async function render({focus=false,scroll}={}) {
     app.style.minHeight='';
     window.scrollTo({top:scroll??savedScroll,behavior:'instant'});
     if(focus)restoreFocus(null);else restoreFocus(savedFocus,{fallback:false});
+    if(isMemberRoute()&&state.memberScrollTarget&&app.querySelector('.member-shell')){
+      const section=document.getElementById(state.memberScrollTarget);delete state.memberScrollTarget;
+      if(section){section.scrollIntoView({block:'start',behavior:'instant'});section.focus({preventScroll:true});}
+    }
   }catch(error){
     if(current!==renderNumber)return;
     app.innerHTML='<main class="connection-page"><a href="/" data-nav class="brand">MARTINI</a><h1 tabindex="-1">연결을 확인해 주세요</h1><p>'+esc(error.message)+'</p><button class="button" type="button" id="retry-page">다시 시도</button></main>';

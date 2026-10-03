@@ -4,51 +4,56 @@ import { memberNavigation, memberShell } from '../web/src/member-navigation.js';
 import { renderMemberCouponPreparation } from '../web/src/member-coupons.js';
 
 const navigationLinks = html => [...html.matchAll(/<a\b[^>]*>[\s\S]*?<\/a>/g)].map(match => match[0]);
+const navigationButtons = html => [...html.matchAll(/<button\b[^>]*>[\s\S]*?<\/button>/g)].map(match => match[0]);
 
-test('member navigation exposes the five named destinations with decorative icons', () => {
+test('member navigation has five section scroll buttons with decorative icons and no route links', () => {
   const html = memberNavigation('/members');
   assert.match(html, /<nav\b[^>]*aria-label="부원 메뉴"/);
-  const links = navigationLinks(html);
-  assert.equal(links.length, 5);
-  for (const [index, [href, title, icon]] of [
-    ['/members', '홈', 'house'],
-    ['/members/events', '행사', 'calendar-days'],
-    ['/members/applications', '내 신청', 'clipboard-list'],
-    ['/members/coupons', '쿠폰', 'ticket'],
-    ['/members/more', '더보기', 'menu'],
+  const links = navigationButtons(html);
+  assert.equal(links.length, 5);assert.equal(navigationLinks(html).length,0);
+  for (const [index, [id, title, icon]] of [
+    ['home', '홈', 'house'],
+    ['events', '행사', 'calendar-days'],
+    ['applications', '내 신청', 'clipboard-list'],
+    ['coupons', '쿠폰', 'ticket'],
+    ['more', '더보기', 'menu'],
   ].entries()) {
-    assert.ok(links[index].includes('href="' + href + '"'));
-    assert.ok(links[index].includes('data-nav'));
+    assert.ok(links[index].includes('type="button"'));
+    assert.ok(links[index].includes('data-action="member-section"'));
+    assert.ok(links[index].includes('data-id="' + id + '"'));
+    assert.ok(links[index].includes('aria-controls="member-' + id + '"'));
+    assert.doesNotMatch(links[index],/href=|data-nav/);
     assert.ok(links[index].includes('>' + title + '</span>'));
     assert.ok(links[index].includes('data-lucide="' + icon + '" aria-hidden="true"'));
   }
 });
 
 test('member detail paths keep exactly their owning menu current', () => {
-  for (const [path, href] of [
-    ['/members', '/members'],
-    ['/members/events/event-a', '/members/events'],
-    ['/members/applications/request-a', '/members/applications'],
-    ['/members/coupons', '/members/coupons'],
-    ['/members/more/', '/members/more'],
-    ['/members/events/event-a/?view=detail#date', '/members/events'],
-    ['/events?view=list#date', '/members/events'],
+  for (const [path, id] of [
+    ['/members', 'home'],
+    ['/members/events/event-a', 'events'],
+    ['/members/applications/request-a', 'applications'],
+    ['/members/coupons', 'coupons'],
+    ['/members/more/', 'more'],
+    ['/members/events/event-a/?view=detail#date', 'events'],
+    ['/events?view=list#date', 'events'],
   ]) {
-    const links = navigationLinks(memberNavigation(path));
-    const current = links.filter(link => link.includes('aria-current="page"'));
+    const links = navigationButtons(memberNavigation(path));
+    const current = links.filter(link => link.includes('aria-current="location"'));
     assert.equal(current.length, 1, path);
-    assert.ok(current[0].includes('href="' + href + '"'), path);
+    assert.ok(current[0].includes('data-id="' + id + '"'), path);
   }
-  assert.doesNotMatch(memberNavigation('/members/events-archive'), /aria-current/);
+  const fallback=navigationButtons(memberNavigation('/members/events-archive')).find(button=>button.includes('aria-current="location"'));
+  assert.ok(fallback.includes('data-id="home"'));
 });
 
 test('member navigation defaults to the active browser path or home without a browser', () => {
   const previous = Object.getOwnPropertyDescriptor(globalThis, 'location');
   try {
     Object.defineProperty(globalThis, 'location', { configurable: true, value: { pathname: '/members/applications/request-a' } });
-    assert.ok(navigationLinks(memberNavigation()).find(link => link.includes('aria-current="page"')).includes('href="/members/applications"'));
+    assert.ok(navigationButtons(memberNavigation()).find(link => link.includes('aria-current="location"')).includes('data-id="applications"'));
     delete globalThis.location;
-    assert.ok(navigationLinks(memberNavigation()).find(link => link.includes('aria-current="page"')).includes('href="/members"'));
+    assert.ok(navigationButtons(memberNavigation()).find(link => link.includes('aria-current="location"')).includes('data-id="home"'));
   } finally {
     if (previous) Object.defineProperty(globalThis, 'location', previous);
     else delete globalThis.location;

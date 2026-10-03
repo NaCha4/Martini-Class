@@ -56,13 +56,13 @@ test('a direct member event verifies in place and keeps its destination on reloa
   await expect(form).toBeVisible();
   await expect(form.locator('[name=name], [name=studentId], [name=phone]')).toHaveCount(0);
   await expect(form.locator('.member-form-identity')).toContainText('확인된 부원 정보로 신청합니다.');
-  await expect(page.getByRole('navigation', { name: '부원 메뉴', exact: true }).getByRole('link', { name: '행사', exact: true })).toHaveAttribute('aria-current', 'page');
+  await expect(page.getByRole('navigation', { name: '부원 메뉴', exact: true }).getByRole('button', { name: '행사', exact: true })).toHaveAttribute('aria-current', 'location');
   await page.reload();
   await expect(page).toHaveURL(destination);
   await expect(form).toBeVisible();
 });
 
-test('the events alias preserves its URL and provides the actual member event list and navigation', async ({ page }) => {
+test('the events alias preserves its URL while its section buttons and inline event panel stay on one page', async ({ page }) => {
   await page.goto('/events');
   const alias = page.url();
   await expect(page.getByRole('heading', { name: '부원 로그인', exact: true })).toBeVisible();
@@ -72,17 +72,21 @@ test('the events alias preserves its URL and provides the actual member event li
   const events = page.locator('.member-event');
   await expect(events.first()).toBeVisible();
   await expect(page.getByRole('heading', { name: '행사 신청은 전달받은 링크에서.', exact: true })).toHaveCount(0);
-  const eventPath = await events.first().getAttribute('href');
-  expect(eventPath).toMatch(/^\/members\/events\/[a-zA-Z0-9_-]+$/);
+  const eventId = await events.first().getAttribute('data-id');
+  expect(eventId).toMatch(/^[a-zA-Z0-9_-]+$/);
+  await expect(events.first()).toHaveAttribute('data-action', 'member-event-open');
+  await expect(events.first()).not.toHaveAttribute('href');
   const menu = page.getByRole('navigation', { name: '부원 메뉴', exact: true });
-  await expect(menu.getByRole('link', { name: '행사', exact: true })).toHaveAttribute('aria-current', 'page');
+  await expect(menu.getByRole('button', { name: '행사', exact: true })).toHaveAttribute('aria-current', 'location');
   await page.reload();
   await expect(page).toHaveURL(alias);
   await expect(events.first()).toBeVisible();
   await events.first().click();
-  await expect(page).toHaveURL(new URL(eventPath, alias).href);
-  await menu.getByRole('link', { name: '내 신청', exact: true }).click();
-  await expect(page).toHaveURL(/\/members\/applications$/);
+  await expect(page).toHaveURL(alias);
+  await expect(page.locator('#member-detail form[data-form=apply]')).toBeVisible();
+  await menu.getByRole('button', { name: '내 신청', exact: true }).click();
+  await expect(page).toHaveURL(alias);
+  await expect(menu.getByRole('button', { name: '내 신청', exact: true })).toHaveAttribute('aria-current', 'location');
   await expect(page.getByRole('heading', { name: '내 신청', exact: true })).toBeVisible();
 });
 

@@ -4,10 +4,10 @@ import { registerHooks } from 'node:module';
 import { setMemberSession,getMemberSessionKey,memberStorage,memberState,forgetMemberDevice,MEMBER_STORAGE_KEY } from '../web/src/member-session.js';
 
 const cssHook=registerHooks({load(url,context,nextLoad){if(url.endsWith('.css'))return {format:'module',source:'export {};',shortCircuit:true};if(url.endsWith('.html?raw'))return {format:'module',source:'export default "";',shortCircuit:true};return nextLoad(url,context);}});
-let renderMemberPortal,renderMemberVerificationGate,memberPortalAction,memberPortalSubmit,renderPublic,renderEventPage,renderApplicationPage,eventSubmit,eventAction;
+let renderMemberPortal,renderMemberVerificationGate,memberPortalAction,memberPortalSubmit,renderPublic,publicAction,renderEventPage,renderApplicationPage,eventSubmit,eventAction;
 try{
  ({renderMemberPortal,renderMemberVerificationGate,memberPortalAction,memberPortalSubmit}=await import('../web/src/member-portal.js'));
- ({renderPublic}=await import('../web/src/public.js'));
+ ({renderPublic,publicAction}=await import('../web/src/public.js'));
  ({renderEventPage,renderApplicationPage,eventSubmit,eventAction}=await import('../web/src/event-pages.js'));
 }finally{cssHook.deregister();}
 
@@ -20,6 +20,13 @@ function route(path){const url=new URL(path,'https://martini.test');Object.assig
 function assertLoginGate(html){
  assert.match(html,/data-form="member-login"/);assert.match(html,/<input\b[^>]*name="name"/);assert.match(html,/<input\b[^>]*name="studentId"/);
  assert.doesNotMatch(html,/<nav\b|member-event-directory|member-coupon-slot|class="member-event"|data-action="member-(?:visit|inquiry|request)"|name="phone"/);
+}
+function sectionDocument(){
+ const previous=Object.getOwnPropertyDescriptor(globalThis,'document'),scrolls=[],focuses=[];
+ const sections=Object.fromEntries(['home','events','applications','coupons','more','detail'].map(id=>['member-'+id,{scrollIntoView:options=>scrolls.push({id,options}),focus:()=>focuses.push(id),setAttribute:()=>{},getAttribute:()=>'-1'}]));
+ const buttons=['home','events','applications','coupons','more'].map(id=>({dataset:{id},classList:{toggle:()=>{}},setAttribute:()=>{},removeAttribute:()=>{}}));
+ globalThis.document={getElementById:id=>sections[id]||null,querySelector:selector=>selector.startsWith('#')?sections[selector.slice(1)]||null:null,querySelectorAll:()=>buttons};
+ return {scrolls,focuses,restore:()=>{if(previous)Object.defineProperty(globalThis,'document',previous);else delete globalThis.document;}};
 }
 describe('member route views',{timeout:10000},()=>{
 let values;
@@ -48,37 +55,85 @@ async function view(section,options){
  const data=context(options);return {...data,html:await renderMemberPortal(data.ctx,{section})};
 }
 
-test('home greets the member and prioritizes three next events and actionable applications',async()=>{
+test('one lounge renders all events applications requests coupons and account without duplicate home summaries or notices',async()=>{
  const events=[event('four',{startsAt:time(4000000)}),event('three',{startsAt:time(3000000)}),event('two',{startsAt:time(2000000)}),event('one',{startsAt:time(1000000)})];
  const requests=[{id:'visit-one',kind:'visit',purpose:'private visit purpose',guestNames:'private guest',status:'pending'}];
- const {html}=await view('home',{events,requests,applications:[application('needs-payment'),application('offer','offered','none'),application('paid','registered','paid'),application('wait','waiting','none')]});
- assert.match(html,/<h1\b[^>]*>[^<]*테스트 부원/);assert.match(html,/다음 행사/);assert.match(html,/지금 확인할 신청/);assert.doesNotMatch(html,/member-home-coupon|data-coupon-state/);
- assert.equal((html.match(/class="member-event"/g)||[]).length,3);assert.ok(html.indexOf('/members/events/one')<html.indexOf('/members/events/two'));assert.doesNotMatch(html,/\/members\/events\/four/);
- assert.match(html,/\/members\/applications\/needs-payment/);assert.match(html,/\/members\/applications\/offer/);assert.doesNotMatch(html,/\/members\/applications\/(?:paid|wait)"/);
- assert.doesNotMatch(html,/data-action="member-(?:visit|inquiry|forget)"|private visit purpose|private guest/);
+ const {html,calls}=await view('home',{events,requests,applications:[application('needs-payment'),application('offer','offered','none'),application('paid','registered','paid'),application('wait','waiting','none')]});
+ assert.match(html,/<h1\b[^>]*>[^<]*테스트 부원/);
+ for(const section of ['home','events','applications','coupons','more'])assert.equal((html.match(new RegExp('id="member-'+section+'"','g'))||[]).length,1,section);
+ assert.equal((html.match(/data-action="member-event-open"/g)||[]).length,4);
+ assert.equal((html.match(/data-action="member-application-open"/g)||[]).length,4);
+ assert.equal((html.match(/data-coupon-state="PREPARING"/g)||[]).length,1);
+ for(const id of ['one','two','three','four'])assert.match(html,new RegExp('data-action="member-event-open"[^>]*data-id="'+id+'"'));
+ assert.ok(html.indexOf('data-id="one"')<html.indexOf('data-id="two"'));
+ for(const name of ['visit','inquiry','forget'])assert.match(html,new RegExp('data-action="member-'+name+'"'));
+ assert.doesNotMatch(html,/member-home-grid|member-home-notices|member-home-coupon|지금 확인할 신청|다음 행사|href="\/notices"|private guest/);
+ assert.deepEqual(calls.map(call=>call.op),['memberPortal','memberApplications','memberCoupons']);
 });
-test('applications combines event status links and legacy request buttons without secret links in markup',async()=>{
+test('integrated applications use inline detail buttons and preserve request history without secret links',async()=>{
  const requests=[{id:'visit-one',kind:'visit',purpose:'테스트 방문',startsAt:time(1000000),createdAt:time(-10000),guestCount:2,status:'pending'},{id:'inquiry-one',kind:'inquiry',subject:'테스트 문의',createdAt:time(-9000),status:'answered'}];
  const {html}=await view('applications',{requests,applications:[application('event-request')]});
- assert.match(html,/<h1\b[^>]*>내 신청/);assert.match(html,/href="\/members\/applications\/event-request"/);assert.match(html,/출입 신청·문의/);
+ assert.match(html,/id="member-applications"/);assert.match(html,/data-action="member-application-open"[^>]*data-id="event-request"/);assert.match(html,/출입 신청·문의/);
  for(const id of ['visit-one','inquiry-one'])assert.match(html,new RegExp('data-action="member-request" data-id="'+id+'"'));
- assert.match(html,/이전 행사 신청은 저장한 개인 확인 링크가 필요/);assert.doesNotMatch(html,new RegExp(sessionKey+'|'+receiptKey));
+ assert.match(html,/이전 행사 신청은 저장한 개인 확인 링크가 필요/);assert.doesNotMatch(html,new RegExp(sessionKey+'|'+receiptKey));assert.doesNotMatch(html,/href="\/members\/applications\/event-request"/);
 });
 test('verified applications exposes a refresh control that reloads current server status',async()=>{
  const {html,ctx}=await view('applications');
  assert.match(html,/<button[^>]*data-action="member-refresh"[^>]*>[\s\S]*?새로고침<\/button>/);
- let renders=0;ctx.render=async()=>{renders++;};ctx.state.publicInfo={content:[{title:'cached'}]};
- await memberPortalAction(ctx,'member-refresh');assert.equal(renders,1);assert.equal(ctx.state.publicInfo,undefined);
+ let renders=0;ctx.render=async()=>{renders++;};
+ await memberPortalAction(ctx,'member-refresh');assert.equal(renders,1);
 });
-test('visit and inquiry entry points and device exit live on more',async()=>{
- const {html}=await view('more');assert.match(html,/<h1\b[^>]*>더보기/);assert.match(html,/aria-label="신청 바로가기"/);
+test('visit inquiry and account controls are sections of the same lounge without a notice shortcut',async()=>{
+ const {html}=await view('more');assert.match(html,/id="member-more"/);assert.match(html,/aria-label="신청 바로가기"/);
  for(const name of ['visit','inquiry','forget'])assert.match(html,new RegExp('data-action="member-'+name+'"'));
- for(const path of ['/','/notices','/privacy','/members/applications'])assert.ok(html.includes('href="'+path+'"'));
+ for(const path of ['/','/privacy'])assert.ok(html.includes('href="'+path+'"'));
+ assert.doesNotMatch(html,/href="\/(?:notices|members\/applications)"/);
 });
 test('coupon preparation requires login and uses a concise unavailable state',async()=>{
  const anonymous=await view('coupons',{verified:false});assertLoginGate(anonymous.html);assert.deepEqual(anonymous.calls,[]);
  const verified=await view('coupons');assert.match(verified.html,/data-coupon-state="PREPARING"/);assert.match(verified.html,/필링파인/);assert.match(verified.html,/준비 중/);assert.doesNotMatch(verified.html,/member-coupon-slot|쿠폰 구성 미리보기|최대 10칸/);
  assert.doesNotMatch(verified.html,/data-action="(?:coupon|member-coupon)|\b0\s*\/\s*10\b|\bQR\b/);
+});
+
+test('all supported lounge aliases return the same complete sections and never load public notices',async()=>{
+ for(const path of ['/members','/members/events','/members/applications','/members/coupons','/members/more','/events']){
+  values.clear();route(path);const {ctx,calls}=context();const html=await renderPublic(ctx);
+  for(const section of ['home','events','applications','coupons','more'])assert.equal((html.match(new RegExp('id="member-'+section+'"','g'))||[]).length,1,path+' '+section);
+  assert.deepEqual(calls.map(call=>call.op),['memberPortal','memberApplications','memberCoupons']);assert.doesNotMatch(html,/href="\/notices"|member-home-notices/);
+ }
+});
+
+test('section buttons scroll and focus existing content without navigating reloading or calling any API',async()=>{
+ const {ctx,calls,navigations}=context(),dom=sectionDocument();let renders=0;ctx.render=async()=>{renders++;};
+ try{
+  for(const section of ['home','events','applications','coupons','more']){
+   await memberPortalAction(ctx,'member-section',section);assert.equal(ctx.state.memberActiveSection,section);
+  }
+  assert.deepEqual(dom.scrolls.map(item=>item.id),['home','events','applications','coupons','more']);assert.deepEqual(dom.focuses,['home','events','applications','coupons','more']);
+  assert.equal(renders,0);assert.deepEqual(navigations,[]);assert.deepEqual(calls,[]);assert.equal(location.pathname,'/members');
+ }finally{dom.restore();}
+});
+
+test('inline detail controls change only the selected panel and respect unsaved form navigation checks',async()=>{
+ const {ctx,calls,navigations}=context(),dom=sectionDocument();let renders=0;ctx.render=async()=>{renders++;};
+ try{
+  ctx.mayLeave=async()=>false;await publicAction(ctx,'member-event-open','event-one');assert.equal(ctx.state.memberInlineDetail,undefined);assert.equal(renders,0);
+  ctx.mayLeave=async()=>true;await publicAction(ctx,'member-event-open','event-one');assert.deepEqual(ctx.state.memberInlineDetail,{kind:'event',id:'event-one'});
+  await publicAction(ctx,'member-application-open','request-one');assert.deepEqual(ctx.state.memberInlineDetail,{kind:'application',id:'request-one'});
+  await publicAction(ctx,'member-detail-close');assert.equal(ctx.state.memberInlineDetail,undefined);
+  assert.equal(renders,3);assert.deepEqual(navigations,[]);assert.deepEqual(calls,[]);assert.equal(location.pathname,'/members');
+ }finally{dom.restore();}
+});
+
+test('legacy detail URLs initialize one embedded panel and do not reopen it after closing',async()=>{
+ for(const [path,kind,id,op] of [['/members/events/event-one','event','event-one','memberEventAccess'],['/members/applications/request-one','application','request-one','memberApplication']]){
+  values.clear();route(path);const {ctx,calls}=context(),dom=sectionDocument();
+  try{
+   const html=await renderPublic(ctx);assert.deepEqual(ctx.state.memberInlineDetail,{kind,id});assert.ok(calls.findIndex(call=>call.op==='memberPortal')<calls.findIndex(call=>call.op===op));
+   assert.equal((html.match(/class="member-shell"/g)||[]).length,1);assert.equal((html.match(/aria-label="부원 메뉴"/g)||[]).length,1);assert.doesNotMatch(html,/<!--member-inline-detail-->/);
+   await publicAction(ctx,'member-detail-close');calls.length=0;await renderPublic(ctx);assert.equal(ctx.state.memberInlineDetail,undefined);assert.equal(calls.some(call=>call.op===op),false);
+  }finally{dom.restore();}
+ }
 });
 test('transient member API failure offers retry while retaining the verified session',async()=>{
  const unavailable={code:'functions/unavailable',message:'transient'};
@@ -167,12 +222,12 @@ test('a rejected login cannot establish a client session or expose previous cach
  assertLoginGate(await renderMemberPortal(ctx));
 });
 
-test('successful login resumes a legacy lounge receipt in applications without exposing its key',async()=>{
+test('successful login resumes a legacy lounge receipt in place without exposing its key or navigating',async()=>{
  route('/members#request=legacy-request&key='+receiptKey);const {ctx,calls,navigations}=context({verified:false}),base=ctx.api;
  ctx.api=async(op,data)=>{if(op==='clubRequestReceipt'){calls.push({op,data});return {request:{id:'legacy-request',kind:'inquiry',subject:'기존 문의',status:'answered',createdAt:time(-10000)}};}return base(op,data);};
  assertLoginGate(await renderMemberPortal(ctx));assert.deepEqual(calls,[]);
  const form=new FormData();form.set('name','테스트 부원');form.set('studentId','2026001');await memberPortalSubmit(ctx,'member-login',form);
- assert.deepEqual(navigations,['/members/applications#request=legacy-request&key='+receiptKey]);
+ assert.deepEqual(navigations,[]);assert.equal(location.pathname,'/members');
  const html=await renderMemberPortal(ctx,{section:'applications'});assert.match(html,/기존 문의/);assert.doesNotMatch(html,new RegExp(receiptKey));assert.deepEqual(memberStorage(ctx).receipts,[{id:'legacy-request',receiptKey}]);
  assert.ok(calls.findIndex(call=>call.op==='memberPortal')<calls.findIndex(call=>call.op==='clubRequestReceipt'));
 });
@@ -234,6 +289,26 @@ test('member detail validation outages show retry without revealing the lounge n
  }
 });
 
+test('embedded event and application details contain only their panel content without duplicate page navigation',async()=>{
+ for(const [renderer,kind,id] of [[renderEventPage,'event','event-one'],[renderApplicationPage,'application','request-one']]){
+  values.clear();route('/members');const {ctx}=context();ctx.state.memberInlineDetail={kind,id};
+  const html=await renderer(ctx,id,{member:true,embedded:true});
+  assert.doesNotMatch(html,/class="member-shell"|aria-label="부원 메뉴"|public-header|public-footer|<main\b/);assert.match(html,new RegExp(kind==='event'?'data-form="apply"':'class="receipt-card"'));
+ }
+});
+
+test('closing or switching an inline panel discards its late detail response without clearing the current login',async()=>{
+ for(const [renderer,kind,id,stateKey,result] of [[renderEventPage,'event','event-one','currentEvent',event('event-one')],[renderApplicationPage,'application','request-one','currentReceipt',application('request-one')]]){
+  for(const change of ['close','switch'])for(const rejected of [false,true]){
+   values.clear();route('/members');const {ctx}=context(),barrier=deferred();ctx.state.memberInlineDetail={kind,id};ctx.api=async()=>barrier.promise;
+   const pending=renderer(ctx,id,{member:true,embedded:true});
+   if(change==='close')delete ctx.state.memberInlineDetail;else ctx.state.memberInlineDetail={kind,id:'other-record'};
+   if(rejected)barrier.reject({code:'functions/unauthenticated'});else barrier.resolve(result);
+   assert.equal(await pending,'');assert.equal(ctx.state[stateKey],undefined);assert.equal(getMemberSessionKey(ctx),sessionKey);
+  }
+ }
+});
+
 test('late member detail successes and rejections cannot restore or clear a different session',async()=>{
  for(const [renderer,path,id,stateKey,response] of [[renderEventPage,'/members/events/event-one','event-one','currentEvent',event('event-one')],[renderApplicationPage,'/members/applications/request-one','request-one','currentReceipt',application('request-one')]]){
   for(const change of ['replacement','logout'])for(const rejected of [false,true]){
@@ -276,6 +351,14 @@ test('late event submissions do not navigate or recreate private state after ide
   barrier.resolve({id:'old-private-application'});await pending;
   assert.deepEqual(navigations,[]);assert.equal(ctx.state.currentEvent,undefined);assert.equal(ctx.state.currentReceipt,undefined);assert.equal(getMemberSessionKey(ctx),change==='replacement'?'c'.repeat(64):'');
  }
+});
+
+test('an inline event application opens its application result on the same page without route navigation',async()=>{
+ route('/members');const {ctx,navigations}=context();ctx.state.memberInlineDetail={kind:'event',id:'event-one'};
+ await renderEventPage(ctx,'event-one',{member:true,embedded:true});let renders=0;
+ ctx.render=async()=>{renders++;};ctx.api=async(op,data)=>{assert.equal(op,'apply');assert.equal(data.sessionKey,sessionKey);return {id:'created-application'};};
+ const form=new FormData();form.set('consent','on');await eventSubmit(ctx,'apply',form);
+ assert.deepEqual(ctx.state.memberInlineDetail,{kind:'application',id:'created-application'});assert.equal(renders,1);assert.deepEqual(navigations,[]);assert.equal(location.pathname,'/members');
 });
 
 test('late receipt commands do not refresh or announce an earlier session result',async()=>{

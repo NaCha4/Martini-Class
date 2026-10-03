@@ -178,13 +178,14 @@ async function settingsEdit(ctx){
 }
 async function contentEdit(ctx,id){
  const r=await record(ctx,'content',id);
- modal('공지 · 활동 기록',field('title','제목',r?.title,{required:true,wide:true,maxLength:160})+field('type','유형',r?.type||'notice',{choices:[['notice','공지'],['activity','활동 기록']]})+field('semester','학기',r?.semester||semester(ctx),{required:true})+field('body','내용',r?.body,{type:'textarea',wide:true,rows:10,maxLength:16000})+field('published','홈페이지에 공개',r?.published,{type:'checkbox',wide:true,hint:'부원 개인정보나 비공개 행사 신청 링크가 포함되지 않았는지 확인하세요.'}),async f=>save(ctx,'saveContent',{...meta(r),title:val(f,'title'),type:val(f,'type'),semester:val(f,'semester'),body:val(f,'body'),published:f.has('published')}),{wide:true});
+ if(r&&r.type!=='activity')throw Error('활동 기록만 수정할 수 있습니다.');
+ modal(r?'활동 기록 수정':'활동 기록 작성',field('title','제목',r?.title,{required:true,wide:true,maxLength:160})+field('semester','학기',r?.semester||semester(ctx),{required:true})+field('body','내용',r?.body,{type:'textarea',wide:true,rows:10,maxLength:16000})+field('published','홈페이지에 공개',r?.published,{type:'checkbox',wide:true,hint:'부원 개인정보나 비공개 행사 신청 링크가 포함되지 않았는지 확인하세요.'}),async f=>save(ctx,'saveContent',{...meta(r),title:val(f,'title'),type:'activity',semester:val(f,'semester'),body:val(f,'body'),published:f.has('published')}),{wide:true,submit:'활동 기록 저장'});
 }
 
 async function roleEdit(ctx,id){
  if(!hasPermission(ctx.state.profile,'admins'))throw Error('역할 관리 권한이 없습니다.');
  const r=id?(await ctx.api('listRoles')).rows.find(role=>role.id===id):null;
- modal(r?'역할 수정':'역할 만들기',field('name','역할 이름',r?.name,{required:true,wide:true,maxLength:50})+'<fieldset class="wide role-permissions"><legend>사용할 수 있는 업무</legend>'+Object.entries(permissionLabels).map(([key,title])=>field('permission-'+key,title,r?.permissions.includes(key)||false,{type:'checkbox'})).join('')+'</fieldset><p class="wide help">선택한 업무만 메뉴에 표시됩니다. 회비·정산은 해당 담당 역할에만 선택하세요.</p>',async f=>{
+ modal(r?'역할 수정':'역할 만들기',field('name','역할 이름',r?.name,{required:true,wide:true,maxLength:50})+'<fieldset class="wide role-permissions"><legend>사용할 수 있는 업무</legend>'+Object.entries(permissionLabels).map(([key,title])=>field('permission-'+key,key==='content'?'활동 기록 게시':title,r?.permissions.includes(key)||false,{type:'checkbox'})).join('')+'</fieldset><p class="wide help">선택한 업무만 메뉴에 표시됩니다. 회비·정산은 해당 담당 역할에만 선택하세요.</p>',async f=>{
   const permissions=Object.keys(permissionLabels).filter(key=>f.has('permission-'+key));
   if(!permissions.length)throw Error('업무 권한을 하나 이상 선택해 주세요.');
   return save(ctx,'saveRole',{...meta(r),name:val(f,'name'),permissions});
@@ -219,9 +220,10 @@ async function exportRecords(ctx,kind){
 }
 export async function handleAdminAction(ctx,action,id,target){
  if(action==='record-delete'){
-  const kind=target.dataset.kind,titles={events:'행사',applications:'참가 신청',finance:'입출금 기록',inventory:'품목',meetings:'회의록',decisions:'결정 · 할 일',content:'게시글'};
+  const kind=target.dataset.kind,titles={events:'행사',applications:'참가 신청',finance:'입출금 기록',inventory:'품목',meetings:'회의록',decisions:'결정 · 할 일',content:'활동 기록'};
   if(!titles[kind])throw Error('삭제할 항목을 확인해 주세요.');
   const r=(await read(ctx,kind,{recordId:id})).rows[0];
+  if(kind==='content'&&r.type!=='activity')throw Error('활동 기록만 삭제할 수 있습니다.');
   const effects={events:'행사 목록과 신청 링크에서 제외됩니다. 진행 중인 행사는 먼저 취소하거나 완료하고, 미납·대기·환불을 정리해 주세요. 연결된 신청·정산 이력은 보관됩니다.',applications:'취소·만료된 신청만 삭제할 수 있습니다. 환불이 남아 있으면 먼저 처리해 주세요. 개인 확인 링크는 사용할 수 없게 됩니다.',finance:'장부에서 제외하고 잔액을 다시 계산합니다. 연결된 납부·환불 금액과 회비 기록도 함께 정정됩니다. 집행한 지출 계획은 예정 상태로 돌아갑니다. 실제 송금·환불은 실행하지 않습니다.',inventory:'품목 목록에서 제외됩니다. 보유 수량은 먼저 사용·폐기·실사로 정리해야 합니다. 입출고 이력은 보관됩니다.',meetings:'회의록 목록에서 제외됩니다. 연결된 결정·할 일은 먼저 회의 연결을 해제하거나 삭제해 주세요.',decisions:'결정·할 일 목록에서 제외됩니다. 연결된 회의 내용은 변경하지 않습니다.',content:'목록과 홈페이지에서 게시글이 내려갑니다.'};
   modal(titles[kind]+' 삭제','<div class="wide delete-impact"><strong>'+esc(r.title||r.name||titles[kind])+'</strong><p>'+effects[kind]+'</p>'+(kind==='finance'?'<p>삭제 금액: <strong>'+money(r.amount)+'</strong> · '+esc(label(r.kind))+'</p>':'')+'</div><p class="wide help">삭제 이력과 원본은 정산·운영 기록을 위해 보관합니다. 개인정보 영구 정리는 학기말 정보 정리에서 진행합니다.</p>'+field('confirmed','삭제 대상과 영향을 확인했습니다',false,{type:'checkbox',required:true,wide:true}),async()=>{
    await ctx.api('deleteRecord',{kind,id,updatedAt:r.updatedAt,...(r.revision!==undefined?{revision:r.revision}:{}),confirmed:true});

@@ -19,9 +19,27 @@ export async function renderPublic(ctx){
  if(path==='/')return home();
  if(isMemberRoute(path)&&!getMemberSessionKey(ctx))return shell(renderMemberVerificationGate(ctx,{returnTo:path}));
  const memberSections={'/members':'home','/events':'events','/members/events':'events','/members/applications':'applications','/members/coupons':'coupons','/members/more':'more'};
- if(memberSections[path])return shell(await renderMemberPortal(ctx,{section:memberSections[path]}));
- if(parts[0]==='members'&&parts[1]==='events'&&parts.length===3)return renderEventPage(ctx,parts[2],{member:true});
- if(parts[0]==='members'&&parts[1]==='applications'&&parts.length===3)return renderApplicationPage(ctx,parts[2],{member:true});
+ const memberDetail=parts[0]==='members'&&['events','applications'].includes(parts[1])&&parts.length===3;
+ if(memberSections[path]||memberDetail){
+  if(ctx.state.memberRouteSource!==path){
+   ctx.state.memberRouteSource=path;
+   ctx.state.memberInlineDetail=memberDetail?{kind:parts[1]==='events'?'event':'application',id:parts[2]}:null;
+   ctx.state.memberActiveSection=memberDetail?parts[1]:memberSections[path];
+   ctx.state.memberScrollTarget=memberDetail?'member-detail':'member-'+memberSections[path];
+  }
+  const selection=ctx.state.memberInlineDetail,marker='<!--member-inline-detail-->';
+  let content=await renderMemberPortal(ctx);
+  if(!content)return '';
+  if(selection&&content.includes(marker)){
+   const sessionKey=getMemberSessionKey(ctx);
+   const detail=await (selection.kind==='event'?renderEventPage:renderApplicationPage)(ctx,selection.id,{member:true,embedded:true});
+   if(!getMemberSessionKey(ctx))return shell(renderMemberVerificationGate(ctx,{returnTo:path}));
+   if(ctx.state.memberInlineDetail!==selection||getMemberSessionKey(ctx)!==sessionKey)return '';
+   if(!detail)return '';
+   content=content.replace(marker,()=>'<section class="member-inline-detail" id="member-detail" tabindex="-1" aria-label="'+(selection.kind==='event'?'행사 상세':'신청 상세')+'"><div class="member-inline-heading"><span>'+(selection.kind==='event'?'행사 상세':'신청 상세')+'</span><button type="button" class="button secondary small" data-action="member-detail-close">'+icon('x')+' 상세 닫기</button></div>'+detail+'</section>');
+  }
+  return shell(content.replace(marker,''));
+ }
  if(['e','r'].includes(parts[0])&&parts.length===1){
   const resolvingUrl=location.href;
   try{const result=await ctx.api('resolveLink',{kind:parts[0],key:linkKey(location.hash)});if(location.href!==resolvingUrl)return '';return parts[0]==='e'?renderEventPage(ctx,result.id):renderApplicationPage(ctx,result.id);}catch(error){return renderLinkError(error,parts[0]==='e'?'event':'receipt');}
@@ -53,6 +71,20 @@ export async function publicSubmit(ctx,form,data,node){
 }
 export async function publicAction(ctx,action,id,target){
  if(isMemberRoute()&&!getMemberSessionKey(ctx)&&!['member-verify','member-refresh','public-refresh'].includes(action))return ctx.render();
+ if(isMemberRoute()&&['member-refresh','public-refresh','member-visit','member-inquiry','member-request'].includes(action)&&ctx.mayLeave&&!await ctx.mayLeave())return;
+ if(['member-event-open','member-application-open','member-detail-close'].includes(action)){
+  if(ctx.mayLeave&&!await ctx.mayLeave())return;
+  const previous=ctx.state.memberInlineDetail;
+  if(action==='member-detail-close')delete ctx.state.memberInlineDetail;
+  else{
+   if(!/^[a-zA-Z0-9_-]{1,128}$/.test(id||''))throw new Error('상세 정보를 확인할 수 없습니다.');
+   ctx.state.memberInlineDetail={kind:action==='member-event-open'?'event':'application',id};
+  }
+  delete ctx.state.currentEvent;delete ctx.state.currentReceipt;
+  ctx.state.memberActiveSection=(action==='member-detail-close'?previous?.kind:ctx.state.memberInlineDetail.kind)==='event'?'events':'applications';
+  ctx.state.memberScrollTarget=action==='member-detail-close'?'member-'+(previous?.kind==='event'?'events':'applications'):'member-detail';
+  await ctx.render();return;
+ }
  if(action.startsWith('member-'))return memberPortalAction(ctx,action,id,target);
  if(action==='public-refresh'){delete ctx.state.publicInfo;await ctx.render();return;}
  return eventAction(ctx,action,id,target);

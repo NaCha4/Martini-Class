@@ -87,7 +87,7 @@ async function loadReceipts(ctx,view,current){
  fetched.forEach(result=>{if(result.status==='fulfilled'&&result.value.request)view.receiptRows.push(result.value.request);else view.receiptErrors++;});
  return true;
 }
-async function loadPortal(ctx,section){
+async function loadPortal(ctx){
  const view=state(ctx),sessionKey=getMemberSessionKey(ctx),route=routeSnapshot();
  if(!sessionKey)return {status:'login'};
  const attempt=(view.portalLoad||0)+1;view.portalLoad=attempt;
@@ -104,15 +104,13 @@ async function loadPortal(ctx,section){
  if(!portal.member||typeof portal.member.name!=='string'){clearIdentity(ctx);return {status:'login',message:'부원 정보를 확인할 수 없습니다. 다시 로그인해 주세요.'};}
  view.member=portal.member;view.events=portal.events||[];view.requests=portal.requests||[];refreshMemberSession(ctx,portal.expiresAt);
  if(!current())return {status:'stale'};
- const extra=section==='home'?['memberApplications','publicRead']:section==='applications'?['memberApplications']:section==='coupons'?['memberCoupons']:[];
- const results=await Promise.allSettled(extra.map(op=>op==='publicRead'&&ctx.state.publicInfo?Promise.resolve(ctx.state.publicInfo):ctx.api(op,op==='publicRead'?undefined:{sessionKey})));
+ const extra=['memberApplications','memberCoupons'];
+ const results=await Promise.allSettled(extra.map(op=>ctx.api(op,{sessionKey})));
  if(!current())return {status:'stale'};
- if(results.some((result,index)=>extra[index]!=='publicRead'&&result.status==='rejected'&&isMemberAccessError(result.reason))){clearIdentity(ctx);return {status:'login',message:'로그인이 만료되었거나 부원 정보가 변경되었습니다. 다시 로그인해 주세요.'};}
- let info={content:[]};
+ if(results.some(result=>result.status==='rejected'&&isMemberAccessError(result.reason))){clearIdentity(ctx);return {status:'login',message:'로그인이 만료되었거나 부원 정보가 변경되었습니다. 다시 로그인해 주세요.'};}
  results.forEach((result,index)=>{
   const op=extra[index];
-  if(op==='publicRead'){if(result.status==='fulfilled'){info=result.value;ctx.state.publicInfo=info;}else info={content:[],unavailable:true};}
-  else if(op==='memberApplications'){
+  if(op==='memberApplications'){
    view.applications=result.status==='fulfilled'?result.value.applications||[]:[];
    view.legacyAccessRequiresReceipt=result.status==='fulfilled'&&result.value.legacyAccessRequiresReceipt===true;
    if(result.status==='fulfilled')refreshMemberSession(ctx,result.value.expiresAt);else view.applicationsError='행사 신청 내역을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.';
@@ -122,9 +120,9 @@ async function loadPortal(ctx,section){
   }
  });
  if(!current())return {status:'stale'};
- if(section==='applications'&&!await loadReceipts(ctx,view,current))return {status:'stale'};
+ if(!await loadReceipts(ctx,view,current))return {status:'stale'};
  if(!current())return {status:'stale'};
- view.loaded=true;return {status:'ok',info};
+ view.loaded=true;return {status:'ok'};
 }
 function currentEvent(event){return !['draft','cancelled','completed'].includes(event.status)&&(!event.endsAt||Date.parse(event.endsAt)>=Date.now());}
 function eventCards(ctx,{limit,past=false}={}){
@@ -137,14 +135,8 @@ function eventCards(ctx,{limit,past=false}={}){
   const month=when?new Intl.DateTimeFormat('ko-KR',{month:'short',timeZone:'Asia/Seoul'}).format(when):'예정',day=when?new Intl.DateTimeFormat('ko-KR',{day:'numeric',timeZone:'Asia/Seoul'}).format(when).replace('일',''):'—';
   const closed=event.status==='closed'||Date.parse(event.closesAt)<=Date.now(),upcoming=Date.parse(event.opensAt)>Date.now();
   const status=past?(event.status==='cancelled'?'행사 취소':'종료'):closed?'모집 마감':upcoming?'신청 예정':'신청 가능';
-  return '<a class="member-event" href="/members/events/'+encodeURIComponent(event.id||event.eventId)+'" data-nav><div class="member-event-date"><span>'+esc(month)+'</span><strong>'+esc(day)+'</strong></div><div class="member-event-copy"><div class="member-event-meta"><span>'+esc(label(event.type))+'</span><span class="member-status '+(past||closed?'cancelled':upcoming?'pending':'approved')+'">'+status+'</span></div><h3>'+esc(event.title)+'</h3><p>'+esc(stamp(event.startsAt))+' · '+esc(event.location||'장소 추후 안내')+'</p><small>'+(event.fee?money(event.fee):'참가비 없음')+'</small></div>'+icon('arrow-right')+'</a>';
+  return '<button type="button" class="member-event" data-action="member-event-open" data-id="'+esc(event.id||event.eventId)+'"><span class="member-event-date"><span>'+esc(month)+'</span><strong>'+esc(day)+'</strong></span><span class="member-event-copy"><span class="member-event-meta"><span>'+esc(label(event.type))+'</span><span class="member-status '+(past||closed?'cancelled':upcoming?'pending':'approved')+'">'+status+'</span></span><strong class="member-event-title">'+esc(event.title)+'</strong><span class="member-event-summary">'+esc(stamp(event.startsAt))+' · '+esc(event.location||'장소 추후 안내')+'</span><small>'+(event.fee?money(event.fee):'참가비 없음')+'</small></span>'+icon('arrow-right')+'</button>';
  }).join('')+'</div>';
-}
-function notices(info){
- const items=(info.content||[]).filter(item=>item.type==='notice').slice(0,2);
- if(info.unavailable)return '<div class="member-inline-message" role="status"><p>공지를 불러오지 못했습니다.</p>'+button('다시 불러오기','member-refresh',{class:'button secondary small'})+'</div>';
- if(!items.length)return '<p class="member-quiet-empty">새로운 공지가 없습니다.</p>';
- return '<div class="member-notices">'+items.map(item=>'<details><summary><span>'+esc(item.title)+'</span><small>'+esc(item.updatedAt?date(item.updatedAt):'공지')+'</small>'+icon('plus')+'</summary>'+textBlock(item.body||'')+'</details>').join('')+'</div>';
 }
 function currentRequest(request){
  if(request.kind==='visit')return ['pending','approved'].includes(request.status)&&(!request.startsAt||Date.parse(request.endsAt||request.startsAt)>=Date.now());
@@ -163,8 +155,8 @@ function receiptMessages(ctx){
  if(view.lastReceiptId&&receiptFor(ctx,view.lastReceiptId)&&view.lastReceiptId!==view.linkedId)output+='<div class="member-receipt-banner" role="status">'+icon('check')+'<p>신청을 접수했습니다. 다음에 결과를 볼 수 있도록 개인 확인 링크를 보관해 주세요.</p>'+button('확인 링크 복사','member-receipt-copy',{id:view.lastReceiptId,class:'button secondary small',icon:'copy'})+'</div>';
  return output;
 }
-function sectionHeader(title,kicker,href,linkText='전체 보기'){
- return '<div class="member-section-heading"><h2>'+esc(title)+'</h2>'+(href?'<a href="'+esc(href)+'" data-nav class="member-text-link">'+esc(linkText)+' '+icon('arrow-right')+'</a>':'')+'</div>';
+function sectionHeader(title,id){
+ return '<div class="member-section-heading"><h2'+(id?' id="'+esc(id)+'"':'')+'>'+esc(title)+'</h2></div>';
 }
 function activeApplication(row){
  const a=row.application,e=row.event;if(!a||!e)return false;
@@ -196,43 +188,31 @@ function applicationRows(ctx,{actionable=false,past=false}={}){
  return output+'<div class="member-application-list">'+rows.map(row=>{
   const a=row.application,e=row.event,effective=e.status==='cancelled'?'cancelled':a.status;
   const payment=a.payment&&a.payment!=='none'?'<span class="member-status '+esc(a.payment)+'">'+esc(label(a.payment))+'</span>':'';
-  return '<a href="/members/applications/'+encodeURIComponent(a.id)+'" data-nav class="member-application-row'+(applicationNeedsAction(row)?' needs-action':'')+'"><span class="member-request-icon">'+icon('calendar-days')+'</span><span class="member-request-content"><span class="member-request-kind">행사 · '+esc(label(e.type))+'</span><strong>'+esc(e.title)+'</strong><small>'+esc(stamp(e.startsAt))+' · '+esc(e.location||'장소 추후 안내')+'</small><span class="member-application-prompt">'+esc(applicationPrompt(row))+'</span></span><span class="member-application-statuses"><span class="member-status '+esc(effective)+'">'+esc(label(effective))+'</span>'+payment+'</span>'+icon('arrow-right')+'</a>';
+  return '<button type="button" data-action="member-application-open" data-id="'+esc(a.id)+'" class="member-application-row'+(applicationNeedsAction(row)?' needs-action':'')+'"><span class="member-request-icon">'+icon('calendar-days')+'</span><span class="member-request-content"><span class="member-request-kind">행사 · '+esc(label(e.type))+'</span><strong>'+esc(e.title)+'</strong><small>'+esc(stamp(e.startsAt))+' · '+esc(e.location||'장소 추후 안내')+'</small><span class="member-application-prompt">'+esc(applicationPrompt(row))+'</span></span><span class="member-application-statuses"><span class="member-status '+esc(effective)+'">'+esc(label(effective))+'</span>'+payment+'</span>'+icon('arrow-right')+'</button>';
  }).join('')+'</div>';
 }
 function requestHistorySection(ctx){
  const view=state(ctx),requests=allRequests(ctx),current=requests.filter(currentRequest),past=requests.filter(request=>!currentRequest(request));
- return '<section class="member-section member-history" id="member-history" aria-labelledby="member-history-title"><div class="member-section-heading"><h2 id="member-history-title">출입 신청·문의</h2><a href="/members/more" data-nav class="member-text-link">새 신청 '+icon('arrow-right')+'</a></div>'+(view.receiptErrors?connectionMessage('일부 신청 내역을 불러오지 못했습니다. 다시 불러와 주세요.'):'')+(current.length?requestRows(current):'<p class="member-quiet-empty">진행 중인 출입 신청이나 문의가 없습니다.</p>')+(past.length?'<details class="member-past-history"><summary>지난 출입 신청·문의 <span>'+past.length+'건</span>'+icon('arrow-right')+'</summary>'+requestRows(past)+'</details>':'')+'</section>';
+ return '<section class="member-section member-history" id="member-history" aria-labelledby="member-history-title"><div class="member-section-heading"><h2 id="member-history-title">출입 신청·문의 내역</h2><button type="button" data-action="member-section" data-id="more" aria-controls="member-more" class="member-text-link">새 신청 '+icon('arrow-right')+'</button></div>'+(view.receiptErrors?connectionMessage('일부 신청 내역을 불러오지 못했습니다. 다시 불러와 주세요.'):'')+(current.length?requestRows(current):'<p class="member-quiet-empty">진행 중인 출입 신청이나 문의가 없습니다.</p>')+(past.length?'<details class="member-past-history"><summary>지난 출입 신청·문의 <span>'+past.length+'건</span>'+icon('arrow-right')+'</summary>'+requestRows(past)+'</details>':'')+'</section>';
 }
 function moreContent(ctx){
  const member=getVerifiedMember(ctx);
- return '<section class="member-section member-more-links" aria-label="신청 바로가기">'+sectionHeader('신청과 문의')+'<button type="button" data-action="member-visit">'+icon('users-round')+'<span>외부인 출입 신청<small>방문 날짜와 인원을 알려 주세요.</small></span>'+icon('arrow-right')+'</button><button type="button" data-action="member-inquiry">'+icon('notebook-pen')+'<span>운영진에게 문의<small>활동이나 공간 이용에 관해 문의하세요.</small></span>'+icon('arrow-right')+'</button><a href="/members/applications" data-nav>'+icon('list-checks')+'<span>출입 신청·문의 결과</span>'+icon('arrow-right')+'</a></section><section class="member-section member-more-links">'+sectionHeader('안내')+'<a href="/" data-nav>'+icon('martini')+'<span>마티니 홈페이지</span>'+icon('arrow-up-right')+'</a><a href="/notices" data-nav>'+icon('megaphone')+'<span>공지사항</span>'+icon('arrow-up-right')+'</a><a href="/privacy" data-nav>'+icon('shield-check')+'<span>개인정보 안내</span>'+icon('arrow-up-right')+'</a></section><section class="member-account-row"><span class="member-avatar">'+esc(member?.name?.slice(0,1)||'')+'</span><div><strong>'+esc(member?.name||'부원')+' 님</strong><small>'+esc(member?.semester||'')+' · 로그인 중</small></div>'+button('로그아웃','member-forget',{class:'button secondary small',icon:'log-out'})+'</section>';
+ return '<section class="member-section member-more-links" aria-label="신청 바로가기">'+sectionHeader('신청과 문의','member-more-title')+'<button type="button" data-action="member-visit">'+icon('users-round')+'<span>외부인 출입 신청<small>방문 날짜와 인원을 알려 주세요.</small></span>'+icon('arrow-right')+'</button><button type="button" data-action="member-inquiry">'+icon('notebook-pen')+'<span>운영진에게 문의<small>활동이나 공간 이용에 관해 문의하세요.</small></span>'+icon('arrow-right')+'</button><button type="button" data-action="member-section" data-id="applications" aria-controls="member-applications">'+icon('list-checks')+'<span>출입 신청·문의 결과</span>'+icon('arrow-right')+'</button></section><section class="member-section member-more-links">'+sectionHeader('안내')+'<a href="/" data-nav>'+icon('martini')+'<span>마티니 홈페이지</span>'+icon('arrow-up-right')+'</a><a href="/privacy" data-nav>'+icon('shield-check')+'<span>개인정보 안내</span>'+icon('arrow-up-right')+'</a></section><section class="member-account-row"><span class="member-avatar">'+esc(member?.name?.slice(0,1)||'')+'</span><div><strong>'+esc(member?.name||'부원')+' 님</strong><small>'+esc(member?.semester||'')+' · 로그인 중</small></div>'+button('로그아웃','member-forget',{class:'button secondary small',icon:'log-out'})+'</section>';
 }
-export async function renderMemberPortal(ctx,{section='home'}={}){
+export async function renderMemberPortal(ctx){
  if(!getMemberSessionKey(ctx))return renderMemberVerificationGate(ctx);
- const descriptions={home:['부원 홈',''],events:['행사','다가오는 일정을 확인하고 신청하세요.'],applications:['내 신청','행사와 출입 신청, 문의 답변을 확인하세요.'],coupons:['쿠폰',''],more:['더보기','신청과 문의, 계정을 관리하세요.']};
- if(!descriptions[section])section='home';
- const loaded=await loadPortal(ctx,section);
+ const loaded=await loadPortal(ctx);
  if(loaded.status==='stale')return '';
  if(loaded.status==='login'||!getMemberSessionKey(ctx))return renderMemberVerificationGate(ctx,{message:loaded.message});
  if(loaded.status!=='ok')return portalUnavailable();
- const view=state(ctx),info=loaded.info;
- const [title,description]=descriptions[section];
- let content=section==='home'?'<div class="member-welcome">'+heading(view.member.name+' 님, 안녕하세요',view.member.semester?view.member.semester+' 학기 부원라운지':'부원라운지')+'</div>':heading(title,description);
- if(section==='applications')content+=receiptMessages(ctx);
- if(section==='home'){
-  const fragment=new URLSearchParams((location.hash||'').slice(1));
-  if(fragment.has('request')||fragment.has('key'))content+='<div class="member-receipt-banner"><p>전달받은 개인 확인 링크가 있습니다.</p>'+button('신청 내역 열기','member-receipt-open',{class:'button secondary small'})+'</div>';
-  content+='<div class="member-home-grid"><section class="member-section member-action-section">'+sectionHeader('지금 확인할 신청','','/members/applications')+applicationRows(ctx,{actionable:true})+'</section><section class="member-section member-event-section">'+sectionHeader('다음 행사','','/members/events')+eventCards(ctx,{limit:3})+'</section></div><section class="member-section member-home-notices">'+sectionHeader('공지','','/notices')+notices(info)+'</section>';
- }else if(section==='events'){
-  const past=view.events.filter(event=>event.status!=='draft'&&!currentEvent(event));
-  content+='<section class="member-section member-event-directory">'+sectionHeader('다가오는 행사')+eventCards(ctx)+(past.length?'<details class="member-past-history"><summary>지난 행사 <span>'+past.length+'개</span>'+icon('arrow-right')+'</summary>'+eventCards(ctx,{past:true})+'</details>':'')+'</section>';
- }else if(section==='applications'){
-  const past=view.applications.filter(row=>row.application?.id&&row.event&&!currentApplication(row));
-  content+='<section class="member-section member-event-applications">'+sectionHeader('행사 신청')+applicationRows(ctx)+(past.length?'<details class="member-past-history"><summary>지난 행사 신청 <span>'+past.length+'건</span>'+icon('arrow-right')+'</summary>'+applicationRows(ctx,{past:true})+'</details>':'')+(view.legacyAccessRequiresReceipt?'<p class="member-history-warning">이전 행사 신청은 저장한 개인 확인 링크가 필요할 수 있습니다.</p>':'')+'</section>'+requestHistorySection(ctx);
- }else if(section==='coupons')content+=connectionMessage(view.couponsError)+(view.coupons?renderMemberCouponPreparation():!view.couponsError?connectionMessage('쿠폰을 확인하지 못했습니다. 다시 불러와 주세요.'):'');
- else if(section==='more')content+=moreContent(ctx);
+ const view=state(ctx),pastEvents=view.events.filter(event=>event.status!=='draft'&&!currentEvent(event)),pastApplications=view.applications.filter(row=>row.application?.id&&row.event&&!currentApplication(row));
+ let content='<section id="member-home" class="member-welcome" tabindex="-1" aria-labelledby="page-title">'+heading(view.member.name+' 님, 안녕하세요',view.member.semester?view.member.semester+' 학기 부원라운지':'부원라운지')+'</section><!--member-inline-detail-->';
+ content+='<section id="member-events" class="member-section member-event-directory member-page-section" tabindex="-1" aria-labelledby="member-events-title">'+sectionHeader('행사','member-events-title')+eventCards(ctx)+(pastEvents.length?'<details class="member-past-history"><summary>지난 행사 <span>'+pastEvents.length+'개</span>'+icon('arrow-right')+'</summary>'+eventCards(ctx,{past:true})+'</details>':'')+'</section>';
+ content+='<section id="member-applications" class="member-page-section" tabindex="-1" aria-labelledby="member-applications-title">'+receiptMessages(ctx)+'<section class="member-section member-event-applications">'+sectionHeader('내 신청','member-applications-title')+applicationRows(ctx)+(pastApplications.length?'<details class="member-past-history"><summary>지난 행사 신청 <span>'+pastApplications.length+'건</span>'+icon('arrow-right')+'</summary>'+applicationRows(ctx,{past:true})+'</details>':'')+(view.legacyAccessRequiresReceipt?'<p class="member-history-warning">이전 행사 신청은 저장한 개인 확인 링크가 필요할 수 있습니다.</p>':'')+'</section>'+requestHistorySection(ctx)+'</section>';
+ content+='<section id="member-coupons" class="member-page-section" tabindex="-1" aria-label="쿠폰">'+connectionMessage(view.couponsError)+(view.coupons?renderMemberCouponPreparation():!view.couponsError?connectionMessage('쿠폰을 확인하지 못했습니다. 다시 불러와 주세요.'):'')+'</section>';
+ content+='<section id="member-more" class="member-page-section" tabindex="-1" aria-labelledby="member-more-title">'+moreContent(ctx)+'</section>';
  if(view.storageUnavailable)content+='<p class="member-history-warning" role="status">브라우저 저장 공간을 사용할 수 없습니다. 새로고침하거나 창을 닫으면 현재 접수 내역의 조회 권한이 사라질 수 있습니다.</p>';
- return memberShell('<div class="member-lounge">'+content+'</div>');
+ return memberShell('<div class="member-lounge">'+content+'</div>',{section:ctx.state.memberActiveSection});
 }
 function requestDetail(ctx,request){
  let body='<div class="member-detail-heading wide"><span>'+esc(kinds[request.kind]||'신청')+'</span>'+requestStatus(request)+'</div>';
@@ -247,13 +227,24 @@ function requestDetail(ctx,request){
  else if(cancellable)body+='<p class="member-form-note wide">이 탭에 접수 확인 정보가 없어 상태만 조회할 수 있습니다. 취소가 필요하면 운영진에게 문의해 주세요.</p>';
  const dialog=modal(kinds[request.kind]+' 내역',body,null);dialog.classList.add('member-dialog');return dialog;
 }
+function focusMemberSection(ctx,id){
+ if(!['home','events','applications','coupons','more'].includes(id))return;
+ const section=globalThis.document?.getElementById?.('member-'+id);if(!section)return;
+ ctx.state.memberActiveSection=id;
+ const reduced=globalThis.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+ section.scrollIntoView({behavior:reduced?'auto':'smooth',block:'start'});section.focus({preventScroll:true});
+ document.querySelectorAll('.member-navigation [data-action="member-section"]').forEach(control=>{
+  const active=control.dataset.id===id;control.classList.toggle('is-active',active);
+  if(active)control.setAttribute('aria-current','location');else control.removeAttribute('aria-current');
+ });
+}
 export async function memberPortalAction(ctx,action,id){
  if(action==='member-verify')return openMemberVerification(ctx);
- if(action==='member-refresh'){delete ctx.state.publicInfo;await ctx.render();return;}
+ if(action==='member-refresh'){await ctx.render();return;}
  if(action==='member-forget'){forgetMemberDevice(ctx);await ctx.navigate('/members',{replace:true,discard:true});ctx.toast('로그아웃했습니다.');return;}
+ if(action==='member-section'||action==='member-receipt-open'){if(getMemberSessionKey(ctx))focusMemberSection(ctx,action==='member-receipt-open'?'applications':id);return;}
  if(!getMemberSessionKey(ctx))return ctx.render();
  if(action==='member-visit'||action==='member-inquiry')return getVerifiedMember(ctx)?openForm(ctx,action==='member-visit'?'visit':'inquiry'):ctx.render();
- if(action==='member-receipt-open')return ctx.navigate('/members/applications'+(location.hash||''),{discard:true});
  if(action==='member-receipt-copy'){
   const receipt=receiptFor(ctx,id);if(!receipt)throw new Error('이 탭의 접수 확인 정보가 없습니다.');
   const url=location.origin+'/members#request='+encodeURIComponent(receipt.id)+'&key='+encodeURIComponent(receipt.receiptKey);
@@ -302,9 +293,9 @@ export async function memberPortalSubmit(ctx,form,data,node){
   if(form==='member-login'){
    delete ctx.state.memberVerificationReturnTo;
    const fragment=new URLSearchParams((location.hash||'').slice(1)),currentPath=location.pathname.replace(/\/+$/,'')||'/';
-   if(target==='/members'&&currentPath==='/members'&&(fragment.has('request')||fragment.has('key')))await ctx.navigate('/members/applications'+location.hash,{replace:true,discard:true});
-   else if(currentPath!==target)await ctx.navigate(target,{discard:true});
+   if(currentPath!==target)await ctx.navigate(target,{discard:true});
    else await ctx.render();
+   if(fragment.has('request')||fragment.has('key'))focusMemberSection(ctx,'applications');
   }else if(!node?.closest?.('dialog'))await ctx.render();
   ctx.toast('로그인했습니다.');return true;
  }

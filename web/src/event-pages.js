@@ -14,12 +14,13 @@ async function applicationScope(payload){
  return Array.from(new Uint8Array(digest),value=>value.toString(16).padStart(2,'0')).join('');
 }
 const memberReturnTo=()=>location.pathname.replace(/\/+$/,'')||'/members';
-const detailShell=(body,member)=>shell(member?memberShell(body):body);
+const detailShell=(body,member,embedded=false)=>embedded?body.replaceAll('<h1>','<h2>').replaceAll('</h1>','</h2>'):shell(member?memberShell(body):body);
 function memberGate(ctx,description){
  return shell(renderMemberVerificationGate(ctx,{returnTo:memberReturnTo(),description}));
 }
-function memberError(error,kind){
+function memberError(error,kind,embedded=false){
  const application=kind==='application';
+ if(embedded)return '<div class="member-inline-message" role="alert"><p>'+esc(error.message||'상세 정보를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.')+'</p>'+button('다시 불러오기','public-refresh',{class:'button secondary'})+'</div>';
  return shell('<section class="member-login-page member-retry-page"><div class="member-login-card member-retry-card"><h1>'+(application?'신청을 확인할 수 없습니다':'행사를 확인할 수 없습니다')+'</h1><p>'+esc(error.message||'잠시 후 다시 시도해 주세요.')+'</p><div class="receipt-actions">'+button('다시 불러오기','public-refresh',{class:'button secondary'})+'<a href="'+(application?'/members/applications':'/members/events')+'" data-nav class="button">'+(application?'내 신청으로':'행사 목록으로')+'</a></div>'+(application?'<p class="help">이전 신청은 신청할 때 받은 개인 확인 링크로 열어 주세요.</p>':'')+'</div></section>');
 }
 async function requireMemberAgain(ctx,error){
@@ -70,21 +71,23 @@ export function renderLinkError(error,kind){
  const message=invalid?(kind==='event'?'전달받은 행사 링크 전체를 다시 열어주세요. 계속 열리지 않으면 운영진에게 새 링크를 요청해 주세요.':'신청 완료 후 받은 개인 확인 링크 전체가 필요합니다. 링크를 잃어버렸다면 운영진에게 재발급을 요청해 주세요.'):error.message;
  return shell('<section class="page-intro"><span class="eyebrow">신청 안내</span><h1>'+title+'</h1><p>'+esc(message)+'</p><div class="receipt-actions">'+button('다시 불러오기','public-refresh',{class:'button secondary'})+'<a data-nav href="/" class="button secondary">홈으로</a></div></section>');
 }
-export async function renderEventPage(ctx,id,{member=false}={}){
+export async function renderEventPage(ctx,id,{member=false,embedded=false}={}){
  delete ctx.state.currentEvent;
  const accessKey=key(),accessUrl=location.href;
  const sessionKey=member?getMemberSessionKey(ctx):'';
+ const selection=ctx.state.memberInlineDetail;
+ const current=()=>location.href===accessUrl&&(!member||getMemberSessionKey(ctx)===sessionKey)&&(!embedded||ctx.state.memberInlineDetail===selection);
  if(member&&!sessionKey)return memberGate(ctx,'등록된 이름과 학번으로 로그인하면 이 행사를 확인할 수 있어요.');
  let e;
  try{e=await ctx.api(member?'memberEventAccess':'eventAccess',{eventId:id,...(member?{sessionKey}:{key:accessKey})});}
  catch(error){
-  if(location.href!==accessUrl||(member&&getMemberSessionKey(ctx)!==sessionKey))return '';
+  if(!current())return '';
   if(!member)return renderLinkError(error,'event');
   if(isMemberAccessError(error)){clearMemberIdentity(ctx);return memberGate(ctx,'로그인이 만료되었거나 부원 정보가 변경되었습니다. 다시 로그인해 주세요.');}
-  return memberError(error,'event');
+  return memberError(error,'event',embedded);
  }
- if(location.href!==accessUrl||(member&&getMemberSessionKey(ctx)!==sessionKey))return '';
- e.memberAccess=member;
+ if(!current())return '';
+ e.memberAccess=member;e.embedded=embedded;e.inlineSelection=selection;
  e.accessUrl=accessUrl;
  if(location.href===accessUrl&&key()===accessKey)ctx.state.currentEvent=e;
  const now=Date.now(),beforeOpen=Date.parse(e.opensAt)>now,afterClose=Date.parse(e.closesAt)<=now;
@@ -101,24 +104,26 @@ export async function renderEventPage(ctx,id,{member=false}={}){
  const verifiedMember=member?getVerifiedMember(ctx):null;
  const identity=member?'<div class="member-form-identity">'+icon('shield-check')+'<span>'+(verifiedMember?'<strong>'+esc(verifiedMember.name)+'</strong> 님의 ':'')+'확인된 부원 정보로 신청합니다.</span></div>':field('name','이름','',{required:true,autocomplete:'name',maxLength:40})+field('studentId','학번','',{required:true,maxLength:30,inputMode:'numeric',autocomplete:'off',spellcheck:false});
  const applicationForm=canApply?'<form data-form="apply" aria-labelledby="apply-title">'+identity+e.questions.map((q,i)=>field('answer'+i,q,'',{type:'textarea',rows:2,required:true,maxLength:500})).join('')+field('consent','개인정보 수집·이용과 취소 안내를 확인했습니다',false,{type:'checkbox',required:true})+'<a class="privacy-link" href="/privacy" target="_blank" rel="noopener noreferrer">개인정보 안내 보기 (새 탭)</a><p role="alert" class="form-error"></p><button type="submit" class="button full">'+(willWait?'대기 신청하기':'신청하기')+icon('arrow-right')+'</button></form>':'<div class="notice-warning">'+esc(stateNote)+'</div>'+button('신청 상태 새로고침','public-refresh',{class:'button secondary full'});
- return detailShell((member?'<a class="member-text-link" href="/members/events" data-nav>'+icon('arrow-left')+' 행사 목록</a>':'')+'<div class="application-layout"><section class="event-public-detail"><span class="eyebrow">'+esc(label(e.type))+'</span><span class="badge '+esc(statusClass)+'">'+esc(statusText)+'</span><h1>'+esc(e.title)+'</h1><div class="event-facts"><p>'+icon('calendar-days')+'<span>'+scheduleDate(e.startsAt)+'<small>종료 '+scheduleDate(e.endsAt)+'</small></span></p><p>'+icon('map-pin')+'<span>'+esc(e.location)+'</span></p><p>'+icon('wallet')+'<span>'+(e.fee?money(e.fee):'참가비 없음')+'</span></p><p>'+icon('users')+'<span>등록 '+e.registered+' / '+e.capacity+'명'+(e.waitlist?' · 대기 '+e.waiting+'명':'')+'</span></p></div>'+'<section class="application-description"><h2>활동 안내</h2>'+textBlock(e.description||'별도 준비물 안내가 없습니다.')+'</section><hr><h2>신청과 취소</h2><p class="help">신청 시작 '+scheduleDate(e.opensAt)+'<br>신청 마감 '+scheduleDate(e.closesAt)+'<br>취소 마감 '+scheduleDate(e.cancelUntil)+'</p>'+textBlock(e.policy)+'</section><aside class="apply-card" aria-labelledby="apply-title"><span class="eyebrow">행사 신청</span><h2 id="apply-title">'+(canApply?(willWait?'대기 신청':'참가 신청'):statusText)+'</h2>'+(canApply&&willWait?'<p class="event-state-note">'+esc(stateNote)+'</p>':'')+applicationForm+'</aside></div>',member);
+ return detailShell((member&&!embedded?'<a class="member-text-link" href="/members/events" data-nav>'+icon('arrow-left')+' 행사 목록</a>':'')+'<div class="application-layout"><section class="event-public-detail"><span class="eyebrow">'+esc(label(e.type))+'</span><span class="badge '+esc(statusClass)+'">'+esc(statusText)+'</span><h1>'+esc(e.title)+'</h1><div class="event-facts"><p>'+icon('calendar-days')+'<span>'+scheduleDate(e.startsAt)+'<small>종료 '+scheduleDate(e.endsAt)+'</small></span></p><p>'+icon('map-pin')+'<span>'+esc(e.location)+'</span></p><p>'+icon('wallet')+'<span>'+(e.fee?money(e.fee):'참가비 없음')+'</span></p><p>'+icon('users')+'<span>등록 '+e.registered+' / '+e.capacity+'명'+(e.waitlist?' · 대기 '+e.waiting+'명':'')+'</span></p></div>'+'<section class="application-description"><h2>활동 안내</h2>'+textBlock(e.description||'별도 준비물 안내가 없습니다.')+'</section><hr><h2>신청과 취소</h2><p class="help">신청 시작 '+scheduleDate(e.opensAt)+'<br>신청 마감 '+scheduleDate(e.closesAt)+'<br>취소 마감 '+scheduleDate(e.cancelUntil)+'</p>'+textBlock(e.policy)+'</section><aside class="apply-card" aria-labelledby="apply-title"><span class="eyebrow">행사 신청</span><h2 id="apply-title">'+(canApply?(willWait?'대기 신청':'참가 신청'):statusText)+'</h2>'+(canApply&&willWait?'<p class="event-state-note">'+esc(stateNote)+'</p>':'')+applicationForm+'</aside></div>',member,embedded);
 }
-export async function renderApplicationPage(ctx,id,{member=false}={}){
+export async function renderApplicationPage(ctx,id,{member=false,embedded=false}={}){
  delete ctx.state.currentReceipt;
  const accessKey=key(),accessUrl=location.href;
  const sessionKey=member?getMemberSessionKey(ctx):'';
+ const selection=ctx.state.memberInlineDetail;
+ const current=()=>location.href===accessUrl&&(!member||getMemberSessionKey(ctx)===sessionKey)&&(!embedded||ctx.state.memberInlineDetail===selection);
  if(member&&!sessionKey)return memberGate(ctx,'등록된 이름과 학번으로 로그인하면 신청 내역을 확인할 수 있어요.');
  let result;
  try{result=await ctx.api(member?'memberApplication':'receipt',{id,...(member?{sessionKey}:{key:accessKey}),action:'get'});}
  catch(error){
-  if(location.href!==accessUrl||(member&&getMemberSessionKey(ctx)!==sessionKey))return '';
+  if(!current())return '';
   if(!member)return renderLinkError(error,'receipt');
   if(isMemberAccessError(error)){clearMemberIdentity(ctx);return memberGate(ctx,'로그인이 만료되었거나 부원 정보가 변경되었습니다. 다시 로그인해 주세요.');}
-  return memberError(error,'application');
+  return memberError(error,'application',embedded);
  }
- if(location.href!==accessUrl||(member&&getMemberSessionKey(ctx)!==sessionKey))return '';
+ if(!current())return '';
  if(member)refreshMemberSession(ctx,result.expiresAt);
- if(key()===accessKey)ctx.state.currentReceipt={id,key:accessKey,memberAccess:member,accessUrl,...result};
+ if(key()===accessKey)ctx.state.currentReceipt={id,key:accessKey,memberAccess:member,accessUrl,...result,embedded,inlineSelection:selection};
  const {application:a,event:e}=result,now=Date.now(),effective=e.status==='cancelled'?'cancelled':a.status;
  const activeEvent=e.status!=='cancelled',offered=activeEvent&&a.status==='offered';
  const showPayment=a.payment!=='none'&&(!['cancelled','expired'].includes(effective)||!['unpaid','requested'].includes(a.payment));
@@ -142,7 +147,7 @@ export async function renderApplicationPage(ctx,id,{member=false}={}){
  const actions=(canAccept?button('참가 자리 수락','receipt-accept'):'')+(a.status==='registered'&&a.payment==='unpaid'&&activeEvent?button('입금 확인 요청','receipt-payment'):'')+(offered?button('참가 자리 거절','receipt-decline',{class:'button secondary'}):'')+(canCancel?button('신청 취소','receipt-cancel',{class:'button secondary'}):'')+button('상태 새로고침','public-refresh',{class:'button secondary',icon:'history'});
  const recovery=member?'<p>내 신청에서 언제든 다시 확인할 수 있어요. 저장한 주소도 로그인 후 열립니다.</p>'+button('신청 페이지 복사','receipt-copy',{class:'button secondary',icon:'copy'}):'<h3 id="receipt-link-title">개인 확인 링크를 보관해 주세요.</h3><p>이 링크에서 신청 상태를 확인하고 취소할 수 있습니다. 다른 사람에게 공유하지 마세요.</p>'+button('확인 링크 복사','receipt-copy',{class:'button secondary',icon:'copy'});
  const savedLink=member?'<details class="receipt-policy member-receipt-recovery"><summary>신청 페이지 보관</summary>'+recovery+'</details>':'<section class="receipt-link-save" aria-labelledby="receipt-link-title">'+recovery+'</section>';
- return detailShell((member?'<a class="member-text-link" href="/members/applications" data-nav>'+icon('arrow-left')+' 내 신청</a>':'')+'<section class="receipt-card"><span class="success-mark '+esc(effective)+'">'+icon(['cancelled','expired'].includes(effective)?'circle-x':['waiting','offered'].includes(effective)?'history':'check')+'</span><span class="eyebrow">신청 내역</span><h1>'+esc(e.title)+'</h1><div class="receipt-status">'+badge(effective)+(showPayment?badge(a.payment):'')+'</div><p>'+esc(a.name)+'님 · '+scheduleDate(e.startsAt)+'</p><p>'+esc(e.location)+'</p>'+(member?'':savedLink)+'<div class="receipt-details">'+details+'</div><div class="receipt-actions">'+actions+'</div>'+(member?savedLink:'')+(a.policy?'<details class="receipt-policy"><summary>취소·환불 안내</summary>'+textBlock(a.policy)+'</details>':'')+'<p class="help">접수 번호 '+esc(a.sequence)+' · 신청 '+scheduleDate(a.createdAt)+'</p></section>',member);
+ return detailShell((member&&!embedded?'<a class="member-text-link" href="/members/applications" data-nav>'+icon('arrow-left')+' 내 신청</a>':'')+'<section class="receipt-card"><span class="success-mark '+esc(effective)+'">'+icon(['cancelled','expired'].includes(effective)?'circle-x':['waiting','offered'].includes(effective)?'history':'check')+'</span><span class="eyebrow">신청 내역</span><h1>'+esc(e.title)+'</h1><div class="receipt-status">'+badge(effective)+(showPayment?badge(a.payment):'')+'</div><p>'+esc(a.name)+'님 · '+scheduleDate(e.startsAt)+'</p><p>'+esc(e.location)+'</p>'+(member?'':savedLink)+'<div class="receipt-details">'+details+'</div><div class="receipt-actions">'+actions+'</div>'+(member?savedLink:'')+(a.policy?'<details class="receipt-policy"><summary>취소·환불 안내</summary>'+textBlock(a.policy)+'</details>':'')+'<p class="help">접수 번호 '+esc(a.sequence)+' · 신청 '+scheduleDate(a.createdAt)+'</p></section>',member,embedded);
 }
 export async function eventSubmit(ctx,form,f){
  if(form!=='apply')return;
@@ -150,7 +155,7 @@ export async function eventSubmit(ctx,form,f){
  if(!e||e.accessUrl!==location.href)throw new Error('행사 정보를 다시 확인해 주세요.');
  const sessionKey=e.memberAccess?getMemberSessionKey(ctx):'';
  if(e.memberAccess&&!sessionKey){await requireMemberAgain(ctx);throw new Error('부원 확인을 마친 뒤 다시 신청해 주세요.');}
- const current=()=>ctx.state.currentEvent===e&&e.accessUrl===location.href&&(!e.memberAccess||getMemberSessionKey(ctx)===sessionKey);
+ const current=()=>ctx.state.currentEvent===e&&e.accessUrl===location.href&&(!e.memberAccess||getMemberSessionKey(ctx)===sessionKey)&&(!e.embedded||ctx.state.memberInlineDetail===e.inlineSelection);
  const storageKey='martini-pending-'+e.id;
  const payload={eventId:e.id,...(e.memberAccess?{sessionKey}:{key:key(),name:String(f.get('name')||'').trim(),studentId:String(f.get('studentId')||'').trim()}),answers:e.questions.map((q,i)=>String(f.get('answer'+i)||'').trim()),consent:f.has('consent')};
  const accessScope=await applicationScope(payload);
@@ -176,7 +181,11 @@ export async function eventSubmit(ctx,form,f){
  if(!current())return;
  try{sessionStorage.removeItem(storageKey);}catch{}
  delete ctx.state.pendingApplications[storageKey];
- await ctx.navigate(e.memberAccess?'/members/applications/'+encodeURIComponent(result.id):shortLink('r',pending.receiptKey),{discard:true});
+ if(e.embedded){
+  delete ctx.state.currentEvent;delete ctx.state.currentReceipt;
+  ctx.state.memberInlineDetail={kind:'application',id:result.id};ctx.state.memberScrollTarget='member-detail';ctx.state.memberActiveSection='applications';
+  await ctx.render();ctx.toast('신청을 접수했습니다. 아래에서 신청 상태를 확인하세요.');
+ }else await ctx.navigate(e.memberAccess?'/members/applications/'+encodeURIComponent(result.id):shortLink('r',pending.receiptKey),{discard:true});
 }
 export async function eventAction(ctx,action,id,target){
  if(action==='application-jump'){
@@ -187,7 +196,7 @@ export async function eventAction(ctx,action,id,target){
  if(!r||r.accessUrl!==location.href)return;
  const actionSession=r.memberAccess?getMemberSessionKey(ctx):'';
  if(r.memberAccess&&!actionSession){await requireMemberAgain(ctx);return;}
- const current=()=>ctx.state.currentReceipt===r&&r.accessUrl===location.href&&(!r.memberAccess||getMemberSessionKey(ctx)===actionSession);
+ const current=()=>ctx.state.currentReceipt===r&&r.accessUrl===location.href&&(!r.memberAccess||getMemberSessionKey(ctx)===actionSession)&&(!r.embedded||ctx.state.memberInlineDetail===r.inlineSelection);
  if(action==='account-copy'){
   const number=r?.event?.accountNumber;if(!number)return;
   try{await navigator.clipboard.writeText(number);ctx.toast('계좌번호를 복사했습니다.');}
