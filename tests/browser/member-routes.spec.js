@@ -17,13 +17,14 @@ test.afterEach(async ({ page }, info) => {
 
 async function verifyHere(page) {
   const destination = page.url();
-  await action(page, 'member-verify').click();
-  const dialog = page.getByRole('dialog');
-  await expect(dialog.locator('[name=phone], input[type=tel]')).toHaveCount(0);
-  await dialog.locator('[name=name]').fill(member.name);
-  await dialog.locator('[name=studentId]').fill(member.studentId);
-  await dialog.getByRole('button', { name: '부원 확인하기', exact: true }).click();
-  await expect(dialog).toHaveCount(0);
+  const form = page.locator('form[data-form="member-login"]');
+  await expect(form).toBeVisible();
+  await expect(page.getByRole('navigation', { name: '부원 메뉴', exact: true })).toHaveCount(0);
+  await expect(form.locator('[name=phone], input[type=tel]')).toHaveCount(0);
+  await form.locator('[name=name]').fill(member.name);
+  await form.locator('[name=studentId]').fill(member.studentId);
+  await form.getByRole('button', { name: '로그인', exact: true }).click();
+  await expect(form).toHaveCount(0);
   await expect(page).toHaveURL(destination);
 }
 
@@ -41,12 +42,9 @@ test('public pages expose a member entry in the header and the operator entry in
   }
   await page.locator('.public-header .member-header-link').click();
   await expect(page).toHaveURL(/\/members$/);
-  await expect(page.getByRole('navigation', { name: '부원 메뉴', exact: true })).toBeVisible();
-  for (const menu of [page.locator('.public-header > nav'), page.locator('.public-mobile-menu nav')]) {
-    await expect(menu.locator('a')).toHaveCount(1);
-    await expect(menu.locator('a')).toHaveAttribute('href', '/about');
-    await expect(menu.locator('a')).toHaveText('동아리 소개');
-  }
+  await expect(page.getByRole('navigation', { name: '부원 메뉴', exact: true })).toHaveCount(0);
+  await expect(page.locator('form[data-form="member-login"]')).toBeVisible();
+  await expect(page.locator('.public-header > nav, .public-mobile-menu nav')).toHaveCount(0);
 });
 
 test('a direct member event verifies in place and keeps its destination on reload', async ({ page }) => {
@@ -67,8 +65,9 @@ test('a direct member event verifies in place and keeps its destination on reloa
 test('the events alias preserves its URL and provides the actual member event list and navigation', async ({ page }) => {
   await page.goto('/events');
   const alias = page.url();
-  await expect(page.getByRole('heading', { name: '행사', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '부원 로그인', exact: true })).toBeVisible();
   await verifyHere(page);
+  await expect(page.getByRole('heading', { name: '행사', exact: true })).toBeVisible();
   await expect(page).toHaveURL(alias);
   const events = page.locator('.member-event');
   await expect(events.first()).toBeVisible();
@@ -221,7 +220,11 @@ test('uncommitted application retries keep tokens only for the same session or l
     };
     const form = new FormData();
     form.set('answer0', privateValues[8]);form.set('consent', 'on');
-    const session = sessionKey => setMemberSession(ctx, { sessionKey, expiresAt: new Date(Date.now() + 7200000).toISOString(), member: { name: '확인된 가상부원', semester: '2026-2' } });
+    const session = sessionKey => {
+      setMemberSession(ctx, { sessionKey, expiresAt: new Date(Date.now() + 7200000).toISOString(), member: { name: '확인된 가상부원', semester: '2026-2' } });
+      // A new identity discards cached detail; simulate its freshly verified event page.
+      ctx.state.currentEvent = { id: 'scope-regression', memberAccess: true, questions: ['참여 이유'], accessUrl: location.href };
+    };
     const retry = async (label, fromStorage = false) => {
       if (fromStorage) { delete ctx.state.pendingApplications; delete ctx.state.memberLounge; }
       let caught = '';
@@ -308,7 +311,10 @@ async function pendingRecoveryAttempt(page, options = {}) {
       toast: () => {}
     };
     try {
-      if (options.memberAccess) setMemberSession(ctx, { sessionKey: 'e'.repeat(64), expiresAt: new Date(Date.now() + 7200000).toISOString(), member: options.unloadedMember ? null : { name: '기존 신청 부원', semester: '2026-2' } });
+      if (options.memberAccess) {
+        setMemberSession(ctx, { sessionKey: 'e'.repeat(64), expiresAt: new Date(Date.now() + 7200000).toISOString(), member: options.unloadedMember ? null : { name: '기존 신청 부원', semester: '2026-2' } });
+        ctx.state.currentEvent = { id: eventId, memberAccess: true, questions: options.scopedPending ? ['참여 이유'] : [], accessUrl: location.href };
+      }
       const form = new FormData();form.set('name', '기존 신청 부원');form.set('studentId', '202600001');form.set('consent', 'on');
       if (options.scopedPending) {
         // Save a real scoped bundle through the submission code before losing
@@ -321,7 +327,10 @@ async function pendingRecoveryAttempt(page, options = {}) {
         if (!/^[a-f0-9]{64}$/.test(pending.accessScope || '')) throw new Error('Expected a saved scoped application');
         original = JSON.stringify(pending);calls.length = 0;
         if (!options.inMemory) delete ctx.state.pendingApplications;
-        if (options.changeSession) setMemberSession(ctx, { sessionKey: 'f'.repeat(64), expiresAt: new Date(Date.now() + 7200000).toISOString(), member: { name: options.newMemberName || '기존 신청 부원', semester: '2026-2' } });
+        if (options.changeSession) {
+          setMemberSession(ctx, { sessionKey: 'f'.repeat(64), expiresAt: new Date(Date.now() + 7200000).toISOString(), member: { name: options.newMemberName || '기존 신청 부원', semester: '2026-2' } });
+          ctx.state.currentEvent = { id: eventId, memberAccess: true, questions: ['참여 이유'], accessUrl: location.href };
+        }
         else if (options.changedName) form.set('name', options.changedName);
         else form.set('answer0', '수정한 답변');
       }

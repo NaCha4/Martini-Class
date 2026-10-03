@@ -1,6 +1,6 @@
 import test,{beforeEach,describe} from 'node:test';
 import assert from 'node:assert/strict';
-import { MEMBER_STORAGE_KEY,memberState,memberStorage,persistMemberStorage,setMemberSession,getMemberSessionKey,getVerifiedMember,clearMemberIdentity,isMemberAccessError,safeMemberReturnTarget,forgetMemberDevice } from '../web/src/member-session.js';
+import { MEMBER_STORAGE_KEY,memberState,memberStorage,persistMemberStorage,setMemberSession,getMemberSessionKey,getVerifiedMember,clearMemberIdentity,isMemberAccessError,safeMemberReturnTarget,forgetMemberDevice,isMemberRoute } from '../web/src/member-session.js';
 
 describe('member session and private capabilities',()=>{
 let values;
@@ -28,6 +28,11 @@ test('verification return paths retain valid deep links and never capability fra
  assert.equal(safeMemberReturnTarget('/members/events/event-one?source=menu#secret'),'/members/events/event-one');assert.equal(safeMemberReturnTarget('/events?source=menu#secret'),'/events');
  for(const path of ['https://example.com','//example.com/members','/members/../admin','/members/events/%2e%2e','/members/events/one/two','/members\\events\\one','/admin','/members/events/<script>'])assert.equal(safeMemberReturnTarget(path),'/members');
 });
+
+test('every member descendant and the events alias require login while independent share links stay separate',()=>{
+ for(const path of ['/members','/members/','/members/events','/members/events/event-one','/members/applications/request-one','/members/unknown/child','/members/coupons','/members/more','/events','/events/'])assert.equal(isMemberRoute(path),true,path);
+ for(const path of ['/','/about','/members-archive','/events-archive','/e','/e/event-one','/r','/r/request-one','/admin'])assert.equal(isMemberRoute(path),false,path);
+});
 test('network and missing content errors remain distinct from session access rejection',()=>{
  assert.equal(isMemberAccessError({code:'functions/unauthenticated'}),true);assert.equal(isMemberAccessError({code:'permission-denied'}),true);
  for(const code of ['functions/not-found','functions/unavailable','functions/deadline-exceeded','functions/internal'])assert.equal(isMemberAccessError({code}),false);
@@ -40,10 +45,19 @@ test('device exit removes member and interrupted event capabilities before anoth
  assert.deepEqual([...values.entries()],[['unrelated-setting','keep']]);assert.deepEqual(current.state,{});
  setMemberSession(current,{sessionKey:'c'.repeat(64),expiresAt:expiresAt(),member:{name:'다음 부원'}});assert.deepEqual(memberStorage(current).receipts,[]);assert.deepEqual(memberStorage(current).pending,{});assert.equal(current.state.pendingApplications,undefined);
 });
-test('new verification clears prior session records while preserving independently held receipts',()=>{
+test('new verification clears all rendered prior session records while preserving independent receipt capabilities',()=>{
  const current=ctx();setMemberSession(current,{sessionKey:token,expiresAt:expiresAt(),member:{name:'첫 부원'}});
  const view=memberState(current);Object.assign(view,{events:[{id:'first-event'}],requests:[{id:'first-private-request'}],applications:[{application:{id:'first-application'}}],coupons:{status:'preparing'},receiptRows:[{id:'receipt-owned-request'}]});memberStorage(current).receipts=[{id:'receipt-owned-request',receiptKey:receipt}];
  setMemberSession(current,{sessionKey:'c'.repeat(64),expiresAt:expiresAt(),member:{name:'다음 부원'}});
- assert.deepEqual(view.events,[]);assert.deepEqual(view.requests,[]);assert.deepEqual(view.applications,[]);assert.equal(view.coupons,null);assert.deepEqual(view.receiptRows,[{id:'receipt-owned-request'}]);assert.equal(memberStorage(current).receipts.length,1);
+ assert.deepEqual(view.events,[]);assert.deepEqual(view.requests,[]);assert.deepEqual(view.applications,[]);assert.equal(view.coupons,null);assert.deepEqual(view.receiptRows,[]);assert.equal(memberStorage(current).receipts.length,1);
+});
+
+test('clearing or replacing identity invalidates cached event and application details',()=>{
+ for(const replace of [false,true]){
+  const current=ctx();setMemberSession(current,{sessionKey:token,expiresAt:expiresAt(),member:{name:'첫 부원'}});
+  Object.assign(current.state,{currentEvent:{id:'private-event'},currentReceipt:{id:'private-application'}});memberState(current).receiptRows=[{id:'private-request'}];
+  if(replace)setMemberSession(current,{sessionKey:'c'.repeat(64),expiresAt:expiresAt(),member:{name:'다음 부원'}});else clearMemberIdentity(current);
+  assert.equal(current.state.currentEvent,undefined);assert.equal(current.state.currentReceipt,undefined);assert.deepEqual(memberState(current).receiptRows,[]);
+ }
 });
 });

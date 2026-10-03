@@ -1,7 +1,8 @@
 import { publicHeader as header, publicFooter as footer, publicShell as shell } from './public-shell.js';
 import { linkKey } from './share-links.js';
 import { renderEventPage, renderApplicationPage, renderLinkError, eventSubmit, eventAction } from './event-pages.js';
-import { renderMemberPortal, memberPortalAction, memberPortalSubmit } from './member-portal.js';
+import { renderMemberPortal, renderMemberVerificationGate, memberPortalAction, memberPortalSubmit } from './member-portal.js';
+import { getMemberSessionKey, isMemberRoute } from './member-session.js';
 import privacyContent from './content/privacy.html?raw';
 import { openChatUrl } from '../../functions/src/public-links.js';
 import { esc, icon, textBlock, date, empty } from './ui.js';
@@ -16,6 +17,7 @@ async function publicInfo(ctx){
 export async function renderPublic(ctx){
  const path=location.pathname.replace(/\/+$/,'')||'/',parts=path.split('/').filter(Boolean);
  if(path==='/')return home();
+ if(isMemberRoute(path)&&!getMemberSessionKey(ctx))return shell(renderMemberVerificationGate(ctx,{returnTo:path}));
  const memberSections={'/members':'home','/events':'events','/members/events':'events','/members/applications':'applications','/members/coupons':'coupons','/members/more':'more'};
  if(memberSections[path])return shell(await renderMemberPortal(ctx,{section:memberSections[path]}));
  if(parts[0]==='members'&&parts[1]==='events'&&parts.length===3)return renderEventPage(ctx,parts[2],{member:true});
@@ -45,11 +47,12 @@ function currentPrivacyNotice(){
 }
 
 
-export async function publicSubmit(ctx,form,data){
- if(form.startsWith('member-'))return memberPortalSubmit(ctx,form,data);
+export async function publicSubmit(ctx,form,data,node){
+ if(form.startsWith('member-'))return memberPortalSubmit(ctx,form,data,node);
  return eventSubmit(ctx,form,data);
 }
 export async function publicAction(ctx,action,id,target){
+ if(isMemberRoute()&&!getMemberSessionKey(ctx)&&!['member-verify','member-refresh','public-refresh'].includes(action))return ctx.render();
  if(action.startsWith('member-'))return memberPortalAction(ctx,action,id,target);
  if(action==='public-refresh'){delete ctx.state.publicInfo;await ctx.render();return;}
  return eventAction(ctx,action,id,target);

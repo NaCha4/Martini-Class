@@ -67,25 +67,15 @@ test('member shell preserves the page heading and only adds an escaped title on 
   assert.doesNotMatch(titled, /<img\b/);
 });
 
-test('coupon preparation remains a static announced-later state in both variants', () => {
+test('coupon preparation is one concise unavailable notice without unused previews or controls', () => {
   for (const compact of [false, true]) {
     const html = renderMemberCouponPreparation({ compact });
     assert.match(html, /data-coupon-state="PREPARING"/);
     assert.match(html, /준비 중/);
     assert.match(html, /<h2 class="member-coupon-title">필링파인 쿠폰/);
-    assert.match(html, /운영 정책과 이용 대상, 사용 방법, 유효기간은 확정되면 안내/);
-    assert.match(html, /최대 10칸/);
-    assert.match(html, /혜택·상품 추후 안내/);
+    assert.match(html, /안내/);
     assert.doesNotMatch(html, /<h1\b|<button\b|<form\b|<input\b|<canvas\b|<img\b|data-action=|\bQR\b|잔액|보유|보상 정책|\b0\s*\/\s*10\b|\d+\s*(?:장|개|원)/i);
-    const links = navigationLinks(html);
-    assert.equal(links.length, compact ? 1 : 0);
-    if (compact) {
-      assert.match(links[0], /href="\/members\/coupons"[^>]*data-nav/);
-      assert.doesNotMatch(html, /member-coupon-slot/);
-    } else {
-      assert.match(html, /빈칸은 디자인 미리보기이며 내 적립 내역이 아닙니다/);
-      assert.match(html, /class="member-coupon-preview-grid" aria-hidden="true"/);
-      assert.equal((html.match(/<span class="member-coupon-slot"><\/span>/g) || []).length, 10);
-    }
+    assert.doesNotMatch(html, /member-coupon-slot|member-coupon-preview|쿠폰 구성 미리보기|최대 10칸|혜택·상품|운영 정책|이용 대상|유효기간/);
+    assert.equal(navigationLinks(html).length, 0);
   }
 });

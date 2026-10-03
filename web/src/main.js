@@ -5,10 +5,26 @@ import { renderScreen, screenAction, screenSubmit, isAdminScreen } from './scree
 import { sortMemberRows } from './admin.js';
 import { filterListRows } from './list-filters.js';
 import { decisionCategoryId, decisionBoardUrl } from './decision-categories.js';
+import { isMemberRoute, getMemberSessionKey, memberStorage } from './member-session.js';
 export const state={profile:null,user:null,authReady:false,data:{},settings:{},search:'',filter:'all',eventType:'all'};
 export const ctx={state,api,toast,navigate,render};
 const app=document.querySelector('#app');
 let renderNumber=0,rendering=false,trackedForm=null,navigating=false;
+let memberExpiryTimer;
+function expireMemberView(){
+  if(!isMemberRoute()||getMemberSessionKey(ctx))return;
+  if(!app.querySelector('.member-shell,.member-retry-page')&&!document.querySelector('.member-dialog'))return;
+  void closeModal({discard:true});
+  void render({focus:true});
+}
+function scheduleMemberExpiry(){
+  clearTimeout(memberExpiryTimer);
+  if(!isMemberRoute()||!getMemberSessionKey(ctx))return;
+  const remaining=Date.parse(memberStorage(ctx).session.expiresAt)-Date.now();
+  memberExpiryTimer=setTimeout(()=>{expireMemberView();scheduleMemberExpiry();},Math.max(0,Math.min(remaining+20,2147483647)));
+}
+window.addEventListener('focus',expireMemberView);
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')expireMemberView();});
 let currentIndex=Number(history.state?.martiniIndex||0),currentUrl=location.pathname+location.search+location.hash,restoringHistory=false;
 const positions=new Map();
 history.replaceState({...history.state,martiniIndex:currentIndex},'');
@@ -103,7 +119,7 @@ document.addEventListener('submit',async event=>{
   const form=event.target;
   if(!form.matches('form[data-form]'))return;event.preventDefault();
   if(form.getAttribute('aria-busy')==='true')return;
-  const restore=busyControl(form.querySelector('[type=submit]'),form.dataset.form==='apply'?'신청 중…':form.dataset.form==='login'?'로그인 중…':'처리 중…');
+  const restore=busyControl(form.querySelector('[type=submit]'),form.dataset.form==='apply'?'신청 중…':['login','member-login'].includes(form.dataset.form)?'로그인 중…':'처리 중…');
   form.setAttribute('aria-busy','true');form.inert=true;const alert=form.querySelector('[role=alert]');if(alert)alert.textContent='';
   try{const data=new FormData(form);await screenSubmit(ctx,form.dataset.form,data,form);}
   catch(error){form.inert=false;showFormError(form,error.code?.startsWith('auth/')?'이메일과 비밀번호를 확인해 주세요.':error.message);}
@@ -150,23 +166,26 @@ document.addEventListener('change',async event=>{
 const filterRows=()=>filterListRows(app,state);
 export async function render({focus=false,scroll}={}) {
   const current=++renderNumber,savedFocus=captureFocus(),savedScroll=scrollY;
+  const memberLocked=isMemberRoute()&&!getMemberSessionKey(ctx);
+  if(memberLocked)void closeModal({discard:true});
   rendering=true;app.setAttribute('aria-busy','true');
   let progress=document.querySelector('#page-progress');
   if(!progress){progress=document.createElement('div');progress.id='page-progress';progress.setAttribute('role','status');progress.innerHTML='<span class="sr-only">화면을 불러오고 있습니다.</span>';document.body.append(progress);}
   const hasView=!!app.querySelector('h1');
-  if(!hasView){app.innerHTML='<div class="loading" role="status">'+icon('loader-circle')+'<span>불러오는 중</span></div>';refreshIcons();}
+  if(!hasView||memberLocked){app.innerHTML='<div class="loading" role="status">'+icon('loader-circle')+'<span>불러오는 중</span></div>';refreshIcons();}
   else{
     app.style.minHeight=app.getBoundingClientRect().height+'px';
     const view=app.querySelector('.workspace-content,main');if(view)view.inert=true;
   }
   try{
-    const html=await renderScreen(ctx);
+    let html=await renderScreen(ctx);
+    if(current===renderNumber&&!html&&isMemberRoute()&&!getMemberSessionKey(ctx))html=await renderScreen(ctx);
     if(current!==renderNumber)return;
     app.innerHTML=html;refreshIcons();
     const search=app.querySelector('[data-search]'),filter=app.querySelector('[data-filter]');
     if(search)search.value=state.search;if(filter)filter.value=state.filter;const type=app.querySelector('[data-event-type]');if(type)type.value=state.eventType;filterRows();
     document.title=location.pathname==='/'?'Martini · 마티니':(app.querySelector('h1')?.textContent||'마티니')+' · Martini';
-    const application=app.querySelector('form[data-form=apply],form[data-form^="member-"]');
+    const application=app.querySelector('form[data-form=apply],form[data-form^="member-"]:not([data-form=member-login])');
     trackedForm=application?{node:application,signature:formSignature(application)}:null;
     app.style.minHeight='';
     window.scrollTo({top:scroll??savedScroll,behavior:'instant'});
@@ -175,7 +194,7 @@ export async function render({focus=false,scroll}={}) {
     if(current!==renderNumber)return;
     app.innerHTML='<main class="connection-page"><a href="/" data-nav class="brand">MARTINI</a><h1 tabindex="-1">연결을 확인해 주세요</h1><p>'+esc(error.message)+'</p><button class="button" type="button" id="retry-page">다시 시도</button></main>';
     app.querySelector('#retry-page').onclick=()=>render({focus:true});trackedForm=null;app.style.minHeight='';restoreFocus(null);
-  }finally{if(current===renderNumber){rendering=false;app.removeAttribute('aria-busy');progress.remove();}}
+  }finally{if(current===renderNumber){rendering=false;app.removeAttribute('aria-busy');progress.remove();scheduleMemberExpiry();}}
 }
 onAuthStateChanged(auth,async user=>{
   state.user=user;state.profile=null;

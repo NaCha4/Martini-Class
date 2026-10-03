@@ -4,6 +4,10 @@ export const MEMBER_STORAGE_KEY='martini-member-lounge-v1';
 const TOKEN=/^[a-f0-9]{64}$/;
 const REQUEST_ID=/^[a-zA-Z0-9_-]{1,128}$/;
 const requestKinds=['visit','join','inquiry'];
+export const isMemberRoute=(path=globalThis.location?.pathname||'')=>{
+ const pathname=path.split(/[?#]/,1)[0].replace(/\/+$/,'')||'/';
+ return pathname==='/events'||/^\/members(?:\/|$)/.test(pathname);
+};
 
 export function memberState(ctx){
  const view=ctx.state.memberLounge??={};
@@ -21,7 +25,8 @@ export function memberStorage(ctx){
 }
 export function persistMemberStorage(ctx){try{sessionStorage.setItem(MEMBER_STORAGE_KEY,JSON.stringify(memberStorage(ctx)));}catch{memberState(ctx).storageUnavailable=true;}}
 export function clearMemberIdentity(ctx){
- const view=memberState(ctx);memberStorage(ctx).session=null;view.member=null;view.events=[];view.requests=[];view.applications=[];view.coupons=null;persistMemberStorage(ctx);
+ const view=memberState(ctx);memberStorage(ctx).session=null;view.member=null;view.events=[];view.requests=[];view.applications=[];view.coupons=null;view.receiptRows=[];view.loaded=false;
+ delete ctx.state.currentEvent;delete ctx.state.currentReceipt;persistMemberStorage(ctx);
 }
 export function getMemberSessionKey(ctx){
  const session=memberStorage(ctx).session;if(!session)return '';
@@ -32,7 +37,8 @@ export function getVerifiedMember(ctx){return getMemberSessionKey(ctx)?memberSta
 export function setMemberSession(ctx,{sessionKey,expiresAt,member}){
  if(!TOKEN.test(sessionKey||'')||!Number.isFinite(Date.parse(expiresAt))||Date.parse(expiresAt)<=Date.now())throw new Error('부원 확인 정보가 올바르지 않습니다. 다시 확인해 주세요.');
  memberStorage(ctx).session={sessionKey,expiresAt};
- const view=memberState(ctx);view.events=[];view.requests=[];view.applications=[];view.coupons=null;
+ const view=memberState(ctx);view.events=[];view.requests=[];view.applications=[];view.coupons=null;view.receiptRows=[];view.loaded=false;
+ delete ctx.state.currentEvent;delete ctx.state.currentReceipt;
  view.member=member&&typeof member.name==='string'?{name:member.name,semester:member.semester||''}:null;
  persistMemberStorage(ctx);
 }
