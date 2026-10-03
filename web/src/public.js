@@ -24,8 +24,7 @@ export async function renderPublic(ctx){
   if(ctx.state.memberRouteSource!==path){
    ctx.state.memberRouteSource=path;
    ctx.state.memberInlineDetail=memberDetail?{kind:parts[1]==='events'?'event':'application',id:parts[2]}:null;
-   if(memberDetail)ctx.state.memberScrollTarget='member-detail';
-   else delete ctx.state.memberScrollTarget;
+   delete ctx.state.memberScrollTarget;
   }
   const selection=ctx.state.memberInlineDetail,marker='<!--member-inline-detail-->';
   let content=await renderMemberPortal(ctx);
@@ -36,7 +35,7 @@ export async function renderPublic(ctx){
    if(!getMemberSessionKey(ctx))return shell(renderMemberVerificationGate(ctx,{returnTo:path}));
    if(ctx.state.memberInlineDetail!==selection||getMemberSessionKey(ctx)!==sessionKey)return '';
    if(!detail)return '';
-   content=content.replace(marker,()=>'<section class="member-inline-detail" id="member-detail" tabindex="-1" aria-label="'+(selection.kind==='event'?'행사 상세':'신청 상세')+'"><div class="member-inline-heading"><span>'+(selection.kind==='event'?'행사 상세':'신청 상세')+'</span><button type="button" class="button secondary small" data-action="member-detail-close">'+icon('x')+' 상세 닫기</button></div>'+detail+'</section>');
+   content=content.replace(marker,()=>'<template id="member-detail-content" data-kind="'+esc(selection.kind)+'" data-id="'+esc(selection.id)+'" data-title="'+(selection.kind==='event'?'행사 상세':'신청 상세')+'">'+detail+'</template>');
   }
   return shell(content.replace(marker,''));
  }
@@ -71,17 +70,21 @@ export async function publicSubmit(ctx,form,data,node){
 }
 export async function publicAction(ctx,action,id,target){
  if(isMemberRoute()&&!getMemberSessionKey(ctx)&&!['member-verify','member-refresh','public-refresh'].includes(action))return ctx.render();
- if(isMemberRoute()&&['member-refresh','public-refresh','member-visit','member-request'].includes(action)&&ctx.mayLeave&&!await ctx.mayLeave())return;
+ const refreshSelection=['member-refresh','public-refresh'].includes(action)?ctx.state.memberInlineDetail:null;
+ if(isMemberRoute()&&['member-refresh','public-refresh','member-visit','member-request','member-events','member-partners'].includes(action)&&ctx.mayLeave&&!await ctx.mayLeave())return;
+ if(refreshSelection&&getMemberSessionKey(ctx))ctx.state.memberInlineDetail={...refreshSelection};
+ if(['member-visit','member-request','member-events','member-partners'].includes(action)){
+  delete ctx.state.memberInlineDetail;delete ctx.state.currentEvent;delete ctx.state.currentReceipt;
+ }
  if(['member-event-open','member-application-open','member-detail-close'].includes(action)){
   if(ctx.mayLeave&&!await ctx.mayLeave())return;
-  const previous=ctx.state.memberInlineDetail;
   if(action==='member-detail-close')delete ctx.state.memberInlineDetail;
   else{
    if(!/^[a-zA-Z0-9_-]{1,128}$/.test(id||''))throw new Error('상세 정보를 확인할 수 없습니다.');
    ctx.state.memberInlineDetail={kind:action==='member-event-open'?'event':'application',id};
   }
   delete ctx.state.currentEvent;delete ctx.state.currentReceipt;
-  ctx.state.memberScrollTarget=action==='member-detail-close'?'member-'+(previous?.kind==='event'?'events':'applications'):'member-detail';
+  delete ctx.state.memberScrollTarget;
   await ctx.render();return;
  }
  if(action.startsWith('member-'))return memberPortalAction(ctx,action,id,target);

@@ -66,18 +66,19 @@ export async function closeModal({discard=false}={}) {
   const dialog=document.querySelector('#modal[open]');
   return dialog?dialog.requestClose(discard):true;
 }
-export function modal(title, body, onSubmit, {wide=false,submit='저장',submitClass='button',busyText='저장 중…'}={}) {
+export function modal(title, body, onSubmit, {wide=false,submit='저장',submitClass='button',busyText='저장 중…',contentOnly=false,onClose}={}) {
   const previous=document.querySelector('#modal');
-  previous?.close();previous?.remove();
-  const opener=captureFocus(),openedPath=location.pathname;
+  if(previous){previous.replaced=true;previous.close();previous.remove();}
+  const opener=previous?.modalOpener||captureFocus(),openedPath=location.pathname;
   const dialog=document.createElement('dialog');
+  dialog.modalOpener=opener;
   dialog.id='modal';dialog.setAttribute('aria-labelledby','modal-title');dialog.setAttribute('aria-modal','true');dialog.className=wide?'wide-dialog':'';
-  dialog.innerHTML='<form id="modal-form"><header><div><h2 id="modal-title" tabindex="-1">'+esc(title)+'</h2></div><button type="button" class="icon-button" data-close aria-label="닫기">'+icon('x')+'</button></header><div class="dialog-scroll"><div class="form-grid">'+body+'</div><p class="form-error" role="alert"></p></div><footer><p class="dialog-status" role="status"></p><div class="dialog-actions"><button type="button" class="button secondary" data-close>닫기</button>'+(onSubmit?'<button class="'+esc(submitClass)+'" type="submit">'+esc(submit)+'</button>':'')+'</div></footer></form>';
+  dialog.innerHTML=(contentOnly?'<div class="dialog-frame">':'<form id="modal-form">')+'<header><div><h2 id="modal-title" tabindex="-1">'+esc(title)+'</h2></div><button type="button" class="icon-button" data-close aria-label="닫기">'+icon('x')+'</button></header><div class="dialog-scroll"><div class="'+(contentOnly?'dialog-content':'form-grid')+'">'+body+'</div>'+(contentOnly?'':'<p class="form-error" role="alert"></p>')+'</div><footer><p class="dialog-status" role="status"></p><div class="dialog-actions"><button type="button" class="button secondary" data-close>닫기</button>'+(!contentOnly&&onSubmit?'<button class="'+esc(submitClass)+'" type="submit">'+esc(submit)+'</button>':'')+'</div></footer>'+(contentOnly?'</div>':'</form>');
   document.body.append(dialog);
   const form=dialog.querySelector('form'),scroll=dialog.querySelector('.dialog-scroll'),actions=dialog.querySelector('.dialog-actions');
-  let baseline=formSignature(form),saving=false,resolveClose=null;
-  dialog.isDirty=()=>!!onSubmit&&formSignature(form)!==baseline;
-  dialog.isSaving=()=>saving;
+  let baseline=form?formSignature(form):null,saving=false,resolveClose=null;
+  dialog.isDirty=()=>!!form&&(!!onSubmit||contentOnly)&&formSignature(form)!==baseline;
+  dialog.isSaving=()=>saving||!!dialog.pendingRequest||!!dialog.querySelector('form[aria-busy=true]');
   const releaseConfirmation=accepted=>{
     dialog.querySelector('#discard-changes')?.remove();scroll.inert=false;actions.inert=false;
     const resolve=resolveClose;resolveClose=null;resolve?.(accepted);
@@ -85,7 +86,7 @@ export function modal(title, body, onSubmit, {wide=false,submit='저장',submitC
   dialog.requestClose=async(discard=false)=>{
     if(!dialog.open)return true;
     if(discard){releaseConfirmation(true);dialog.close();return true;}
-    if(saving){dialog.querySelector('.dialog-status').textContent='저장 중입니다. 완료될 때까지 기다려 주세요.';return false;}
+    if(dialog.isSaving()){dialog.querySelector('.dialog-status').textContent='처리 중입니다. 완료될 때까지 기다려 주세요.';return false;}
     if(!dialog.isDirty()){dialog.close();return true;}
     if(resolveClose)return false;
     const savedFocus=captureFocus();
@@ -101,9 +102,10 @@ export function modal(title, body, onSubmit, {wide=false,submit='저장',submitC
   dialog.addEventListener('cancel',event=>{event.preventDefault();if(resolveClose){releaseConfirmation(false);dialog.querySelector('#modal-title').focus();}else dialog.requestClose();});
   dialog.addEventListener('close',()=>{
     releaseConfirmation(false);dialog.remove();
+    onClose?.({replaced:!!dialog.replaced});
     if(!document.querySelector('dialog[open]')){document.documentElement.classList.remove('dialog-open');if(location.pathname===openedPath)restoreFocus(opener);}
   },{once:true});
-  form.addEventListener('submit',async event=>{
+  if(!contentOnly)form.addEventListener('submit',async event=>{
     event.preventDefault();if(!onSubmit||saving)return;
     saving=true;scroll.inert=true;const restore=busyControl(form.querySelector('[type=submit]'),busyText);
     form.setAttribute('aria-busy','true');form.querySelector('.form-error').textContent='';
@@ -114,7 +116,7 @@ export function modal(title, body, onSubmit, {wide=false,submit='저장',submitC
   if(!CSS.supports('scrollbar-gutter:stable'))document.documentElement.style.setProperty('--scrollbar-compensation',(innerWidth-document.documentElement.clientWidth)+'px');
   document.documentElement.classList.add('dialog-open');dialog.showModal();refreshIcons();
   dialog.querySelector('#modal-title').focus({preventScroll:true});
-  queueMicrotask(()=>{baseline=formSignature(form);});
+  queueMicrotask(()=>{baseline=form?formSignature(form):null;});
   return dialog;
 }
 export function refreshIcons(){createIcons({icons,attrs:{'stroke-width':1.7}});}

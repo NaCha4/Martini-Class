@@ -5,6 +5,7 @@ import { renderScreen, screenAction, screenSubmit, isAdminScreen } from './scree
 import { sortMemberRows } from './admin.js';
 import { filterListRows } from './list-filters.js';
 import { isMemberRoute, getMemberSessionKey, memberStorage } from './member-session.js';
+import { mountMemberDetail } from './member-detail.js';
 export const state={profile:null,user:null,authReady:false,data:{},settings:{},search:'',filter:'all',eventType:'all'};
 export const ctx={state,api,toast,navigate,render,mayLeave};
 const app=document.querySelector('#app');
@@ -70,7 +71,8 @@ window.addEventListener('popstate',async event=>{
   await render({focus:true,scroll:remembered?.scroll||0});
 });
 window.addEventListener('beforeunload',event=>{
-  if(document.querySelector('#modal[open]')?.isDirty()||dirtyApplication()||document.querySelector('form[aria-busy=true]')){event.preventDefault();event.returnValue='';}
+  const dialog=document.querySelector('#modal[open]');
+  if(dialog?.isDirty()||dialog?.isSaving()||dirtyApplication()||document.querySelector('form[aria-busy=true]')){event.preventDefault();event.returnValue='';}
 });
 function closePublicMenus(except=null){document.querySelectorAll('.public-mobile-menu[open]').forEach(menu=>{if(menu!==except)menu.open=false;});}
 document.addEventListener('keydown',event=>{
@@ -174,6 +176,7 @@ export async function render({focus=false,scroll}={}) {
     let html=await renderScreen(ctx);
     if(current===renderNumber&&!html&&isMemberRoute()&&!getMemberSessionKey(ctx))html=await renderScreen(ctx);
     if(current!==renderNumber)return;
+    if(isMemberRoute()&&!getMemberSessionKey(ctx))await closeModal({discard:true});
     app.innerHTML=html;refreshIcons();
     const search=app.querySelector('[data-search]'),filter=app.querySelector('[data-filter]');
     if(search)search.value=state.search;if(filter)filter.value=state.filter;const type=app.querySelector('[data-event-type]');if(type)type.value=state.eventType;filterRows();
@@ -187,6 +190,7 @@ export async function render({focus=false,scroll}={}) {
       const section=document.getElementById(state.memberScrollTarget);delete state.memberScrollTarget;
       if(section){section.scrollIntoView({block:'start',behavior:'instant'});section.focus({preventScroll:true});}
     }
+    mountMemberDetail(ctx);
   }catch(error){
     if(current!==renderNumber)return;
     app.innerHTML='<main class="connection-page"><a href="/" data-nav class="brand">MARTINI</a><h1 tabindex="-1">연결을 확인해 주세요</h1><p>'+esc(error.message)+'</p><button class="button" type="button" id="retry-page">다시 시도</button></main>';

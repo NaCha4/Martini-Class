@@ -62,14 +62,16 @@ test('a direct member event verifies in place and keeps its destination on reloa
   await expect(form).toBeVisible();
 });
 
-test('the events alias keeps all lounge content in the document and inline event actions preserve its URL', async ({ page }) => {
+test('the events alias opens event choices and application forms in popups without changing its URL', async ({ page }) => {
   await page.goto('/events');
   const alias = page.url();
   await expect(page.getByRole('heading', { name: '부원 로그인', exact: true })).toBeVisible();
   await verifyHere(page);
-  await expect(page.getByRole('heading', { name: '행사', exact: true })).toBeVisible();
+  await expect(page.locator('#member-events')).toBeVisible();
   await expect(page).toHaveURL(alias);
-  const events = page.locator('.member-event');
+  await expect(page.locator('.member-event')).toHaveCount(0);
+  await action(page, 'member-events').click();
+  const events = page.getByRole('dialog').locator('.member-event');
   await expect(events.first()).toBeVisible();
   await expect(page.getByRole('heading', { name: '행사 신청은 전달받은 링크에서.', exact: true })).toHaveCount(0);
   const eventId = await events.first().getAttribute('data-id');
@@ -77,19 +79,21 @@ test('the events alias keeps all lounge content in the document and inline event
   await expect(events.first()).toHaveAttribute('data-action', 'member-event-open');
   await expect(events.first()).not.toHaveAttribute('href');
   await expect(page.locator('.member-navigation, [data-action="member-section"], #member-coupons, .member-lounge details')).toHaveCount(0);
-  await expect(page.locator('.member-services > .member-service-card')).toHaveCount(3);
-  for (const section of ['visits', 'events', 'partners']) await expect(page.locator('#member-' + section)).toBeVisible();
-  await page.locator('#member-visits').scrollIntoViewIfNeeded();
-  await expect(action(page, 'member-visit')).toBeVisible();
+  await expect(page.locator('.member-services > button.member-service-card')).toHaveCount(3);
   await expect(action(page, 'member-inquiry')).toHaveCount(0);
   await expect(page).toHaveURL(alias);
   await page.reload();
   await expect(page).toHaveURL(alias);
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await action(page, 'member-events').click();
   await expect(events.first()).toBeVisible();
   await events.first().click();
   await expect(page).toHaveURL(alias);
-  await expect(page.locator('#member-detail form[data-form=apply]')).toBeVisible();
-  await page.locator('#member-visits').scrollIntoViewIfNeeded();
+  await expect(page.getByRole('dialog').locator('form[data-form=apply]')).toBeVisible();
+  await expect(page.getByRole('dialog')).toHaveClass(/member-detail-dialog/);
+  await expect(page.locator('#member-detail')).toHaveCount(0);
+  await page.getByRole('dialog').getByRole('button', { name: '닫기', exact: true }).last().click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
   await expect(page).toHaveURL(alias);
   await expect(action(page, 'member-visit')).toBeVisible();
 });

@@ -126,6 +126,10 @@ function eventCards(ctx,{past=false}={}){
   return '<button type="button" class="member-event" data-action="member-event-open" data-id="'+esc(event.id||event.eventId)+'"><span class="member-event-date"><span>'+esc(month)+'</span><strong>'+esc(day)+'</strong></span><span class="member-event-copy"><span class="member-event-meta"><span>'+esc(label(event.type))+'</span><span class="member-status '+(past||closed?'cancelled':upcoming?'pending':'approved')+'">'+status+'</span></span><strong class="member-event-title">'+esc(event.title)+'</strong><span class="member-event-summary">'+esc(stamp(event.startsAt))+' · '+esc(event.location||'장소 추후 안내')+'</span><small>'+(event.fee?money(event.fee):'참가비 없음')+'</small></span>'+icon('arrow-right')+'</button>';
  }).join('')+'</div>';
 }
+export function renderMemberEventChoices(ctx){
+ const past=state(ctx).events.some(event=>event.status!=='draft'&&!currentEvent(event));
+ return eventCards(ctx)+(past?'<div class="member-past-history"><h3>지난 행사</h3>'+eventCards(ctx,{past:true})+'</div>':'');
+}
 function currentRequest(request){
  if(request.kind==='visit')return ['pending','approved'].includes(request.status)&&(!request.startsAt||Date.parse(request.endsAt||request.startsAt)>=Date.now());
  return request.status==='pending';
@@ -141,8 +145,8 @@ function receiptMessages(ctx,{legacy=false}={}){
  if(!legacy&&last?.kind==='visit'&&receiptFor(ctx,view.lastReceiptId)&&view.lastReceiptId!==view.linkedId)output+='<div class="member-receipt-banner" role="status">'+icon('check')+'<p>신청을 접수했습니다. 다음에 결과를 볼 수 있도록 개인 확인 링크를 보관해 주세요.</p>'+button('확인 링크 복사','member-receipt-copy',{id:view.lastReceiptId,class:'button secondary small',icon:'copy'})+'</div>';
  return output;
 }
-function serviceHeading(title,id,symbol,description){
- return '<div class="member-service-heading"><span class="member-service-icon">'+icon(symbol)+'</span><div><h2 id="'+esc(id)+'">'+esc(title)+'</h2><p>'+esc(description)+'</p></div></div>';
+function serviceButton(title,id,symbol,description,action,cta){
+ return '<button type="button" id="member-'+id+'" class="member-service-card" data-member-service="'+id+'" data-action="'+action+'" aria-haspopup="dialog"><span class="member-service-icon">'+icon(symbol)+'</span><strong class="member-service-title">'+esc(title)+'</strong><span class="member-service-description">'+esc(description)+'</span><span class="member-service-open">'+esc(cta)+icon('arrow-up-right')+'</span></button>';
 }
 function activeApplication(row){
  const a=row.application,e=row.event;if(!a||!e)return false;
@@ -188,12 +192,13 @@ export async function renderMemberPortal(ctx){
  if(loaded.status==='stale')return '';
  if(loaded.status==='login'||!getMemberSessionKey(ctx))return renderMemberVerificationGate(ctx,{message:loaded.message});
  if(loaded.status!=='ok')return portalUnavailable();
- const view=state(ctx),pastEvents=view.events.filter(event=>event.status!=='draft'&&!currentEvent(event)),applications=view.applications.filter(row=>row.application?.id&&row.event),pastApplications=applications.filter(row=>!currentApplication(row));
+ const view=state(ctx),applications=view.applications.filter(row=>row.application?.id&&row.event),pastApplications=applications.filter(row=>!currentApplication(row));
  let content='<header id="member-home" class="member-account-bar" tabindex="-1"><h1 id="page-title" class="sr-only" tabindex="-1">부원 라운지</h1><strong>'+esc(view.member.name)+' 님</strong>'+button('로그아웃','member-forget',{class:'button secondary small',icon:'log-out'})+'</header>';
- content+='<div class="member-services"><section id="member-visits" class="member-service-card member-section" data-member-service="visits" tabindex="-1" aria-labelledby="member-visits-title">'+serviceHeading('외부인 출입신청','member-visits-title','door-open','방문 신청과 승인 결과를 확인하세요.')+button('외부인 출입 신청','member-visit',{class:'button full',icon:'plus'})+receiptMessages(ctx)+requestHistorySection(ctx)+'</section>';
- content+='<section id="member-events" class="member-service-card member-section" data-member-service="events" tabindex="-1" aria-labelledby="member-events-title">'+serviceHeading('행사','member-events-title','calendar-days','행사 일정과 내 신청을 확인하세요.')+eventCards(ctx)+(pastEvents.length?'<div class="member-past-history"><h3>지난 행사</h3>'+eventCards(ctx,{past:true})+'</div>':'');
- if(applications.length||view.applicationsError)content+='<div id="member-applications" class="member-service-history" tabindex="-1"><h3 id="member-applications-title">내 행사 신청</h3>'+applicationRows(ctx)+(pastApplications.length?'<div class="member-past-history"><h4>지난 신청</h4>'+applicationRows(ctx,{past:true})+'</div>':'')+'</div>';
- content+='</section><section id="member-partners" class="member-service-card member-section" data-member-service="partners" tabindex="-1" aria-labelledby="member-partners-title">'+serviceHeading('제휴','member-partners-title','ticket','동아리 제휴 혜택을 확인하세요.')+'<div class="member-partnership-empty">'+icon('ticket')+'<p>등록된 제휴 정보가 없습니다.</p></div></section></div>'+receiptMessages(ctx,{legacy:true})+'<!--member-inline-detail-->';
+ content+='<div class="member-services" aria-label="부원 서비스">'+serviceButton('외부인 출입신청','visits','door-open','외부인 방문을 신청하세요.','member-visit','신청하기')+serviceButton('행사','events','calendar-days','행사를 확인하고 신청하세요.','member-events','행사 보기')+serviceButton('제휴','partners','ticket','동아리 제휴 혜택을 확인하세요.','member-partners','혜택 보기')+'</div>';
+ let history=requestHistorySection(ctx);
+ if(applications.length||view.applicationsError)history+='<div id="member-applications" class="member-service-history" tabindex="-1"><h3 id="member-applications-title">내 행사 신청</h3>'+applicationRows(ctx)+(pastApplications.length?'<div class="member-past-history"><h4>지난 신청</h4>'+applicationRows(ctx,{past:true})+'</div>':'')+'</div>';
+ const receipts=receiptMessages(ctx)+receiptMessages(ctx,{legacy:true});
+ content+='<section id="member-records" class="member-records" aria-labelledby="member-records-title"><h2 id="member-records-title">내 신청 내역</h2>'+receipts+(history?'<div class="member-record-groups">'+history+'</div>':receipts?'':'<p class="member-quiet-empty">신청 내역이 없습니다.</p>')+'</section><!--member-inline-detail-->';
  if(view.storageUnavailable&&allRequests(ctx).length)content+='<p class="member-history-warning" role="status">브라우저 저장 공간을 사용할 수 없습니다. 새로고침하거나 창을 닫으면 현재 접수 내역의 조회 권한이 사라질 수 있습니다.</p>';
  return memberShell('<div class="member-lounge">'+content+'</div>');
 }
@@ -216,6 +221,16 @@ export async function memberPortalAction(ctx,action,id){
  if(action==='member-forget'){forgetMemberDevice(ctx);await ctx.navigate('/members',{replace:true,discard:true});ctx.toast('로그아웃했습니다.');return;}
  if(!getMemberSessionKey(ctx))return ctx.render();
  if(action==='member-visit')return getVerifiedMember(ctx)?openForm(ctx):ctx.render();
+ if(action==='member-events'){
+  if(!getVerifiedMember(ctx))return ctx.render();
+  const dialog=modal('행사','<div class="wide member-event-picker">'+renderMemberEventChoices(ctx)+'</div>',null,{wide:true});
+  dialog.classList.add('member-dialog','member-events-dialog');return dialog;
+ }
+ if(action==='member-partners'){
+  if(!getVerifiedMember(ctx))return ctx.render();
+  const dialog=modal('제휴','<div class="wide member-partnership-empty">'+icon('ticket')+'<p>등록된 제휴 정보가 없습니다.</p></div>',null);
+  dialog.classList.add('member-dialog','member-partners-dialog');return dialog;
+ }
  if(action==='member-receipt-copy'){
   const receipt=receiptFor(ctx,id);if(!receipt)throw new Error('이 탭의 접수 확인 정보가 없습니다.');
   const url=location.origin+'/members#request='+encodeURIComponent(receipt.id)+'&key='+encodeURIComponent(receipt.receiptKey);
