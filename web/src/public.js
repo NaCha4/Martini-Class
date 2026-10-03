@@ -61,7 +61,7 @@ export async function renderPublic(ctx){
 }
 function contentCards(items){return items.length?'<div class="content-list">'+items.map(c=>'<details class="panel padded"><summary><span>'+esc(c.title)+'</span><small>'+date(c.updatedAt)+'</small></summary>'+textBlock(c.body)+'</details>').join('')+'</div>':empty('아직 공개된 기록이 없습니다','새로운 소식이 등록되면 이곳에서 확인할 수 있습니다.');}
 function currentPrivacyNotice(){
- return '<section class="privacy-content" aria-label="부원 라운지 개인정보 추가 안내"><h2>현재 홈페이지의 부원 확인 · 신청 수집 항목</h2><p>앞의 가입·명부 관련 항목은 별도 가입 절차와 운영 명부에 관한 안내입니다. 현재 홈페이지의 부원 확인과 신청 화면에서 받는 정보는 아래와 같습니다.</p><p>부원 확인에는 명부에 등록된 이름·학번만 입력합니다. 연락처는 입력받거나 새 신청에 저장하지 않습니다. 부원 확인은 2시간 동안 유효하며, 현재 학기와 명부 상태가 변경되면 다시 확인합니다. 확인한 부원은 같은 정보를 다시 입력하지 않고 행사·출입 신청과 문의를 접수할 수 있습니다.</p><p>외부인 출입 신청에는 신청 부원의 이름·학번, 방문 날짜와 시작 시간, 외부인 인원 1~3명, 외부인 이름과 방문 사유를 수집합니다. 종료 시간은 입력받지 않습니다. 출입 승인과 동아리방 운영을 위해 사용하며 방문 시작 후 180일을 보관 검토 기준으로 삼습니다. 신청 부원은 외부인에게 이름 수집 목적을 안내해 주세요. 외부인의 연락처·학번·신분증 정보는 입력하지 않습니다.</p><p>문의에는 이름·학번과 문의 제목·본문을 수집하며 답변 후 180일을 보관 검토 기준으로 삼습니다. 행사 신청에는 명부의 이름·학번 확인 결과와 행사별 질문의 답변, 동의 및 신청·입금·취소 상태를 처리합니다. 가입 안내의 운영진 오픈채팅에서 별도 가입 절차를 안내하며, 부원 라운지는 가입 신청을 접수하지 않습니다. 이전에 접수된 가입 신청은 기존 보관 기준을 유지합니다. 운영진이 보존 기한과 처리 상태를 확인해 정리하며, 보관 안내가 자동 삭제 기능을 의미하지는 않습니다.</p><p>수집에 동의하지 않으면 온라인 신청을 접수할 수 없습니다. 조회·정정·삭제 요청은 부원 라운지의 문의하기 또는 홈페이지에 안내된 운영진 문의 채널로 남길 수 있습니다. 개인 신청 확인 링크는 신청 기록을 열 수 있으므로 본인만 보관해 주세요.</p></section>';
+ return '<section class="privacy-content" aria-label="부원 라운지 개인정보 추가 안내"><h2>현재 홈페이지의 부원 확인 · 신청 수집 항목</h2><p>앞의 가입·명부 관련 항목은 별도 가입 절차와 운영 명부에 관한 안내입니다. 현재 홈페이지의 부원 확인과 신청 화면에서 받는 정보는 아래와 같습니다.</p><p>부원 확인에는 명부에 등록된 이름·학번만 입력합니다. 연락처는 입력받거나 새 신청에 저장하지 않습니다. 부원 확인은 2시간 동안 유효하며, 현재 학기와 명부 상태가 변경되면 다시 확인합니다. 확인한 부원은 같은 정보를 다시 입력하지 않고 행사·출입 신청을 접수할 수 있습니다.</p><p>외부인 출입 신청에는 신청 부원의 이름·학번, 방문 날짜와 시작 시간, 외부인 인원 1~3명, 외부인 이름과 방문 사유를 수집합니다. 종료 시간은 입력받지 않습니다. 출입 승인과 동아리방 운영을 위해 사용하며 방문 시작 후 180일을 보관 검토 기준으로 삼습니다. 신청 부원은 외부인에게 이름 수집 목적을 안내해 주세요. 외부인의 연락처·학번·신분증 정보는 입력하지 않습니다.</p><p>이전에 접수된 문의의 이름·학번과 제목·본문은 답변 후 180일을 보관 검토 기준으로 삼습니다. 현재 문의는 카카오톡으로 안내하며 라운지에서는 새 문의를 접수하지 않습니다. 행사 신청에는 명부의 이름·학번 확인 결과와 행사별 질문의 답변, 동의 및 신청·입금·취소 상태를 처리합니다. 가입 안내의 운영진 오픈채팅에서 별도 가입 절차를 안내하며, 부원 라운지는 가입 신청을 접수하지 않습니다. 이전에 접수된 가입 신청은 기존 보관 기준을 유지합니다. 운영진이 보존 기한과 처리 상태를 확인해 정리하며, 보관 안내가 자동 삭제 기능을 의미하지는 않습니다.</p><p>수집에 동의하지 않으면 온라인 신청을 접수할 수 없습니다. 조회·정정·삭제 요청은 운영진 카카오톡 문의 채널로 남길 수 있습니다. 개인 신청 확인 링크는 신청 기록을 열 수 있으므로 본인만 보관해 주세요.</p></section>';
 }
 
 
@@ -71,7 +71,7 @@ export async function publicSubmit(ctx,form,data,node){
 }
 export async function publicAction(ctx,action,id,target){
  if(isMemberRoute()&&!getMemberSessionKey(ctx)&&!['member-verify','member-refresh','public-refresh'].includes(action))return ctx.render();
- if(isMemberRoute()&&['member-refresh','public-refresh','member-visit','member-inquiry','member-request'].includes(action)&&ctx.mayLeave&&!await ctx.mayLeave())return;
+ if(isMemberRoute()&&['member-refresh','public-refresh','member-visit','member-request'].includes(action)&&ctx.mayLeave&&!await ctx.mayLeave())return;
  if(['member-event-open','member-application-open','member-detail-close'].includes(action)){
   if(ctx.mayLeave&&!await ctx.mayLeave())return;
   const previous=ctx.state.memberInlineDetail;

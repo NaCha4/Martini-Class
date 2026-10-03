@@ -16,6 +16,13 @@ const time=offset=>new Date(Date.now()+offset).toISOString();
 const event=(id,extra={})=>({eventId:id,id,title:'행사 '+id,type:'class',location:'동아리방',startsAt:time(3600000),endsAt:time(7200000),opensAt:time(-10000),closesAt:time(1800000),cancelUntil:time(1800000),status:'open',fee:5000,capacity:20,registered:1,waiting:0,waitlist:true,questions:[],policy:'신청 안내',...extra});
 const application=(id,status='registered',payment='unpaid')=>({application:{id,eventId:'event-'+id,name:'테스트 부원',status,payment,createdAt:time(-5000),offerExpiresAt:time(600000),paidAmount:0,refundAmount:0,fee:5000},event:event('event-'+id)});
 const deferred=()=>{let resolve,reject;const promise=new Promise((yes,no)=>{resolve=yes;reject=no;});return {promise,resolve,reject};};
+const visitForm=()=>{const data=new FormData();for(const [key,value] of Object.entries({visitDate:new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Seoul'}).format(new Date(Date.now()+2*86400000)),startTime:'18:00',guestCount:'2',guestNames:'PRIVATE OLD GUESTS',purpose:'PRIVATE OLD PURPOSE',consent:'on'}))data.set(key,value);return data;};
+function serviceCards(html){
+ const entries=[...html.matchAll(/<section\b[^>]*data-member-service="([^"]+)"[^>]*>/g)];
+ assert.deepEqual(entries.map(match=>match[1]),['visits','events','partners']);
+ const cards={};for(let index=0;index<entries.length;index++)cards[entries[index][1]]=html.slice(entries[index].index,entries[index+1]?.index??html.indexOf('<!--member-inline-detail-->'));
+ return cards;
+}
 function route(path){const url=new URL(path,'https://martini.test');Object.assign(location,{pathname:url.pathname,search:url.search,hash:url.hash,href:url.href,origin:url.origin});}
 function assertLoginGate(html){
  assert.match(html,/data-form="member-login"/);assert.match(html,/<input\b[^>]*name="name"/);assert.match(html,/<input\b[^>]*name="studentId"/);
@@ -54,38 +61,45 @@ async function view(section,options){
  const data=context(options);return {...data,html:await renderMemberPortal(data.ctx,{section})};
 }
 
-test('one lounge immediately renders all useful records without navigation, disclosures, coupons, or duplicate summaries',async()=>{
+test('the lounge renders exactly three service cards with visit and event records grouped by service',async()=>{
  const events=[event('four',{startsAt:time(4000000)}),event('three',{startsAt:time(3000000)}),event('two',{startsAt:time(2000000)}),event('one',{startsAt:time(1000000)})];
  const requests=[{id:'visit-one',kind:'visit',purpose:'private visit purpose',guestNames:'private guest',status:'pending'}];
  const {html,calls}=await view('home',{events,requests,applications:[application('needs-payment'),application('offer','offered','none'),application('paid','registered','paid'),application('wait','waiting','none')]});
  assert.match(html,/테스트 부원/);assert.equal((html.match(/<h1\b/g)||[]).length,1);
- for(const section of ['events','applications','history'])assert.equal((html.match(new RegExp('id="member-'+section+'"','g'))||[]).length,1,section);
+ const cards=serviceCards(html);
+ for(const section of ['visits','events','partners','applications'])assert.equal((html.match(new RegExp('id="member-'+section+'"','g'))||[]).length,1,section);
+ for(const [id,title] of [['visits','외부인 출입신청'],['events','행사'],['partners','제휴']])assert.match(cards[id],new RegExp('<h2[^>]*>'+title+'</h2>'));
  assert.equal((html.match(/data-action="member-event-open"/g)||[]).length,4);
  assert.equal((html.match(/data-action="member-application-open"/g)||[]).length,4);
  for(const id of ['one','two','three','four'])assert.match(html,new RegExp('data-action="member-event-open"[^>]*data-id="'+id+'"'));
  assert.ok(html.indexOf('data-id="one"')<html.indexOf('data-id="two"'));
- for(const name of ['visit','inquiry','forget'])assert.match(html,new RegExp('data-action="member-'+name+'"'));
- assert.doesNotMatch(html,/<nav\b|<details\b|<summary\b|data-action="member-section"|member-home-grid|member-home-notices|member-home-coupon|member-coupons|data-coupon-state|준비 중|학기|지금 확인할 신청|다음 행사|href="\/notices"|private guest/);
+ for(const name of ['visit','forget'])assert.match(html,new RegExp('data-action="member-'+name+'"'));
+ assert.match(cards.visits,/data-action="member-visit"/);assert.match(cards.visits,/data-action="member-request" data-id="visit-one"/);
+ assert.doesNotMatch(cards.visits,/data-action="member-(?:event|application)-open"/);assert.match(cards.events,/id="member-applications"/);assert.match(cards.events,/<h3[^>]*>내 행사 신청<\/h3>/);
+ assert.doesNotMatch(cards.events,/data-action="member-request"|data-action="member-visit"/);assert.doesNotMatch(cards.partners,/data-action="member-|<button\b|<a\b/);
+ assert.doesNotMatch(html,/<nav\b|<details\b|<summary\b|data-action="member-(?:section|inquiry)"|운영진에게 문의|member-home-grid|member-home-notices|member-home-coupon|member-coupons|data-coupon-state|준비 중|학기|지금 확인할 신청|다음 행사|href="\/notices"|private guest/);
  assert.deepEqual(calls.map(call=>call.op),['memberPortal','memberApplications']);
 });
-test('integrated applications use inline detail buttons and preserve request history without secret links',async()=>{
+test('applications stay within events and only visit requests appear in the visit card without secret links',async()=>{
  const requests=[{id:'visit-one',kind:'visit',purpose:'테스트 방문',startsAt:time(1000000),createdAt:time(-10000),guestCount:2,status:'pending'},{id:'inquiry-one',kind:'inquiry',subject:'테스트 문의',createdAt:time(-9000),status:'answered'}];
  const {html}=await view('applications',{requests,applications:[application('event-request')]});
- assert.match(html,/id="member-applications"/);assert.match(html,/data-action="member-application-open"[^>]*data-id="event-request"/);assert.match(html,/출입 신청·문의/);
- for(const id of ['visit-one','inquiry-one'])assert.match(html,new RegExp('data-action="member-request" data-id="'+id+'"'));
+ const cards=serviceCards(html);assert.match(cards.events,/id="member-applications"/);assert.match(cards.events,/data-action="member-application-open"[^>]*data-id="event-request"/);
+ assert.match(cards.visits,/data-action="member-request" data-id="visit-one"/);assert.doesNotMatch(html,/inquiry-one|테스트 문의|출입 신청·문의/);
  assert.doesNotMatch(html,new RegExp(sessionKey+'|'+receiptKey));assert.doesNotMatch(html,/href="\/members\/applications\/event-request"/);
 });
-test('explicit refresh reloads server status without restoring navigation or empty panels',async()=>{
- const {html,ctx}=await view('applications');
+test('all three service cards remain visible when empty and refresh reloads their server status',async()=>{
+ const {html,ctx,calls}=await view('applications',{events:[]});
+ const cards=serviceCards(html);assert.match(cards.visits,/data-action="member-visit"/);assert.match(cards.events,/행사/);assert.match(cards.partners,/제휴/);
  assert.doesNotMatch(html,/data-action="member-section"|id="member-applications"|id="member-history"|진행 중인 행사 신청이 없어요/);
  let renders=0;ctx.render=async()=>{renders++;};
  await memberPortalAction(ctx,'member-refresh');assert.equal(renders,1);
+ assert.deepEqual(calls.map(call=>call.op),['memberPortal','memberApplications']);
 });
-test('visit inquiry and logout are directly available without redundant account or help sections',async()=>{
+test('visit and logout remain directly available while the inquiry form and help section are removed',async()=>{
  const {html}=await view('more');
- for(const name of ['visit','inquiry','forget'])assert.match(html,new RegExp('data-action="member-'+name+'"'));
+ for(const name of ['visit','forget'])assert.match(html,new RegExp('data-action="member-'+name+'"'));
  assert.equal((html.match(/테스트 부원/g)||[]).length,1);
- assert.doesNotMatch(html,/href="\/(?:notices|members\/applications)"|data-action="member-section"|마티니 홈페이지|로그인 중|학기/);
+ assert.doesNotMatch(html,/href="\/(?:notices|members\/applications)"|data-action="member-(?:section|inquiry)"|운영진에게 문의|id="member-more"|마티니 홈페이지|로그인 중|학기/);
 });
 test('the retired coupon URL still requires login and shows useful lounge content without a coupon placeholder or fetch',async()=>{
  const anonymous=await view('coupons',{verified:false});assertLoginGate(anonymous.html);assert.deepEqual(anonymous.calls,[]);
@@ -97,7 +111,8 @@ test('the retired coupon URL still requires login and shows useful lounge conten
 test('all supported lounge aliases return the same complete sections and never load public notices',async()=>{
  for(const path of ['/members','/members/events','/members/applications','/members/coupons','/members/more','/events']){
   values.clear();route(path);const {ctx,calls}=context({applications:[application('one')],requests:[{id:'one',kind:'inquiry',subject:'문의 내역',status:'answered'}]});const html=await renderPublic(ctx);
-  for(const section of ['events','applications','history'])assert.equal((html.match(new RegExp('id="member-'+section+'"','g'))||[]).length,1,path+' '+section);
+  for(const section of ['visits','events','partners','applications'])assert.equal((html.match(new RegExp('id="member-'+section+'"','g'))||[]).length,1,path+' '+section);
+  serviceCards(html);assert.doesNotMatch(html,/문의 내역|data-action="member-inquiry"/);
   assert.deepEqual(calls.map(call=>call.op),['memberPortal','memberApplications']);assert.doesNotMatch(html,/href="\/notices"|member-home-notices|member-navigation|data-action="member-section"|class="[^\"]*member-header-link/);
   assert.equal(ctx.state.memberScrollTarget,undefined,path);assert.equal(ctx.state.memberActiveSection,undefined,path);
  }
@@ -106,7 +121,7 @@ test('all supported lounge aliases return the same complete sections and never l
 test('past events, applications, and request history are visible from the first render without expanding a section',async()=>{
  const past=event('past-event',{startsAt:time(-7200000),endsAt:time(-3600000),status:'closed'});
  const pastApplication={...application('past-application','cancelled'),event:past};
- const requests=[{id:'pending-request',kind:'inquiry',subject:'처리 중 문의',status:'pending',createdAt:time(-1000)},{id:'past-request',kind:'inquiry',subject:'답변 완료 문의',status:'answered',createdAt:time(-2000)}];
+ const requests=[{id:'pending-request',kind:'visit',purpose:'승인 대기 방문',startsAt:time(1000000),status:'pending',createdAt:time(-1000)},{id:'past-request',kind:'visit',purpose:'취소한 방문',status:'cancelled',createdAt:time(-2000)}];
  const {html}=await view('home',{events:[event('current-event'),past],applications:[application('current-application'),pastApplication],requests});
  for(const id of ['current-event','past-event'])assert.match(html,new RegExp('data-action="member-event-open"[^>]*data-id="'+id+'"'));
  for(const id of ['current-application','past-application'])assert.match(html,new RegExp('data-action="member-application-open"[^>]*data-id="'+id+'"'));
@@ -225,21 +240,31 @@ test('a rejected login cannot establish a client session or expose previous cach
  assertLoginGate(await renderMemberPortal(ctx));
 });
 
-test('successful login resumes a legacy lounge receipt in place without exposing its key or navigating',async()=>{
+test('successful login retains a legacy inquiry receipt recovery banner without listing retired inquiry history',async()=>{
  route('/members#request=legacy-request&key='+receiptKey);const {ctx,calls,navigations}=context({verified:false}),base=ctx.api;
  ctx.api=async(op,data)=>{if(op==='clubRequestReceipt'){calls.push({op,data});return {request:{id:'legacy-request',kind:'inquiry',subject:'기존 문의',status:'answered',createdAt:time(-10000)}};}return base(op,data);};
  assertLoginGate(await renderMemberPortal(ctx));assert.deepEqual(calls,[]);
  const form=new FormData();form.set('name','테스트 부원');form.set('studentId','2026001');await memberPortalSubmit(ctx,'member-login',form);
  assert.deepEqual(navigations,[]);assert.equal(location.pathname,'/members');
- const html=await renderMemberPortal(ctx,{section:'applications'});assert.match(html,/기존 문의/);assert.doesNotMatch(html,new RegExp(receiptKey));assert.deepEqual(memberStorage(ctx).receipts,[{id:'legacy-request',receiptKey}]);
+ const html=await renderMemberPortal(ctx,{section:'applications'});assert.match(html,/개인 확인 링크의 신청을 불러왔습니다/);assert.match(html,/data-action="member-request" data-id="legacy-request"/);assert.doesNotMatch(html,/기존 문의|data-action="member-inquiry"/);assert.doesNotMatch(html,new RegExp(receiptKey));assert.deepEqual(memberStorage(ctx).receipts,[{id:'legacy-request',receiptKey}]);
+ assert.equal(memberState(ctx).receiptRows[0]?.subject,'기존 문의');
  assert.ok(calls.findIndex(call=>call.op==='memberPortal')<calls.findIndex(call=>call.op==='clubRequestReceipt'));
 });
 
-test('anonymous lounge actions and inquiry submission cannot bypass the page login gate',async()=>{
+test('anonymous lounge actions and visit submission cannot bypass the page login gate',async()=>{
  const {ctx,calls}=context({verified:false});memberStorage(ctx).receipts=[{id:'legacy-request',receiptKey}];
  for(const action of ['member-inquiry','member-visit','member-request'])await memberPortalAction(ctx,action,'legacy-request');
- const form=new FormData();form.set('name','anonymous');form.set('studentId','2026001');form.set('subject','subject');form.set('message','message');form.set('consent','on');
- await assert.rejects(memberPortalSubmit(ctx,'member-inquiry',form),/로그인/);assert.deepEqual(calls,[]);
+ await assert.rejects(memberPortalSubmit(ctx,'member-visit',visitForm()),/로그인/);assert.deepEqual(calls,[]);
+});
+
+test('retired inquiry actions and submissions are inert even for a verified member',async()=>{
+ for(const verified of [false,true]){
+  const {ctx,calls}=context({verified});let renders=0;ctx.render=async()=>{renders++;};
+  const form=new FormData();form.set('subject','inquiry title');form.set('message','inquiry body');form.set('consent','on');
+  await memberPortalAction(ctx,'member-inquiry');await memberPortalSubmit(ctx,'member-inquiry',form);
+  assert.deepEqual(calls,[]);assert.equal(memberStorage(ctx).pending.inquiry,undefined);assert.deepEqual(memberState(ctx).receiptRows,[]);
+  if(verified)assert.equal(renders,0);
+ }
 });
 
 test('late login results cannot establish a session after leaving the login page or logging out',async()=>{
@@ -331,14 +356,13 @@ test('independent e and r share links retain capability access without a member 
  }
 });
 
-test('late inquiry submissions do not insert old private records or rerender after identity changes',async()=>{
+test('late visit submissions do not insert old private records or rerender after identity changes',async()=>{
  for(const change of ['replacement','logout']){
   values.clear();route('/members/more');const {ctx,calls}=context(),barrier=deferred();let renders=0;
   ctx.render=async()=>{renders++;};ctx.api=async(op,data)=>{calls.push({op,data});return barrier.promise;};
-  const form=new FormData();form.set('subject','PRIVATE OLD SUBJECT');form.set('message','PRIVATE OLD MESSAGE');form.set('consent','on');
-  const pending=memberPortalSubmit(ctx,'member-inquiry',form);assert.equal(calls[0]?.op,'submitClubRequest');
+  const pending=memberPortalSubmit(ctx,'member-visit',visitForm());assert.equal(calls[0]?.op,'submitClubRequest');assert.equal(calls[0].data.kind,'visit');assert.equal(calls[0].data.sessionKey,sessionKey);
   if(change==='replacement')setMemberSession(ctx,{sessionKey:'c'.repeat(64),member:{name:'NEXT MEMBER'},expiresAt:time(60000)});else forgetMemberDevice(ctx);
-  barrier.resolve({id:'old-request',request:{id:'old-request',kind:'inquiry',subject:'PRIVATE OLD SUBJECT',message:'PRIVATE OLD MESSAGE'}});
+  barrier.resolve({id:'old-request',request:{id:'old-request',kind:'visit',guestNames:'PRIVATE OLD GUESTS',purpose:'PRIVATE OLD PURPOSE'}});
   await pending;assert.deepEqual(memberState(ctx).receiptRows,[]);assert.equal(renders,0);assert.equal(getMemberSessionKey(ctx),change==='replacement'?'c'.repeat(64):'');
   if(change==='logout')assert.deepEqual(memberStorage(ctx).receipts,[]);
  }

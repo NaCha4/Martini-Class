@@ -77,9 +77,11 @@ test('the events alias keeps all lounge content in the document and inline event
   await expect(events.first()).toHaveAttribute('data-action', 'member-event-open');
   await expect(events.first()).not.toHaveAttribute('href');
   await expect(page.locator('.member-navigation, [data-action="member-section"], #member-coupons, .member-lounge details')).toHaveCount(0);
-  await page.locator('#member-more').scrollIntoViewIfNeeded();
+  await expect(page.locator('.member-services > .member-service-card')).toHaveCount(3);
+  for (const section of ['visits', 'events', 'partners']) await expect(page.locator('#member-' + section)).toBeVisible();
+  await page.locator('#member-visits').scrollIntoViewIfNeeded();
   await expect(action(page, 'member-visit')).toBeVisible();
-  await expect(action(page, 'member-inquiry')).toBeVisible();
+  await expect(action(page, 'member-inquiry')).toHaveCount(0);
   await expect(page).toHaveURL(alias);
   await page.reload();
   await expect(page).toHaveURL(alias);
@@ -87,7 +89,7 @@ test('the events alias keeps all lounge content in the document and inline event
   await events.first().click();
   await expect(page).toHaveURL(alias);
   await expect(page.locator('#member-detail form[data-form=apply]')).toBeVisible();
-  await page.locator('#member-more').scrollIntoViewIfNeeded();
+  await page.locator('#member-visits').scrollIntoViewIfNeeded();
   await expect(page).toHaveURL(alias);
   await expect(action(page, 'member-visit')).toBeVisible();
 });
