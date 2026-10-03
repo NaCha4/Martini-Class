@@ -8,11 +8,13 @@ test.afterEach(async({page},info)=>{
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBeTruthy();
  await page.screenshot({path:'.local/screenshots/'+info.project.name+'-'+info.title+'.png',fullPage:true});
 });
-test('menu discovery and combined event filters survive browser back',async({page,isMobile})=>{
- await page.getByRole('button',{name:isMobile?'전체 메뉴':'메뉴 찾기',exact:true}).click();
- const dialog=page.getByRole('dialog');await dialog.getByRole('searchbox',{name:'메뉴 찾기'}).fill('출석');
- await expect(dialog.locator('[data-menu-item]:visible')).toHaveCount(1);
- await dialog.getByRole('link',{name:'행사 · 교육'}).click();
+test('operating navigation and combined event filters survive browser back',async({page,isMobile})=>{
+ if(isMobile){
+  await page.getByRole('button',{name:'전체 메뉴',exact:true}).click();
+  await page.getByRole('dialog').getByRole('link',{name:'행사 · 교육',exact:true}).click();
+ }else{
+  await page.getByRole('navigation',{name:'운영 메뉴',exact:true}).getByRole('link',{name:'행사 · 교육',exact:true}).click();
+ }
  await expect(page.getByRole('heading',{name:'행사 · 교육',exact:true})).toBeVisible();
  await page.locator('[data-event-type]').selectOption('class');
  const count=await page.locator('.event-card-wrap:visible').count();expect(count).toBeGreaterThan(0);

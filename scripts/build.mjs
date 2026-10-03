@@ -6,7 +6,8 @@ const root=path.resolve(fileURLToPath(new URL('../',import.meta.url)));
 process.chdir(root);
 await build();
 const output=path.join(root,'dist');
-const routes=['e','r','about','activities','join','notices','privacy','events','members','admin','admin/events','admin/members','admin/requests','admin/inventory','admin/finance','admin/meetings','admin/decisions','admin/content','admin/settings','admin/admins','admin/roles','admin/privacy','admin/audit','admin/on-the-rock'];
+// Dynamic event/application details use the shared 404 SPA fallback on Pages.
+const routes=['e','r','about','activities','join','notices','privacy','events','members','members/events','members/applications','members/coupons','members/more','admin','admin/events','admin/members','admin/requests','admin/inventory','admin/finance','admin/meetings','admin/decisions','admin/content','admin/settings','admin/admins','admin/roles','admin/privacy','admin/audit','admin/on-the-rock'];
 const html=await fs.readFile(path.join(output,'index.html'),'utf8');
 await fs.writeFile(path.join(output,'404.html'),html);
 for(const route of routes){await fs.mkdir(path.join(output,route),{recursive:true});await fs.writeFile(path.join(output,route,'index.html'),html);}

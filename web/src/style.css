@@ -244,3 +244,9 @@ td .title-button{text-align:left;line-height:1.6}
 .staff-checkbox input{width:18px;height:18px;margin:0;accent-color:var(--gold);cursor:pointer}.staff-checkbox:has(input:disabled){cursor:default;opacity:.6}
 .staff-pricing-choice{padding:12px 16px;background:var(--panel);border:1px solid var(--line);border-radius:8px}
 @media(max-width:650px){.staff-pricing-panel{padding:18px}.staff-pricing-panel>.button{width:100%}}
+
+/* Member entry remains visible on narrow screens; operations are secondary. */
+.member-header-link{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:8px 14px;border:1px solid #897344;border-radius:8px;color:#f0dba4;text-decoration:none;font-size:13px;font-weight:650;white-space:nowrap}
+.member-header-link:hover{background:#352e21}.member-header-link:focus-visible,.footer-admin-link:focus-visible{outline:2px solid #f0dba4;outline-offset:4px}
+.footer-admin-link{display:inline-flex;align-items:center;gap:6px;min-height:44px;color:inherit;font-size:12px;text-decoration:none}
+@media(max-width:640px){.member-header-link{padding:8px 10px;font-size:12px}.member-header-link svg{width:17px;height:17px}.public-header .header-actions{gap:8px}}

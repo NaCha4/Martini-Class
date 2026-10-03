@@ -9,9 +9,10 @@ test('original privacy policy stays readable when the API is unavailable',async(
  await page.route('**/martiniApi',route=>{apiRequests++;return route.abort();});
  await page.goto('/privacy');
  await expect(page.getByRole('heading',{name:'개인정보 처리방침',exact:true})).toBeVisible();
- await expect(page.locator('.privacy-content h2')).toHaveCount(10);
- await expect(page.locator('.privacy-content')).toContainText('가입 승인 또는 반려 후 1년까지 보관');
- await expect(page.locator('.privacy-content')).toContainText('시행일자: 2026년 6월 17일');
+ const originalPolicy=page.getByRole('article',{name:'개인정보 처리방침 본문',exact:true});
+ await expect(originalPolicy.locator('h2')).toHaveCount(10);
+ await expect(originalPolicy).toContainText('가입 승인 또는 반려 후 1년까지 보관');
+ await expect(originalPolicy).toContainText('시행일자: 2026년 6월 17일');
  expect(apiRequests).toBe(0);
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
 });

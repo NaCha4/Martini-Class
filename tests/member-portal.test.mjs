@@ -24,6 +24,10 @@ const inquiry=(extra={})=>({op:'submitClubRequest',kind:'inquiry',requestId:'inq
 const command=(id,action,extra={})=>service.handle({op:'clubRequestCommand',id,revision:1,action,response:action==='approve'?'':'운영진 답변',...extra},owner);
 const lookup=id=>service.handle({op:'clubRequestReceipt',id,receiptKey},guest);
 const cancel=id=>service.handle({op:'cancelClubRequest',id,receiptKey},guest);
+const eventApply=(extra={})=>({op:'apply',eventId:'event-one',sessionKey:session,answers:[],consent:true,requestId:'application-one',receiptKey,...extra});
+const applications=(sessionKey=session)=>service.handle({op:'memberApplications',sessionKey},guest);
+const application=(id,action='get',extra={})=>service.handle({op:'memberApplication',sessionKey:session,id,action,...extra},guest);
+const eventReceipt=(id,action='get',key=receiptKey)=>service.handle({op:'receipt',id,key,action},guest);
 const seedLegacyJoin=id=>ref('clubRequests',id).set({id,kind:'join',...person(3),department:'가상학과',grade:'1',message:'기존 가입 신청',semester:'2026-2',status:'pending',revision:1,response:'',receiptHash:hash(receiptKey),payloadHash:hash(id),consentedAt:stamp(),createdAt:stamp(),updatedAt:stamp(),retentionUntil:null});
 
 beforeEach(async()=>{
@@ -281,4 +285,171 @@ test('identity guessing is throttled across IP addresses and receipt guesses are
  await service.handle(inquiry(),guest);
  for(let i=0;i<20;i++)await assert.rejects(service.handle({op:'clubRequestReceipt',id:'inquiry-one',receiptKey:hash('wrong-'+i)},{ip:'receipt-ip-'+i}),e=>e.code==='not-found');
  await assert.rejects(lookup('inquiry-one'),e=>e.code==='resource-exhausted');
+});
+
+test('authenticated application derives identity while legacy link applications still require it',async()=>{
+ await access();
+ for(const extra of [{name:person(2).name},{studentId:person(2).studentId},{phone:person(2).phone}])await assert.rejects(service.handle(eventApply(extra),guest),e=>e.code==='permission-denied');
+ const saved=await service.handle(eventApply(),guest);
+ assert.equal(saved.status,'registered');assert.deepEqual(await service.handle(eventApply(),guest),saved);
+ const stored=(await ref('applications',saved.id).get()).data();
+ assert.equal(stored.name,person().name);assert.equal(stored.memberId,'member-1');assert.equal(stored.memberIdentityHash,hash(JSON.stringify([person().name,person().studentId,person().phone])));
+ for(const field of ['sessionKey','receiptKey','studentId','phone'])assert.equal(stored[field],undefined);
+ const {sessionKey:unused,...linkInput}=eventApply({key:'d'.repeat(64),requestId:'link-application',receiptKey:'e'.repeat(64)});
+ await assert.rejects(service.handle(linkInput,guest),e=>e.code==='invalid-argument');
+ for(const partial of [{name:person(2).name},{studentId:person(2).studentId}])await assert.rejects(service.handle({...linkInput,...partial},guest),e=>e.code==='invalid-argument');
+ const linked=await service.handle({...linkInput,...loungePerson(2)},guest);
+ await access(2,otherSession);
+ assert.deepEqual((await applications(otherSession)).applications.map(row=>row.application.id),[linked.id]);
+ assert.equal((await eventReceipt(linked.id,'get','e'.repeat(64))).application.memberIdentityHash,undefined);
+ assert.equal((await ref('events','event-one').get()).data().linkHash,hash('d'.repeat(64)));
+});
+
+test('member application history exposes only current owned safe records and public event fields',async()=>{
+ await access();await access(2,otherSession);
+ const saved=await service.handle(eventApply(),guest);
+ const other=await service.handle(eventApply({sessionKey:otherSession,requestId:'other-application',receiptKey:'e'.repeat(64)}),{ip:'other-application'});
+ await ref('applications',saved.id).update({note:'private-application-note',cancelReason:'private-admin-reason',updatedBy:'private-admin',isStaff:true,staffFee:0,staffFeeRevision:2,pricingRevision:3});
+ const stored=(await ref('applications',saved.id).get()).data();
+ for(const [id,patch] of Object.entries({legacy:{memberIdentityHash:null},old:{semester:'2026-1'},deleted:{deletedAt:stamp()},anonymized:{anonymizedAt:stamp()},wrongIdentity:{memberIdentityHash:hash('wrong-person')},wrongMember:{memberId:'member-2'},missingEvent:{eventId:'missing-event'}}))await ref('applications','application-'+id).set({...stored,...patch,id:'application-'+id});
+ const result=await applications();
+ assert.equal(result.legacyAccessRequiresReceipt,true);assert.equal(result.expiresAt,(await access()).expiresAt);
+ assert.deepEqual(result.applications.map(row=>row.application.id),[saved.id]);
+ const detail=await application(saved.id);assert.deepEqual(detail,result.applications[0]);
+ for(const field of ['memberId','memberIdentityHash','receiptHash','requestId','note','cancelReason','updatedBy','isStaff','staffFee','staffFeeRevision','pricingRevision'])assert.equal(detail.application[field],undefined);
+ for(const field of ['linkHash','owner','note'])assert.equal(detail.event[field],undefined);
+ for(const action of ['get','payment','cancel','accept','decline'])await assert.rejects(application(other.id,action),e=>e.code==='not-found');
+ assert.equal((await ref('applications',other.id).get()).data().status,'registered');
+});
+
+test('hashless legacy event applications remain receipt-only and duplicate retries do not migrate them',async()=>{
+ await access();const saved=await service.handle(eventApply(),guest);
+ const stored=(await ref('applications',saved.id).get()).data();delete stored.memberIdentityHash;
+ await ref('applications',saved.id).set(stored);
+ assert.deepEqual(await service.handle(eventApply(),guest),saved);
+ assert.equal((await ref('applications',saved.id).get()).data().memberIdentityHash,undefined);
+ assert.deepEqual((await applications()).applications,[]);
+ for(const action of ['get','payment','cancel','accept','decline'])await assert.rejects(application(saved.id,action),e=>e.code==='not-found');
+ const receipt=await eventReceipt(saved.id);
+ assert.equal(receipt.application.name,person().name);assert.equal(receipt.event.id,'event-one');
+ assert.deepEqual(await eventReceipt(saved.id,'cancel'),{saved:true});
+ assert.deepEqual(await eventReceipt(saved.id,'cancel'),{saved:true});
+ assert.equal((await ref('events','event-one').get()).data().registered,0);
+});
+
+test('earlier semesters with the same identity cannot consume the current application list bound',async()=>{
+ await access();const saved=await service.handle(eventApply(),guest);
+ const stored=(await ref('applications',saved.id).get()).data();
+ let batch=db.batch();
+ for(let i=0;i<501;i++){
+  const id='000-prior-'+String(i).padStart(4,'0');
+  batch.set(ref('applications',id),{...stored,id,semester:'2026-1'});
+  if(i===499){await batch.commit();batch=db.batch();}
+ }
+ await batch.commit();
+ const result=await applications();
+ assert.deepEqual(result.applications.map(row=>row.application.id),[saved.id]);
+ assert.equal(result.truncated,undefined);
+});
+
+test('a reassigned roster row cannot reveal or change the previous member application even with the same name',async()=>{
+ await access();const saved=await service.handle(eventApply(),guest);
+ await memberRef('member-1').update({...person(3),name:person().name,identityHash:identity(person(3).studentId,person(3).phone)});
+ await assert.rejects(applications(),e=>e.code==='permission-denied');
+ await assert.rejects(application(saved.id),e=>e.code==='permission-denied');
+ await service.handle({op:'memberAccess',name:person().name,studentId:person(3).studentId,sessionKey:otherSession},{ip:'replacement'});
+ assert.deepEqual((await applications(otherSession)).applications,[]);
+ for(const action of ['get','payment','cancel','accept','decline'])await assert.rejects(application(saved.id,action,{sessionKey:otherSession}),e=>e.code==='not-found');
+ assert.equal((await ref('applications',saved.id).get()).data().status,'registered');
+ assert.equal((await eventReceipt(saved.id)).application.name,person().name);
+});
+
+test('application history remains readable for completed current-semester events',async()=>{
+ await access();const saved=await service.handle(eventApply(),guest);
+ await ref('events','event-one').update({status:'completed',endsAt:time(-1)});
+ assert.equal((await application(saved.id)).event.status,'completed');
+ assert.equal((await applications()).applications[0].application.id,saved.id);
+ await ref('events','event-one').update({semester:'2026-1'});
+ assert.deepEqual((await applications()).applications,[]);
+ await assert.rejects(application(saved.id),e=>e.code==='not-found');
+});
+
+test('session and legacy receipt payment/cancellation share atomic transitions without financial writes',async()=>{
+ await access();await ref('events','event-one').update({fee:10000});
+ const saved=await service.handle(eventApply(),guest);
+ assert.equal((await application(saved.id,'payment')).application.payment,'requested');
+ const payments=await Promise.all([application(saved.id,'payment'),eventReceipt(saved.id,'payment')]);
+ assert.equal(payments[0].application.payment,'requested');assert.deepEqual(payments[1],{saved:true});
+ assert.equal((await db.collection('martini_v2_finance').get()).size,0);
+ await ref('applications',saved.id).update({payment:'paid',paidAmount:10000,refundAmount:0});
+ const before=(await ref('events','event-one').get()).data();
+ const cancellations=await Promise.all([application(saved.id,'cancel'),eventReceipt(saved.id,'cancel'),application(saved.id,'cancel')]);
+ assert.equal(cancellations[0].application.status,'cancelled');assert.equal(cancellations[0].application.payment,'refund_pending');
+ assert.deepEqual(cancellations[1],{saved:true});assert.equal(cancellations[2].event.registered,0);
+ const after=(await ref('events','event-one').get()).data();
+ assert.equal(after.registered,0);assert.equal(after.revision,before.revision+1);assert.equal(after.waiting,0);
+ assert.equal((await db.collection('martini_v2_finance').get()).size,0);
+});
+
+test('waiting cancellation and offer decline release only their existing reservations',async()=>{
+ await access();await ref('events','event-one').update({capacity:1,registered:1,waitlist:true});
+ const saved=await service.handle(eventApply(),guest);assert.equal(saved.status,'waiting');
+ const cancelled=await application(saved.id,'cancel');assert.equal(cancelled.event.registered,1);assert.equal(cancelled.event.waiting,0);
+ await service.handle(eventApply({requestId:'application-retry'}),guest);
+ await ref('events','event-one').update({registered:0});
+ await service.handle({op:'applicationCommand',id:saved.id,action:'offer',offerExpiresAt:time(300000),reason:'available seat'},owner);
+ await ref('events','event-one').update({cancelUntil:time(-1)});
+ await assert.rejects(application(saved.id,'cancel'),e=>e.code==='failed-precondition');
+ const declined=await application(saved.id,'decline');
+ assert.equal(declined.application.status,'cancelled');assert.equal(declined.event.registered,0);assert.equal(declined.event.waiting,0);
+ assert.deepEqual(await eventReceipt(saved.id,'decline'),{saved:true});
+});
+
+test('member offer acceptance preserves expiry, retry and effective-fee rules',async()=>{
+ await access();await ref('events','event-one').update({capacity:1,registered:1,waitlist:true,fee:10000});
+ const saved=await service.handle(eventApply(),guest);
+ await ref('events','event-one').update({registered:0});
+ await service.handle({op:'applicationCommand',id:saved.id,action:'offer',offerExpiresAt:time(300000),reason:'available seat'},owner);
+ await ref('applications',saved.id).update({isStaff:true,staffFee:0});
+ now+=300000;
+ await assert.rejects(application(saved.id,'accept'),e=>e.code==='failed-precondition');
+ assert.equal((await ref('applications',saved.id).get()).data().status,'offered');
+ now=baseline;
+ const accepted=await application(saved.id,'accept');
+ assert.equal(accepted.application.status,'registered');assert.equal(accepted.application.payment,'none');assert.equal(accepted.event.registered,1);assert.equal(accepted.event.waiting,0);
+ await assert.rejects(application(saved.id,'accept'),e=>e.code==='failed-precondition');
+ await assert.rejects(eventReceipt(saved.id,'accept'),e=>e.code==='failed-precondition');
+ assert.equal((await ref('events','event-one').get()).data().registered,1);
+});
+
+test('member applications and preparing coupons require a live current-semester session',async()=>{
+ await access();const saved=await service.handle(eventApply(),guest);
+ const requests=[{op:'memberApplications',sessionKey:session},{op:'memberApplication',sessionKey:session,id:saved.id},{op:'memberCoupons',sessionKey:session}];
+ now+=7200001;
+ for(const request of requests)await assert.rejects(service.handle(request,guest),e=>e.code==='unauthenticated');
+ now=baseline;await ref('settings','club').update({semester:'2027-1'});
+ for(const request of requests)await assert.rejects(service.handle(request,guest),e=>e.code==='unauthenticated');
+});
+
+test('coupon reads remain preparing, disclose no balance or QR and create no coupon records',async()=>{
+ await access();
+ const before=(await db.listCollections()).map(collection=>collection.id).sort();
+ const result=await service.handle({op:'memberCoupons',sessionKey:session},guest);
+ assert.deepEqual(result,{status:'preparing',available:false,capacity:10,rewardStatus:'undecided',expiresAt:new Date(now+7200000).toISOString()});
+ assert.deepEqual((await db.listCollections()).map(collection=>collection.id).sort(),before);
+ for(const field of ['balance','stampCount','coupons','qr','memberId','reward'])assert.equal(result[field],undefined);
+ await assert.rejects(service.handle({op:'memberCoupons',sessionKey:session,action:'issue'},guest),e=>e.code==='invalid-argument');
+ for(const op of ['issueCoupon','stampCoupon','redeemCoupon'])await assert.rejects(service.handle({op},owner),e=>e.code==='not-found');
+ await memberRef('member-1').update({removedAt:stamp()});
+ await assert.rejects(service.handle({op:'memberCoupons',sessionKey:session},guest),e=>e.code==='permission-denied');
+});
+
+test('member apply and coupon requests encounter the IP guard before unverified session reads',async()=>{
+ const minute=Math.floor(now/60000);
+ for(const [bucket,count,input] of [['apply-session-ip',200,eventApply({sessionKey:'f'.repeat(64)})],['member-coupons',200,{op:'memberCoupons',sessionKey:'f'.repeat(64)}]]){
+  await ref('rateLimits',hash(guest.ip+':'+bucket+':'+minute)).set({count});
+  await assert.rejects(service.handle(input,guest),e=>e.code==='resource-exhausted');
+ }
+ assert.equal((await db.collection('martini_v2_memberSessions').get()).size,0);
+ assert.equal((await db.collection('martini_v2_applications').get()).size,0);
 });

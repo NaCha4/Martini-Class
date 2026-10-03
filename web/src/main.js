@@ -1,8 +1,9 @@
 import './style.css';
 import { api, auth, onAuthStateChanged } from './firebase.js';
 import { esc, icon, refreshIcons, toast, modal, closeModal, formSignature, captureFocus, restoreFocus, busyControl, showFormError } from './ui.js';
-import { renderPublic, publicAction, publicSubmit } from './public.js';
-import { renderAdmin, adminAction, adminSubmit, sortMemberRows } from './admin.js';
+import { renderScreen, screenAction, screenSubmit, isAdminScreen } from './screen-router.js';
+import { sortMemberRows } from './admin.js';
+import { filterListRows } from './list-filters.js';
 import { decisionCategoryId, decisionBoardUrl } from './decision-categories.js';
 export const state={profile:null,user:null,authReady:false,data:{},settings:{},search:'',filter:'all',eventType:'all'};
 export const ctx={state,api,toast,navigate,render};
@@ -94,7 +95,7 @@ document.addEventListener('click',async event=>{
   if(pendingActions.has(key)||target.disabled)return;
   pendingActions.add(key);
   const release=target.matches('button')?busyControl(target):()=>{};
-  try{if(location.pathname.startsWith('/admin'))await adminAction(ctx,target.dataset.action,target.dataset.id,target);else await publicAction(ctx,target.dataset.action,target.dataset.id,target);}
+  try{await screenAction(ctx,target.dataset.action,target.dataset.id,target);}
   catch(error){toast(error.message||'처리하지 못했습니다. 다시 시도해 주세요.');}
   finally{release();pendingActions.delete(key);}
 });
@@ -104,7 +105,7 @@ document.addEventListener('submit',async event=>{
   if(form.getAttribute('aria-busy')==='true')return;
   const restore=busyControl(form.querySelector('[type=submit]'),form.dataset.form==='apply'?'신청 중…':form.dataset.form==='login'?'로그인 중…':'처리 중…');
   form.setAttribute('aria-busy','true');form.inert=true;const alert=form.querySelector('[role=alert]');if(alert)alert.textContent='';
-  try{const data=new FormData(form);if(location.pathname.startsWith('/admin'))await adminSubmit(ctx,form.dataset.form,data,form);else await publicSubmit(ctx,form.dataset.form,data,form);}
+  try{const data=new FormData(form);await screenSubmit(ctx,form.dataset.form,data,form);}
   catch(error){form.inert=false;showFormError(form,error.code?.startsWith('auth/')?'이메일과 비밀번호를 확인해 주세요.':error.message);}
   finally{form.inert=false;restore();form.removeAttribute('aria-busy');}
 });
@@ -137,7 +138,7 @@ document.addEventListener('change',async event=>{
   if(event.target.matches('input,select,textarea'))clearInvalid(event.target);
   if(event.target.matches('[data-event-type]')){state.eventType=event.target.value;filterRows();}
   if(event.target.matches('[data-filter]')){state.filter=event.target.value;filterRows();}
-  if(event.target.matches('[data-staff-id]')){await adminAction(ctx,'application-staff',event.target.dataset.staffId,event.target);return;}
+  if(event.target.matches('[data-staff-id]')){await screenAction(ctx,'application-staff',event.target.dataset.staffId,event.target);return;}
   if(event.target.matches('[data-member-sort]'))sortMemberRows(ctx,event.target);
   if(event.target.matches('[data-decision-category]')){
     const control=event.target,previous=decisionCategoryId();control.disabled=true;
@@ -146,24 +147,7 @@ document.addEventListener('change',async event=>{
     finally{control.disabled=false;}
   }
 });
-function filterRows(){
-  const rows=Array.from(app.querySelectorAll('[data-searchable]'));let count=0;
-  const query=state.search.trim().toLocaleLowerCase('ko-KR');
-  const eventType=app.querySelector('[data-event-type]')?state.eventType:'all';
-  const filtered=!!query||state.filter!=='all'||eventType!=='all';
-  rows.forEach(el=>{const show=query.split(/\s+/).every(word=>el.dataset.searchable.toLocaleLowerCase('ko-KR').includes(word))&&(state.filter==='all'||el.dataset.status===state.filter)&&(eventType==='all'||el.dataset.type===eventType);el.hidden=!show;if(show)count++;});
-  app.querySelectorAll('.work-lane').forEach(lane=>{lane.querySelector('h2 span').textContent=lane.querySelectorAll('.work-card:not([hidden])').length;});
-  const counter=app.querySelector('#filtered-count'),toolbar=app.querySelector('.toolbar:has([data-search])');
-  if(counter)counter.textContent='불러온 '+rows.length+'건 중 '+count+'건';
-  if(!toolbar)return;
-  let reset=toolbar.querySelector('[data-action=reset-filters]');
-  if(!reset){reset=document.createElement('button');reset.type='button';reset.dataset.action='reset-filters';reset.className='button ghost filter-reset';reset.textContent='초기화';toolbar.append(reset);}
-  reset.hidden=!filtered;
-  let noResults=app.querySelector('#filter-empty');
-  if(!noResults){noResults=document.createElement('section');noResults.id='filter-empty';noResults.className='empty filter-empty';noResults.innerHTML=icon('search')+'<h3>조건에 맞는 항목이 없습니다</h3><p>검색어를 줄이거나 상태 필터를 바꿔 보세요.</p><button type="button" class="button secondary" data-action="reset-filters">검색 조건 초기화</button>';toolbar.after(noResults);refreshIcons();}
-  noResults.hidden=!!count||!filtered;
-  const list=rows[0]?.closest('.table-wrap,.event-grid,.meeting-grid,.meeting-list,.work-board');if(list)list.hidden=!count&&filtered;
-}
+const filterRows=()=>filterListRows(app,state);
 export async function render({focus=false,scroll}={}) {
   const current=++renderNumber,savedFocus=captureFocus(),savedScroll=scrollY;
   rendering=true;app.setAttribute('aria-busy','true');
@@ -176,7 +160,7 @@ export async function render({focus=false,scroll}={}) {
     const view=app.querySelector('.workspace-content,main');if(view)view.inert=true;
   }
   try{
-    const html=location.pathname.startsWith('/admin')?await renderAdmin(ctx):await renderPublic(ctx);
+    const html=await renderScreen(ctx);
     if(current!==renderNumber)return;
     app.innerHTML=html;refreshIcons();
     const search=app.querySelector('[data-search]'),filter=app.querySelector('[data-filter]');
@@ -196,6 +180,6 @@ export async function render({focus=false,scroll}={}) {
 onAuthStateChanged(auth,async user=>{
   state.user=user;state.profile=null;
   if(user){try{state.profile=await api('profile');}catch(error){state.authError=error.message;}}
-  state.authReady=true;if(location.pathname.startsWith('/admin'))render();
+  state.authReady=true;if(isAdminScreen())render();
 });
 render();

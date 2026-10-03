@@ -42,6 +42,10 @@ export function createMemberPortal({db,col,clock,now,roster,throttle,audit}){
   if(!live(member)||fingerprint(member)!==session.identityHash)fail('permission-denied','현재 명부에서 활동 자격을 확인할 수 없습니다. 운영진에게 문의해 주세요.');
   return {member,expiresAt:session.expiresAt.toDate().toISOString()};
  }
+ // Internal ownership proof: row IDs and names alone do not survive roster reassignment.
+ function ownsApplication(record,member){
+  return !!record&&!record.deletedAt&&!record.anonymizedAt&&record.memberId===member.id&&record.semester===member.semester&&record.memberIdentityHash===fingerprint(member);
+ }
  async function guard(ctx,bucket,subject,limit=30){
   await throttle(ctx,'club-'+bucket+'-ip',limit);
   if(subject)await throttle({ip:hash(subject)},'club-'+bucket+'-identity',bucket==='access'?8:20);
@@ -160,5 +164,5 @@ export function createMemberPortal({db,col,clock,now,roster,throttle,audit}){
    return {saved:true,request:safeRequest({...record,...patch,id:input.id})};
   });
  }
- return {access,portal,eventAccess,verifyEvent,submit,getReceipt,cancel,list,command};
+ return {access,portal,eventAccess,verifyEvent,submit,getReceipt,cancel,list,command,authenticate,ownsApplication,identityFingerprint:fingerprint};
 }
