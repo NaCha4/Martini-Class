@@ -3,9 +3,8 @@ import { billingFee } from '../../functions/src/billing.js';
 import { shortLink } from './share-links.js';
 import { hasPermission, permissionLabels } from '../../functions/src/permissions.js';
 import { openChatUrl } from '../../functions/src/public-links.js';
-import { esc, field, icon, badge, button, date, money, label, modal, textBlock, downloadCSV, refreshIcons } from './ui.js';
+import { esc, field, icon, badge, button, date, money, label, modal, textBlock, downloadCSV } from './ui.js';
 import { read,readAll,total,unit,rosterSemester } from './admin.js';
-import { decisionCategoryId, decisionBoardUrl, readDecisionCategories } from './decision-categories.js';
 const uuid=()=>crypto.randomUUID();
 const val=(f,n)=>String(f.get(n)||'').trim(),num=(f,n)=>Number(f.get(n)||0);
 const localTime=v=>{const d=v?new Date(v):new Date();return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,16);};
@@ -14,12 +13,8 @@ const meta=r=>r?{id:r.id,revision:r.revision}:{revision:0};
 const semester=ctx=>ctx.state.settings.semester||'2026-2';
 
 async function record(ctx,kind,id){return id?(ctx.state.data[kind]?.[id]||(await read(ctx,kind,{recordId:id})).rows[0]):null;}
-async function save(ctx,op,data){const result=await ctx.api(op,data);if(['saveContent','saveSettings'].includes(op))delete ctx.state.publicInfo;ctx.toast('저장했습니다.');await ctx.render();return result;}
+async function save(ctx,op,data){const result=await ctx.api(op,data);if(op==='saveSettings')delete ctx.state.publicInfo;ctx.toast('저장했습니다.');await ctx.render();return result;}
 function share(title,url){const personal=new URL(url).pathname.startsWith('/r/');modal(title,'<div class="wide prose">'+(personal?'이 링크로 신청 내용 확인과 취소가 가능합니다. 본인에게만 개별 전달해 주세요.':'이 링크를 가진 부원이 행사 내용을 확인하고 신청할 수 있습니다. 부원 공지 채널에 전달해 주세요.')+'</div>'+field('shareUrl','링크',url,{wide:true,readOnly:true,autocomplete:'off',spellcheck:false,hint:'링크 전체를 복사해 전달하세요.'})+'<div class="wide">'+button('링크 복사','copy-link',{icon:'copy'})+'</div>',null);}
-function agendaRow(a={id:uuid(),title:'',notes:'',status:'planned'}){return '<section class="agenda-edit wide"><input type="hidden" name="agendaId" value="'+esc(a.id)+'"><div class="agenda-row-head"><h3>안건 <span data-agenda-number></span></h3><div class="row-actions">'+button('위로','agenda-up',{class:'button small ghost'})+button('아래로','agenda-down',{class:'button small ghost'})+button('제거','agenda-remove',{class:'button small ghost',icon:'x'})+'</div></div>'+field('agendaTitle','안건 제목',a.title,{required:true,maxLength:200,placeholder:'예: 개강총회 일정 확정'})+field('agendaNotes','논의 내용',a.notes,{type:'textarea',rows:4,maxLength:10000,placeholder:'논의한 의견, 합의한 내용, 남은 질문을 적어 주세요.'})+field('agendaStatus','논의 상태',a.status,{choices:[['planned','논의 예정'],['discussed','논의 완료'],['deferred','보류']]})+'</section>';}
-function numberAgendas(){const rows=[...document.querySelectorAll('#agenda-rows .agenda-edit')];rows.forEach((r,i)=>{r.querySelector('[data-agenda-number]').textContent=i+1;r.querySelector('[data-action=agenda-up]').disabled=i===0;r.querySelector('[data-action=agenda-down]').disabled=i===rows.length-1;});refreshIcons();}
-function editorSection(title,help,body){return '<section class="editor-section wide"><h3>'+title+'</h3><p class="help">'+help+'</p><div class="editor-fields">'+body+'</div></section>';}
-
 async function memberEdit(ctx,id){
  const term=rosterSemester(ctx),r=id?(await read(ctx,'members',{recordId:id})).rows[0]:null;
  modal((r?'부원 정보 수정':'부원 등록')+' · '+term,field('name','이름',r?.name,{required:true,maxLength:40,autocomplete:'off'})+field('studentId','학번',r?.studentId,{required:true,maxLength:30,autocomplete:'off',spellcheck:false})+field('phone','전화번호',r?.phone,{required:true,type:'tel',inputmode:'tel',maxLength:30,autocomplete:'off',hint:'행사 신청에 사용할 부원 본인의 번호입니다.'})+field('college','단과대학',r?.college,{maxLength:80})+field('department','학과 · 학부',r?.department,{maxLength:80})+field('grade','학년',r?.grade,{maxLength:20})+field('gender','성별',['남성','여성'].includes(r?.gender)?r.gender:'',{choices:[['','선택 안 함'],['남성','남성'],['여성','여성']]})+field('note','부원 메모',r?.note,{type:'textarea',wide:true,rows:4,maxLength:3000,hint:'이름을 눌러 상세 화면을 열었을 때만 표시됩니다. 명부 목록과 CSV에는 포함되지 않습니다.'})+'<p class="wide help">등록할 부원의 학번과 연락처를 확인해 주세요. 등록 후에는 별도의 회비 납부 확인이 필요하지 않습니다.</p>',async f=>save(ctx,'saveMember',{...meta(r),name:val(f,'name'),studentId:val(f,'studentId'),phone:val(f,'phone'),college:val(f,'college'),department:val(f,'department'),grade:val(f,'grade'),gender:val(f,'gender'),note:val(f,'note'),semester:term}),{wide:true});
@@ -84,46 +79,6 @@ async function itemView(ctx,id){
  const r=await record(ctx,'inventory',id),moves=await linkedRecords(ctx,'stockMoves',{itemId:id});
  modal(r.name,'<div class="wide detail-grid"><p>보유량<br><strong>'+total(r).toLocaleString()+' '+unit(r)+'</strong></p><p>보관 위치<br><strong>'+esc(r.location)+'</strong></p></div><div class="wide row-actions">'+button('품목 수정','item-edit',{id,class:'button secondary'})+button('입고 · 사용 · 실사','stock-record',{id})+'</div><div class="wide"><h3>최근 변경 이력</h3>'+ (moves.length?moves.map(m=>'<div class="history-entry"><strong>'+esc(m.reason)+'</strong><p>'+m.before+' → '+m.after+' · '+esc(m.actor)+' · '+date(m.createdAt,true)+'</p></div>').join(''):'<p class="help">아직 이 품목의 변경 기록이 없습니다.</p>')+'</div>',null,{wide:true});
 }
-async function meetingEdit(ctx,id){
- const r=id?(await read(ctx,'meetings',{recordId:id})).rows[0]:null;
- const dialog=modal(r?'회의록 수정':'회의 기록하기',
- editorSection('회의 기본 정보','이름과 일시만 입력해도 초안을 저장할 수 있습니다.',field('title','회의 이름',r?.title,{required:true,wide:true,maxLength:160,placeholder:'예: 9월 운영회의'})+field('date','회의 일시',localTime(r?.date||new Date()),{type:'datetime-local',required:true})+field('status','회의록 상태',r?.status||'draft',{choices:[['draft','초안 · 회의 준비'],['in_progress','진행 중 · 기록 작성'],['final','확정 · 공유 가능']]}))+
- '<details class="editor-options wide"'+(r?' open':'')+'><summary>참석자 · 장소 · 학기</summary><div class="editor-fields">'+field('attendees','참석자 · 부서 (쉼표로 구분)',r?.attendees?.join(', ')||'',{wide:true,maxLength:2400,hint:'이름이나 부서를 쉼표로 구분해 입력하세요. 미정이면 비워두세요.'})+field('location','장소',r?.location||'동아리방',{maxLength:200})+field('semester','학기',r?.semester||semester(ctx),{required:true})+'</div></details>'+
- editorSection('안건별 기록','한 안건에 한 주제를 적으세요. 순서는 위로·아래로 버튼으로 바꿀 수 있습니다.','<div id="agenda-rows" class="wide">'+(r?.agendas||[]).map(agendaRow).join('')+'</div><div class="wide">'+button('안건 추가','agenda-add',{class:'button secondary',icon:'plus'})+'</div>')+
- editorSection('전체 요약','안건 외의 메모나 회의의 핵심 내용을 정리하세요.',field('body','회의 개요 · 전체 기록',r?.body,{type:'textarea',wide:true,rows:5,maxLength:30000,placeholder:'오늘 합의한 내용과 다음 회의에서 확인할 사항'})),
- async(f,form)=>{
- const agendas=[...form.querySelectorAll('.agenda-edit')].map(el=>({id:el.querySelector('[name=agendaId]').value,title:el.querySelector('[name=agendaTitle]').value.trim(),notes:el.querySelector('[name=agendaNotes]').value.trim(),status:el.querySelector('[name=agendaStatus]').value}));
- await save(ctx,'saveMeeting',{...meta(r),title:val(f,'title'),date:toISO(val(f,'date')),location:val(f,'location'),semester:val(f,'semester'),status:val(f,'status'),attendees:val(f,'attendees').split(',').map(x=>x.trim()).filter(Boolean),body:val(f,'body'),agendas});
- },{wide:true,submit:'회의록 저장'});dialog.classList.add('record-editor');numberAgendas();
-}
-async function meetingView(ctx,id){
- const r=await record(ctx,'meetings',id),canDecide=hasPermission(ctx.state.profile,'decisions'),decisions=canDecide?await linkedRecords(ctx,'decisions',{meetingId:id}):[];
- modal(r.title,'<div class="wide record-meta">'+badge(r.status)+'<span>'+date(r.date,true)+'</span><span>'+esc(r.location)+'</span><span>버전 '+r.revision+'</span></div><div class="wide row-actions">'+button('회의록 수정','meeting-edit',{id,class:'button secondary',icon:'pencil'})+(canDecide?button('결정 · 할 일 추가','decision-for-meeting',{id,icon:'plus'}):'')+button('수정 이력','meeting-history',{id,class:'button secondary',icon:'history'})+'</div><div class="wide"><p class="help">참석: '+esc(r.attendees.join(', ')||'미기록')+'</p><h3>전체 기록</h3>'+textBlock(r.body||'아직 내용이 없습니다.')+'</div><div class="wide agenda-view">'+r.agendas.map((a,i)=>'<section><div class="section-index">안건 '+(i+1)+' · '+esc({planned:'논의 예정',discussed:'논의 완료',deferred:'보류'}[a.status])+'</div><h3>'+esc(a.title)+'</h3>'+textBlock(a.notes||'논의 내용을 기록해 주세요.')+(canDecide?'<button type="button" class="button small secondary" data-action="decision-for-agenda" data-id="'+esc(id)+'" data-agenda="'+esc(a.id)+'">'+icon('plus')+'이 안건에서 할 일 만들기</button>':'')+'</section>').join('')+'</div>'+(canDecide?'<div class="wide"><h3>연결된 결정 · 할 일</h3>'+(decisions.length?decisions.map(d=>'<button class="linked-decision" data-action="decision-view" data-id="'+d.id+'">'+badge(d.status)+'<span>'+esc(d.title)+'</span>'+icon('arrow-right')+'</button>').join(''):'<p class="help">아직 연결된 결정이 없습니다.</p>')+'</div>':'') ,null,{wide:true});
-}
-async function decisionEdit(ctx,id,meetingId='',agendaId='',initialTitle=''){
- const r=id?(await read(ctx,'decisions',{recordId:id})).rows[0]:null,canMeet=hasPermission(ctx.state.profile,'meetings'),meetings=canMeet?(await readAll(ctx,'meetings')).rows:[];
- const selected=r?.meetingId||meetingId;
- if(selected&&!meetings.some(m=>m.id===selected))meetings.push(canMeet?await record(ctx,'meetings',selected):{id:selected,title:'연결된 회의',agendas:r?.agendaId?[{id:r.agendaId,title:'연결된 안건'}]:[]});
- const selectedMeeting=meetings.find(m=>m.id===selected);
- const categories=await readDecisionCategories(ctx),requested=r?r.categoryId||'':decisionCategoryId();
- const categoryId=categories.some(c=>c.id===requested)?requested:'',choices=categories.map(c=>[c.id,c.name]);
- const dialog=modal(r?'결정 · 할 일 수정':'결정 · 할 일 추가',
- field('categoryId','카테고리',categoryId,{wide:true,choices:[['','공통 업무'],...choices],hint:'선택한 카테고리의 결정 · 할 일 화면에 저장됩니다.'})+
- editorSection('무엇을 해야 하나요?','할 일은 실행할 작업을, 결정 사항은 합의한 내용을 남깁니다.',field('title','제목',r?.title||initialTitle,{required:true,wide:true,maxLength:160,placeholder:'예: 총회 장소 예약하기'})+field('type','구분',r?.type||'action',{choices:[['action','할 일 · 실행할 작업'],['decision','결정 사항 · 합의한 내용']]})+field('status','진행 상태',r?.status||'proposed',{choices:[['proposed','예정 · 검토 중'],['approved','결정됨'],['in_progress','진행 중'],['done','완료'],['deferred','보류']]}))+
- editorSection('누가, 언제까지 하나요?','담당자와 기한이 정해지면 후속 확인이 쉬워집니다. 미정이면 비워두세요.',field('owner','담당자 · 부서',r?.owner,{maxLength:80,placeholder:'예: 교육부'})+field('dueAt','완료 목표',r?.dueAt?localTime(r.dueAt):'',{type:'datetime-local'}))+
- field('body','결정 내용 · 이유 · 후속 처리',r?.body,{type:'textarea',wide:true,rows:5,maxLength:10000,placeholder:'완료 기준이나 결정 이유, 필요한 준비물을 적어 주세요.'})+
- '<details class="editor-options wide"'+(selected?' open':'')+'><summary>회의 · 안건 연결 및 학기</summary><div class="editor-fields">'+field('meetingId','연결 회의',selected,{choices:[['','회의 연결 안 함'],...meetings.map(m=>[m.id,m.title])]})+field('agendaId','연결 안건',r?.agendaId||agendaId,{choices:[['','회의 전체'],...(selectedMeeting?.agendas||[]).map(a=>[a.id,a.title])]})+field('semester','학기',r?.semester||selectedMeeting?.semester||semester(ctx),{required:true})+'</div></details>',async f=>save(ctx,'saveDecision',{...meta(r),title:val(f,'title'),type:val(f,'type'),status:val(f,'status'),categoryId:val(f,'categoryId'),meetingId:val(f,'meetingId'),agendaId:val(f,'agendaId'),owner:val(f,'owner'),dueAt:val(f,'dueAt')?toISO(val(f,'dueAt')):'',semester:val(f,'semester'),body:val(f,'body')}),{wide:true,submit:'기록 저장'});dialog.classList.add('record-editor');
- dialog.querySelector('[name=meetingId]').onchange=event=>{const meeting=meetings.find(m=>m.id===event.target.value);dialog.querySelector('[name=agendaId]').innerHTML='<option value="">회의 전체</option>'+(meeting?.agendas||[]).map(a=>'<option value="'+a.id+'">'+esc(a.title)+'</option>').join('');};
-}
-async function decisionView(ctx,id){
- const d=await record(ctx,'decisions',id);
- const category=d.categoryId?(await readDecisionCategories(ctx)).find(c=>c.id===d.categoryId):null;
- modal(d.title,'<div class="wide record-meta">'+badge(d.type)+badge(d.status)+'<span>'+esc(d.owner||'담당 미정')+'</span><span>'+date(d.dueAt)+'</span></div><p class="wide help">카테고리: '+esc(category?.name||'공통 업무')+'</p><div class="wide">'+textBlock(d.body)+'</div><div class="wide row-actions">'+button('수정 · 진행 상태 변경','decision-edit',{id,class:'button secondary'})+button('수정 이력','decision-history',{id,class:'button secondary'})+'<a data-nav class="button secondary" href="'+esc(decisionBoardUrl(category?.id))+'">'+(category?'이 카테고리 업무 보기':'공통 업무 보기')+'</a>'+(d.meetingId&&hasPermission(ctx.state.profile,'meetings')?button('연결된 회의 보기','meeting-view',{id:d.meetingId}):'')+'</div>',null,{wide:true});
-}
-async function history(ctx,kind,id){
- const {rows}=await ctx.api('read',{kind,parentId:id,revisions:true});
- modal('수정 이력','<div class="wide">'+rows.map(r=>'<details class="history-entry"><summary><strong>버전 '+r.revision+'</strong> · '+date(r.updatedAt,true)+' · '+esc(r.revisionActor)+'</summary><h3>'+esc(r.title)+'</h3>'+textBlock(r.body)+(r.agendas||[]).map(a=>'<h4>'+esc(a.title)+'</h4>'+textBlock(a.notes)).join('')+'<p class="help">'+esc(r.status)+' '+esc(r.owner||'')+'</p></details>').join('')+'</div>',null,{wide:true});
-}
 async function applicationManage(ctx,id){
  const a=await record(ctx,'applications',id),e=await record(ctx,'events',a.eventId),contact=await ctx.api('participantContact',{id});
  const showFinance=hasPermission(ctx.state.profile,'finance'),canEvent=!a.anonymizedAt&&hasPermission(ctx.state.profile,'events'),canFinance=!a.anonymizedAt&&showFinance;
@@ -145,48 +100,27 @@ async function applicationChange(ctx,id,action,attendance){
  (action==='offer'?field('offerExpiresAt','승급 응답 기한',localTime(new Date(Date.now()+6*3600000)),{type:'datetime-local',required:true,wide:true}):''),
  async f=>save(ctx,'applicationCommand',{id,action,reason:val(f,'reason'),...(attendance?{attendance}:{}),...(action==='offer'?{offerExpiresAt:toISO(val(f,'offerExpiresAt'))}:{})}),{submit:copy.submit,submitClass:action==='cancel'||action==='expire'?'button danger':'button'});
 }
-async function budgetEdit(ctx,id){
- const r=id?(await read(ctx,'budgets',{recordId:id})).rows[0]:null;
- modal(r?'지출 계획 수정':'지출 계획 추가',field('title','사용 목적',r?.title,{required:true,wide:true,maxLength:160})+field('amount','예상 금액 (원)',r?.amount,{type:'number',min:1,max:100000000,required:true})+field('dueDate','예정일',r?.dueDate,{type:'date'})+field('semester','학기',r?.semester||semester(ctx),{required:true})+field('note','산정 근거 · 메모',r?.note,{type:'textarea',wide:true,maxLength:2000})+'<p class="wide help">계획은 실제 잔액을 차감하지 않습니다. 예정일이 없으면 미정으로 표시됩니다.</p>',async f=>save(ctx,'saveBudget',{...meta(r),title:val(f,'title'),amount:num(f,'amount'),dueDate:val(f,'dueDate'),semester:val(f,'semester'),note:val(f,'note')}));
-}
-async function budgetCommand(ctx,id,execute){
- const r=(await read(ctx,'budgets',{recordId:id})).rows[0];
- modal(execute?'지출 집행 완료':'지출 계획 삭제','<p class="wide">'+esc(r.title)+'</p>'+(execute?field('amount','실제 지출액 (원)',r.amount,{type:'number',min:1,max:100000000,required:true})+field('confirmed','실제로 지출했으며 장부에 별도로 기록하지 않았습니다',false,{type:'checkbox',required:true,wide:true})+'<p class="wide help">실제 지출액을 장부에 기록하고 예정 지출에서 제외합니다. 송금은 실행하지 않습니다.</p>':'<p class="wide help">이 계획을 예상 지출에서 제외합니다. 실제 장부는 변경하지 않습니다.</p>'),async f=>save(ctx,execute?'executeBudget':'deleteBudget',{id:r.id,revision:r.revision,...(execute?{amount:num(f,'amount'),confirmed:f.has('confirmed')}:{})}),{submit:execute?'집행 완료 기록':'계획 삭제',submitClass:execute?'button':'button danger'});
-}
-async function financeAdd(ctx,applicationId='',refund=false){
- if(!hasPermission(ctx.state.profile,'finance'))throw Error('회비 · 정산 권한이 없습니다.');
- const a=applicationId?await record(ctx,'applications',applicationId):null;
- const events=(await readAll(ctx,'events')).rows,members=(await readAll(ctx,'members',{semester:a?.semester||semester(ctx)})).rows;
- const requestId=uuid(),choices=a?[[refund?'refund':'income',refund?'참가비 환불':'참가비 입금']]:[['income','기타 수입'],['expense','지출'],['dues','학기 회비']];
- const dialog=modal(refund?'환불 완료 기록':'입금 · 지출 기록',field('kind','구분',refund?'refund':'income',{choices})+field('amount','금액 (원)',a?(refund?a.paidAmount-a.refundAmount:billingFee(a)-a.paidAmount):'',{type:'number',min:1,max:a?(refund?a.paidAmount-a.refundAmount:billingFee(a)-a.paidAmount):100000000,required:true})+field('title','내용',a?a.eventTitle+' · '+a.name:'',{required:true,wide:true,maxLength:160})+field('eventId','연결 행사',a?.eventId||'',{choices:a?[[a.eventId,a.eventTitle]]:[['','행사 연결 안 함'],...events.map(e=>[e.id,e.title])]})+field('memberId','회비 납부 부원','',{choices:[['','선택 안 함'],...members.filter(m=>!m.anonymizedAt).map(m=>[m.id,m.name+' · '+m.studentId])]})+field('semester','학기',a?.semester||semester(ctx),{required:true,maxLength:30,readOnly:!!a})+field('note','메모', '',{type:'textarea',wide:true,rows:2,maxLength:2000})+field('confirmed','실제 거래 내역을 확인했습니다',false,{type:'checkbox',required:true,wide:true})+'<p class="wide help">이 기능은 실제 입금·송금·환불을 실행하지 않습니다. 은행에서 처리한 내용을 기록합니다.</p>',async f=>save(ctx,'finance',{requestId,kind:val(f,'kind'),amount:num(f,'amount'),title:val(f,'title'),eventId:a?.eventId||val(f,'eventId'),applicationId:a?.id||'',memberId:val(f,'memberId'),semester:val(f,'semester'),note:val(f,'note')}),{wide:true});
- let termRequest=0;
- dialog.querySelector('[name=semester]').addEventListener('change',async e=>{
-  const term=e.target.value.trim(),request=++termRequest,select=dialog.querySelector('[name=memberId]');select.replaceChildren(new Option('선택 안 함',''));select.disabled=true;
-  try{if(!/^20\d{2}-[12]$/.test(term))throw Error('학기를 2026-2 형식으로 입력해 주세요.');const result=await readAll(ctx,'members',{semester:term});if(request!==termRequest)return;result.rows.filter(m=>!m.anonymizedAt).forEach(m=>select.add(new Option(m.name+' · '+m.studentId,m.id)));dialog.querySelector('.form-error').textContent='';}
-  catch(error){if(request===termRequest)dialog.querySelector('.form-error').textContent=error.message;}
-  finally{if(request===termRequest)select.disabled=false;}
- });
- const update=()=>{const dues=dialog.querySelector('[name=kind]').value==='dues';dialog.querySelector('[name=memberId]').closest('label').hidden=!dues;dialog.querySelector('[name=memberId]').required=dues;};dialog.querySelector('[name=kind]').onchange=update;update();
+async function financeAdd(ctx,applicationId,refund=false){
+ if(!hasPermission(ctx.state.profile,'finance'))throw Error('행사 참가비 관리 권한이 없습니다.');
+ const a=await record(ctx,'applications',applicationId);
+ if(!a)throw Error('참가 신청을 확인해 주세요.');
+ const requestId=uuid(),kind=refund?'refund':'income',amount=refund?a.paidAmount-a.refundAmount:billingFee(a)-a.paidAmount;
+ modal(refund?'환불 완료 기록':'참가비 입금 기록',field('kind','구분',kind,{choices:[[kind,refund?'참가비 환불':'참가비 입금']]})+field('amount','금액 (원)',amount,{type:'number',min:1,max:amount,required:true})+field('title','내용',a.eventTitle+' · '+a.name,{required:true,wide:true,maxLength:160})+field('eventId','연결 행사',a.eventId,{choices:[[a.eventId,a.eventTitle]]})+field('semester','학기',a.semester,{required:true,maxLength:30,readOnly:true})+field('note','메모','',{type:'textarea',wide:true,rows:2,maxLength:2000})+field('confirmed','실제 거래 내역을 확인했습니다',false,{type:'checkbox',required:true,wide:true})+'<p class="wide help">은행에서 처리한 참가비 입금·환불 내용을 기록합니다.</p>',async f=>save(ctx,'finance',{requestId,kind,amount:num(f,'amount'),title:val(f,'title'),eventId:a.eventId,applicationId:a.id,semester:a.semester,note:val(f,'note')}),{wide:true});
 }
 async function settingsEdit(ctx){
  const r=ctx.state.settings?.id?ctx.state.settings:null;
- modal('학기 · 운영 설정',field('semester','현재 학기',r?.semester||'2026-2',{required:true,hint:'명부·행사·회의 기록을 구분하는 학기입니다. 예: 2026-2'})+field('location','기본 활동 장소',r?.location||'동아리방',{required:true})+field('joinUrl','가입 오픈채팅 링크',openChatUrl(r?.joinUrl),{type:'url',inputmode:'url',spellcheck:false,wide:true,hint:'https://open.kakao.com/o/… 주소를 입력하세요. 비워두면 준비 중으로 표시합니다.'})+field('contact','동아리 문의 채널',r?.contact,{wide:true,maxLength:200,hint:'행사 문의를 받을 연락 방법입니다. 가입 오픈채팅을 그대로 사용하면 비워도 됩니다.'})+field('intro','동아리 소개',r?.intro||'칵테일을 배우고, 함께 만들고, 가까워지는 동아리 마티니.',{type:'textarea',wide:true,required:true,maxLength:2000,rows:3})+'<p class="wide help">가입 방법은 오픈채팅에서 안내합니다. 개인정보 처리방침은 <a href="/privacy" target="_blank" rel="noopener noreferrer">홈페이지에서 확인 (새 탭)</a>할 수 있습니다.</p>',async f=>{
+ modal('학기 · 운영 설정',field('semester','현재 학기',r?.semester||'2026-2',{required:true,hint:'명부와 행사 기록을 구분하는 학기입니다. 예: 2026-2'})+field('location','기본 활동 장소',r?.location||'동아리방',{required:true})+field('joinUrl','가입 오픈채팅 링크',openChatUrl(r?.joinUrl),{type:'url',inputmode:'url',spellcheck:false,wide:true,hint:'https://open.kakao.com/o/… 주소를 입력하세요. 비워두면 준비 중으로 표시합니다.'})+field('contact','동아리 문의 채널',r?.contact,{wide:true,maxLength:200,hint:'행사 문의를 받을 연락 방법입니다. 가입 오픈채팅을 그대로 사용하면 비워도 됩니다.'})+field('intro','동아리 소개',r?.intro||'칵테일을 배우고, 함께 만들고, 가까워지는 동아리 마티니.',{type:'textarea',wide:true,required:true,maxLength:2000,rows:3})+'<p class="wide help">가입 방법은 오픈채팅에서 안내합니다. 개인정보 처리방침은 <a href="/privacy" target="_blank" rel="noopener noreferrer">홈페이지에서 확인 (새 탭)</a>할 수 있습니다.</p>',async f=>{
   const joinUrl=val(f,'joinUrl');
   if(joinUrl&&!openChatUrl(joinUrl))throw Error('카카오톡 오픈채팅 주소를 확인해 주세요. https://open.kakao.com/o/… 형식으로 입력하세요.');
   return save(ctx,'saveSettings',{...meta(r),semester:val(f,'semester'),location:val(f,'location'),contact:val(f,'contact'),joinUrl:openChatUrl(joinUrl),intro:val(f,'intro')});
  },{wide:true});
 }
-async function contentEdit(ctx,id){
- const r=await record(ctx,'content',id);
- if(r&&r.type!=='activity')throw Error('활동 기록만 수정할 수 있습니다.');
- modal(r?'활동 기록 수정':'활동 기록 작성',field('title','제목',r?.title,{required:true,wide:true,maxLength:160})+field('semester','학기',r?.semester||semester(ctx),{required:true})+field('body','내용',r?.body,{type:'textarea',wide:true,rows:10,maxLength:16000})+field('published','홈페이지에 공개',r?.published,{type:'checkbox',wide:true,hint:'부원 개인정보나 비공개 행사 신청 링크가 포함되지 않았는지 확인하세요.'}),async f=>save(ctx,'saveContent',{...meta(r),title:val(f,'title'),type:'activity',semester:val(f,'semester'),body:val(f,'body'),published:f.has('published')}),{wide:true,submit:'활동 기록 저장'});
-}
-
 async function roleEdit(ctx,id){
  if(!hasPermission(ctx.state.profile,'admins'))throw Error('역할 관리 권한이 없습니다.');
  const r=id?(await ctx.api('listRoles')).rows.find(role=>role.id===id):null;
- modal(r?'역할 수정':'역할 만들기',field('name','역할 이름',r?.name,{required:true,wide:true,maxLength:50})+'<fieldset class="wide role-permissions"><legend>사용할 수 있는 업무</legend>'+Object.entries(permissionLabels).map(([key,title])=>field('permission-'+key,key==='content'?'활동 기록 게시':title,r?.permissions.includes(key)||false,{type:'checkbox'})).join('')+'</fieldset><p class="wide help">선택한 업무만 메뉴에 표시됩니다. 회비·정산은 해당 담당 역할에만 선택하세요.</p>',async f=>{
-  const permissions=Object.keys(permissionLabels).filter(key=>f.has('permission-'+key));
+ modal(r?'역할 수정':'역할 만들기',field('name','역할 이름',r?.name,{required:true,wide:true,maxLength:50})+'<fieldset class="wide role-permissions"><legend>사용할 수 있는 업무</legend>'+Object.entries(permissionLabels).filter(([key])=>!['meetings','decisions','content'].includes(key)).map(([key,title])=>field('permission-'+key,key==='finance'?'행사 참가비 관리':title,r?.permissions.includes(key)||false,{type:'checkbox'})).join('')+'</fieldset><p class="wide help">선택한 업무만 사용할 수 있습니다. 행사 참가비 관리는 납부·환불 확인 담당 역할에만 선택하세요.</p>',async f=>{
+  const retired=['meetings','decisions','content'];
+  const permissions=[...Object.keys(permissionLabels).filter(key=>!retired.includes(key)&&f.has('permission-'+key)),...(r?.permissions||[]).filter(key=>retired.includes(key))];
   if(!permissions.length)throw Error('업무 권한을 하나 이상 선택해 주세요.');
   return save(ctx,'saveRole',{...meta(r),name:val(f,'name'),permissions});
  },{wide:true});
@@ -220,12 +154,11 @@ async function exportRecords(ctx,kind){
 }
 export async function handleAdminAction(ctx,action,id,target){
  if(action==='record-delete'){
-  const kind=target.dataset.kind,titles={events:'행사',applications:'참가 신청',finance:'입출금 기록',inventory:'품목',meetings:'회의록',decisions:'결정 · 할 일',content:'활동 기록'};
+  const kind=target.dataset.kind,titles={events:'행사',applications:'참가 신청',inventory:'품목'};
   if(!titles[kind])throw Error('삭제할 항목을 확인해 주세요.');
   const r=(await read(ctx,kind,{recordId:id})).rows[0];
-  if(kind==='content'&&r.type!=='activity')throw Error('활동 기록만 삭제할 수 있습니다.');
-  const effects={events:'행사 목록과 신청 링크에서 제외됩니다. 진행 중인 행사는 먼저 취소하거나 완료하고, 미납·대기·환불을 정리해 주세요. 연결된 신청·정산 이력은 보관됩니다.',applications:'취소·만료된 신청만 삭제할 수 있습니다. 환불이 남아 있으면 먼저 처리해 주세요. 개인 확인 링크는 사용할 수 없게 됩니다.',finance:'장부에서 제외하고 잔액을 다시 계산합니다. 연결된 납부·환불 금액과 회비 기록도 함께 정정됩니다. 집행한 지출 계획은 예정 상태로 돌아갑니다. 실제 송금·환불은 실행하지 않습니다.',inventory:'품목 목록에서 제외됩니다. 보유 수량은 먼저 사용·폐기·실사로 정리해야 합니다. 입출고 이력은 보관됩니다.',meetings:'회의록 목록에서 제외됩니다. 연결된 결정·할 일은 먼저 회의 연결을 해제하거나 삭제해 주세요.',decisions:'결정·할 일 목록에서 제외됩니다. 연결된 회의 내용은 변경하지 않습니다.',content:'목록과 홈페이지에서 게시글이 내려갑니다.'};
-  modal(titles[kind]+' 삭제','<div class="wide delete-impact"><strong>'+esc(r.title||r.name||titles[kind])+'</strong><p>'+effects[kind]+'</p>'+(kind==='finance'?'<p>삭제 금액: <strong>'+money(r.amount)+'</strong> · '+esc(label(r.kind))+'</p>':'')+'</div><p class="wide help">삭제 이력과 원본은 정산·운영 기록을 위해 보관합니다. 개인정보 영구 정리는 학기말 정보 정리에서 진행합니다.</p>'+field('confirmed','삭제 대상과 영향을 확인했습니다',false,{type:'checkbox',required:true,wide:true}),async()=>{
+  const effects={events:'행사 목록과 신청 링크에서 제외됩니다. 진행 중인 행사는 먼저 취소하거나 완료하고, 미납·대기·환불을 정리해 주세요. 연결된 신청·정산 이력은 보관됩니다.',applications:'취소·만료된 신청만 삭제할 수 있습니다. 환불이 남아 있으면 먼저 처리해 주세요. 개인 확인 링크는 사용할 수 없게 됩니다.',inventory:'품목 목록에서 제외됩니다. 보유 수량은 먼저 사용·폐기·실사로 정리해야 합니다. 입출고 이력은 보관됩니다.'};
+  modal(titles[kind]+' 삭제','<div class="wide delete-impact"><strong>'+esc(r.title||r.name||titles[kind])+'</strong><p>'+effects[kind]+'</p></div><p class="wide help">삭제 이력과 원본은 정산·운영 기록을 위해 보관합니다. 개인정보 영구 정리는 학기말 정보 정리에서 진행합니다.</p>'+field('confirmed','삭제 대상과 영향을 확인했습니다',false,{type:'checkbox',required:true,wide:true}),async()=>{
    await ctx.api('deleteRecord',{kind,id,updatedAt:r.updatedAt,...(r.revision!==undefined?{revision:r.revision}:{}),confirmed:true});
    ctx.state.data={};ctx.state.pages={};delete ctx.state.publicInfo;
    if(kind==='events'&&location.pathname.replace(/\/+$/,'')==='/admin/events/'+id)await ctx.navigate('/admin/events',{discard:true});else await ctx.render();
@@ -260,51 +193,18 @@ export async function handleAdminAction(ctx,action,id,target){
  if(action==='item-edit')return itemEdit(ctx,id);
  if(action==='item-view')return itemView(ctx,id);
  if(action==='stock-record')return stockRecord(ctx,id);
- if(action==='meeting-edit')return meetingEdit(ctx,id);
- if(action==='meeting-view')return meetingView(ctx,id);
- if(action==='decision-category-add'){
-  const requestId=crypto.randomUUID();
-  modal('카테고리 추가',field('name','카테고리 이름','',{required:true,maxLength:80,wide:true,placeholder:'예: 개강총회, 칵테일 교육'})+'<p class="wide help">결정과 할 일을 모아 관리할 이름을 입력하세요.</p>',async f=>{
-   const category=await ctx.api('createDecisionCategory',{requestId,name:val(f,'name')});ctx.toast('카테고리를 만들었습니다.');setTimeout(()=>ctx.navigate(decisionBoardUrl(category.id)),0);
-  },{submit:'카테고리 만들기'});return;
- }
- if(action==='decision-category-delete'){
-  const category=(await readDecisionCategories(ctx)).find(c=>c.id===id);if(!category)throw Error('카테고리 목록을 새로고침해 주세요.');
-  modal('카테고리 삭제','<p class="wide"><strong>'+esc(category.name)+'</strong> 카테고리를 삭제합니다.</p><p class="wide help">이 카테고리의 결정과 할 일은 삭제되지 않고 공통 업무에 남습니다.</p>',async()=>{
-   await ctx.api('deleteDecisionCategory',{id,revision:category.revision});ctx.toast('카테고리를 삭제했습니다. 기록은 공통 업무에 남아 있습니다.');setTimeout(()=>ctx.navigate(decisionBoardUrl()),0);
-  },{submit:'카테고리 삭제',submitClass:'button danger'});return;
- }
- if(action==='decision-edit')return decisionEdit(ctx,id);
- if(action==='decision-for-meeting')return decisionEdit(ctx,null,id);
- if(action==='decision-view')return decisionView(ctx,id);
- if(action==='decision-progress'){
- const d=await record(ctx,'decisions',id);
- const status=d.status==='in_progress'?'done':d.status==='done'?'proposed':'in_progress';
- const data={id:d.id,revision:d.revision,title:d.title,body:d.body,type:d.type,meetingId:d.meetingId,agendaId:d.agendaId||'',owner:d.owner,dueAt:d.dueAt,status,semester:d.semester};
- await ctx.api('saveDecision',data);ctx.toast(status==='done'?'완료했습니다. 다시 열기로 되돌릴 수 있습니다.':'진행 상태를 변경했습니다.');await ctx.render();return;
- }
- if(action==='decision-for-agenda'){
- const m=(await read(ctx,'meetings',{recordId:id})).rows[0],a=m.agendas.find(a=>a.id===target.dataset.agenda);if(!a)throw Error('안건을 다시 확인해 주세요.');return decisionEdit(ctx,null,id,a.id,a.title);
- }
- if(action==='agenda-up'||action==='agenda-down'){const row=target.closest('.agenda-edit'),sibling=action==='agenda-up'?row.previousElementSibling:row.nextElementSibling;if(sibling){if(action==='agenda-up')sibling.before(row);else sibling.after(row);numberAgendas();row.querySelector('[name=agendaTitle]').focus();}return;}
- if(action==='meeting-history')return history(ctx,'meetings',id);
- if(action==='decision-history')return history(ctx,'decisions',id);
- if(action==='agenda-add'){const container=document.querySelector('#agenda-rows');if(container.children.length>=30)throw Error('회의 안건은 최대 30개입니다.');container.insertAdjacentHTML('beforeend',agendaRow());container.lastElementChild.querySelector('[name=agendaTitle]').focus();numberAgendas();return;}
- if(action==='agenda-remove'){const row=target.closest('.agenda-edit');if([...row.querySelectorAll('[name=agendaTitle],[name=agendaNotes]')].some(input=>input.value.trim())){if(!row.querySelector('[data-agenda-confirm]'))row.insertAdjacentHTML('beforeend','<div class="notice-warning" data-agenda-confirm><p>이 안건의 제목과 논의 내용을 제거합니다. 회의록을 저장하기 전까지는 기존 기록이 유지됩니다.</p><div class="row-actions">'+button('안건 제거','agenda-remove-confirm',{class:'button small danger'})+button('안건 유지','agenda-remove-keep',{class:'button small secondary'})+'</div></div>');row.querySelector('[data-action=agenda-remove-keep]').focus();}else{const focus=row.previousElementSibling?.querySelector('[name=agendaTitle]')||row.nextElementSibling?.querySelector('[name=agendaTitle]')||document.querySelector('[data-action=agenda-add]');row.remove();numberAgendas();focus?.focus();}return;}
- if(action==='agenda-remove-confirm'){const row=target.closest('.agenda-edit'),focus=row.previousElementSibling?.querySelector('[name=agendaTitle]')||row.nextElementSibling?.querySelector('[name=agendaTitle]')||document.querySelector('[data-action=agenda-add]');row.remove();numberAgendas();focus?.focus();return;}
- if(action==='agenda-remove-keep'){const row=target.closest('.agenda-edit');row.querySelector('[data-agenda-confirm]')?.remove();row.querySelector('[name=agendaTitle]').focus();return;}
  if(action==='event-link'){
   const e=await record(ctx,'events',id);
   modal('신청 링크 다시 만들기','<p class="wide prose">새 링크를 만들면 이전 행사 신청 링크는 사용할 수 없습니다. 기존 참가자의 개인 확인 링크는 유지됩니다.</p>',async()=>{const result=await save(ctx,'rotateEventLink',{id,revision:e.revision});setTimeout(()=>share('행사 신청 링크',location.origin+shortLink('e',result.linkKey)),0);},{submit:'이전 링크 만료 · 재발급',submitClass:'button danger'});return;
  }
  if(action==='copy-link'){const input=document.querySelector('[name=shareUrl]');try{await navigator.clipboard.writeText(input.value);ctx.toast('링크를 복사했습니다.');}catch{input.select();ctx.toast('선택된 링크를 복사해 주세요.');}return;}
  if(action==='event-staff-pricing'){
-  if(!hasPermission(ctx.state.profile,'finance'))throw Error('회비 · 정산 권한이 없습니다.');
+  if(!hasPermission(ctx.state.profile,'finance'))throw Error('행사 참가비 관리 권한이 없습니다.');
   const e=(await read(ctx,'events',{recordId:id})).rows[0];
   modal('관리인원 공통 금액 설정','<p class="wide"><strong>'+esc(e.title)+'</strong></p>'+field('staffFee','관리인원 참가비 (원)',hasStaffFee(e)?e.staffFee:'',{type:'number',min:0,max:1000000,required:true,wide:true,hint:'0원은 면제입니다. 이 행사의 관리인원 모두에게 적용합니다.'})+'<p class="wide help">이미 지정된 진행 중 관리인원의 금액도 함께 변경됩니다. 확인된 입금액보다 낮은 금액은 적용할 수 없습니다.</p>',async f=>save(ctx,'setEventStaffFee',{id,staffFee:num(f,'staffFee'),staffFeeRevision:e.staffFeeRevision||0}),{submit:'공통 금액 적용'});return;
  }
  if(action==='application-staff'){
-  if(!hasPermission(ctx.state.profile,'finance'))throw Error('회비 · 정산 권한이 없습니다.');
+  if(!hasPermission(ctx.state.profile,'finance'))throw Error('행사 참가비 관리 권한이 없습니다.');
   const control=target,previous=control.dataset.staffChecked==='true',dialog=control.closest('dialog');let saved=false;
   control.disabled=true;control.setAttribute('aria-busy','true');
   try{
@@ -324,12 +224,7 @@ export async function handleAdminAction(ctx,action,id,target){
  if(action==='application-cancel')return applicationChange(ctx,id,'cancel');
  if(action==='application-payment')return financeAdd(ctx,id,false);
  if(action==='application-refund')return financeAdd(ctx,id,true);
- if(action==='budget-edit')return budgetEdit(ctx,id);
- if(action==='budget-delete')return budgetCommand(ctx,id,false);
- if(action==='budget-execute')return budgetCommand(ctx,id,true);
- if(action==='finance-add')return financeAdd(ctx);
  if(action==='settings-edit')return settingsEdit(ctx);
- if(action==='content-edit')return contentEdit(ctx,id);
  if(action==='role-edit')return roleEdit(ctx,id);
  if(action==='role-delete')return roleDelete(ctx,id);
  if(action==='admin-edit')return adminEdit(ctx,id);

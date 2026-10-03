@@ -4,7 +4,6 @@ import { esc, icon, refreshIcons, toast, modal, closeModal, formSignature, captu
 import { renderScreen, screenAction, screenSubmit, isAdminScreen } from './screen-router.js';
 import { sortMemberRows } from './admin.js';
 import { filterListRows } from './list-filters.js';
-import { decisionCategoryId, decisionBoardUrl } from './decision-categories.js';
 import { isMemberRoute, getMemberSessionKey, memberStorage } from './member-session.js';
 export const state={profile:null,user:null,authReady:false,data:{},settings:{},search:'',filter:'all',eventType:'all'};
 export const ctx={state,api,toast,navigate,render,mayLeave};
@@ -156,12 +155,6 @@ document.addEventListener('change',async event=>{
   if(event.target.matches('[data-filter]')){state.filter=event.target.value;filterRows();}
   if(event.target.matches('[data-staff-id]')){await screenAction(ctx,'application-staff',event.target.dataset.staffId,event.target);return;}
   if(event.target.matches('[data-member-sort]'))sortMemberRows(ctx,event.target);
-  if(event.target.matches('[data-decision-category]')){
-    const control=event.target,previous=decisionCategoryId();control.disabled=true;
-    try{if(!await navigate(decisionBoardUrl(control.value)))control.value=previous;}
-    catch(error){control.value=previous;toast(error.message||'카테고리를 불러오지 못했습니다.');}
-    finally{control.disabled=false;}
-  }
 });
 const filterRows=()=>filterListRows(app,state);
 export async function render({focus=false,scroll}={}) {

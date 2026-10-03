@@ -39,13 +39,3 @@ test('X deletes a draft only after confirmation and cancellation leaves it intac
  await page.getByRole('dialog').getByRole('checkbox').check();await page.getByRole('dialog').getByRole('button',{name:'삭제',exact:true}).click();
  await expect(page.getByRole('dialog')).toHaveCount(0);await expect(card).toHaveCount(0);await page.reload();await expect(card).toHaveCount(0);
 });
-test('X removes a ledger record and recomputes balance',async({page})=>{
- await page.goto('/admin/finance');const balance=page.locator('.finance-summary strong').first(),before=await balance.textContent();
- await page.getByRole('button',{name:'수입 · 지출 기록'}).click();const title='삭제 장부 '+Date.now();
- await page.locator('[name=title]').fill(title);await page.locator('[name=amount]').fill('1234');await page.locator('[name=confirmed]').check();
- await page.getByRole('dialog').getByRole('button',{name:'저장',exact:true}).click();await expect(page.getByRole('dialog')).toHaveCount(0);
- await expect(balance).not.toHaveText(before);
- const row=page.locator('.finance-ledger tr').filter({hasText:title});await row.getByRole('button',{name:'입출금 기록 삭제'}).click();
- await page.getByRole('dialog').getByRole('checkbox').check();await page.getByRole('dialog').getByRole('button',{name:'삭제',exact:true}).click();
- await expect(page.getByRole('dialog')).toHaveCount(0);await expect(balance).toHaveText(before);
-});

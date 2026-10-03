@@ -251,3 +251,7 @@ td .title-button{text-align:left;line-height:1.6}
 .footer-admin-link{display:inline-flex;align-items:center;gap:6px;min-height:44px;color:inherit;font-size:12px;text-decoration:none}
 @media(max-width:640px){.member-header-link{padding:8px 10px;font-size:12px}.member-header-link svg{width:17px;height:17px}.public-header .header-actions{gap:8px}}
 .event-section:not([hidden])~.event-section{margin-top:36px;padding-top:28px;border-top:1px solid var(--line)}.event-section-heading{margin-bottom:18px}.event-section-heading h2{display:flex;align-items:center;gap:10px;font-size:20px;font-weight:600;letter-spacing:-.03em}.event-section-heading [data-event-section-count]{padding:3px 8px;border-radius:5px;background:var(--raised);color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums}
+
+/* The overview reflects the remaining event, roster and inventory work. */
+@media(min-width:801px){.admin-overview-metrics{grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}}
+.admin-overview-grid>section:only-child{grid-column:1/-1}.admin-overview-grid .task-row>svg:first-child{width:20px;height:20px;flex-shrink:0;margin-left:0;color:var(--gold)}
