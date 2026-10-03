@@ -1,9 +1,12 @@
 import { icon } from './ui.js';
 const publicLinks=[['/about','소개'],['/activities','활동'],['/notices','공지'],['/join','가입 안내']];
 export function publicHeader(home=false){
- const memberPage=location.pathname==='/events'||/^\/members(?:\/|$)/.test(location.pathname);
- const links=(memberPage?[['/about','동아리 소개']]:publicLinks).map(([href,title])=>'<a href="'+href+'" data-nav'+((location.pathname.replace(/\/+$/,'')||'/')===href?' aria-current="page"':'')+'>'+title+'</a>').join('');
- return '<a class="skip-link" href="#main-content">본문으로 건너뛰기</a><header class="public-header '+(home?'over-hero':'')+'"><a class="brand" href="/" data-nav aria-label="마티니 홈"><img class="wordmark" src="/assets/wordmark.png" alt="Martini" width="170" height="42"></a><nav aria-label="홈페이지 메뉴">'+links+'</nav><div class="header-actions"><a class="member-header-link" href="/members" data-nav'+(location.pathname.replace(/\/+$/,'')==='/members'?' aria-current="page"':'')+'>'+icon('users-round')+'<span>부원 라운지</span></a><details class="public-mobile-menu"><summary aria-label="홈페이지 메뉴" aria-controls="public-mobile-links">'+icon('menu')+'</summary><nav id="public-mobile-links" aria-label="모바일 홈페이지 메뉴">'+links+'</nav></details></div></header>';
+ const pathname=location.pathname.replace(/\/+$/,'')||'/';
+ const memberPage=pathname==='/events'||/^\/members(?:\/|$)/.test(pathname);
+ const links=memberPage?'':publicLinks.map(([href,title])=>'<a href="'+href+'" data-nav'+(pathname===href?' aria-current="page"':'')+'>'+title+'</a>').join('');
+ const navigation=memberPage?'':'<nav aria-label="홈페이지 메뉴">'+links+'</nav>';
+ const mobileMenu=memberPage?'':'<details class="public-mobile-menu"><summary aria-label="홈페이지 메뉴" aria-controls="public-mobile-links">'+icon('menu')+'</summary><nav id="public-mobile-links" aria-label="모바일 홈페이지 메뉴">'+links+'</nav></details>';
+ return '<a class="skip-link" href="#main-content">본문으로 건너뛰기</a><header class="public-header '+(home?'over-hero':'')+'"><a class="brand" href="/" data-nav aria-label="마티니 홈"><img class="wordmark" src="/assets/wordmark.png" alt="Martini" width="170" height="42"></a>'+navigation+'<div class="header-actions"><a class="member-header-link" href="/members" data-nav'+(pathname==='/members'?' aria-current="page"':'')+'>'+icon('users-round')+'<span>부원 라운지</span></a>'+mobileMenu+'</div></header>';
 }
 export function publicFooter(){
  return `<footer class="public-footer" id="contact">
