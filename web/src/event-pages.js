@@ -61,7 +61,7 @@ async function recoverPendingApplication(ctx,event,payload,pending,current){
   }
   ctx.toast('이전에 접수된 신청을 불러왔습니다.');return true;
  }
- modal('이전에 접수된 신청 확인','<p class="wide prose">이 탭에 이전 신청의 확인 정보가 남아 있습니다. 이전 신청을 먼저 확인해 주세요. 공용 기기에서 다른 부원의 정보를 사용하려면 더보기에서 ‘이 기기에서 나가기’를 선택한 뒤 다시 부원 확인을 해 주세요.</p><div class="wide"><a href="'+esc(receiptUrl)+'" data-nav class="button">이전에 접수된 신청 확인</a></div>',null);
+ modal('이전에 접수된 신청 확인','<p class="wide prose">이 탭에 이전 신청의 확인 정보가 남아 있습니다. 이전 신청을 먼저 확인해 주세요. 공용 기기에서 다른 부원으로 로그인하려면 라운지 상단의 ‘로그아웃’을 선택한 뒤 다시 로그인해 주세요.</p><div class="wide"><a href="'+esc(receiptUrl)+'" data-nav class="button">이전에 접수된 신청 확인</a></div>',null);
  throw new Error('이전에 접수된 신청의 확인 정보를 보존했습니다. 이전 신청을 먼저 확인해 주세요.');
 }
 const scheduleDate=value=>value?new Intl.DateTimeFormat('ko-KR',{year:'numeric',month:'long',day:'numeric',weekday:'short',hour:'2-digit',minute:'2-digit',timeZone:'Asia/Seoul'}).format(new Date(value)):'일정 미정';
@@ -183,7 +183,7 @@ export async function eventSubmit(ctx,form,f){
  delete ctx.state.pendingApplications[storageKey];
  if(e.embedded){
   delete ctx.state.currentEvent;delete ctx.state.currentReceipt;
-  ctx.state.memberInlineDetail={kind:'application',id:result.id};ctx.state.memberScrollTarget='member-detail';ctx.state.memberActiveSection='applications';
+  ctx.state.memberInlineDetail={kind:'application',id:result.id};ctx.state.memberScrollTarget='member-detail';
   await ctx.render();ctx.toast('신청을 접수했습니다. 아래에서 신청 상태를 확인하세요.');
  }else await ctx.navigate(e.memberAccess?'/members/applications/'+encodeURIComponent(result.id):shortLink('r',pending.receiptKey),{discard:true});
 }

@@ -56,13 +56,13 @@ test('a direct member event verifies in place and keeps its destination on reloa
   await expect(form).toBeVisible();
   await expect(form.locator('[name=name], [name=studentId], [name=phone]')).toHaveCount(0);
   await expect(form.locator('.member-form-identity')).toContainText('확인된 부원 정보로 신청합니다.');
-  await expect(page.getByRole('navigation', { name: '부원 메뉴', exact: true }).getByRole('button', { name: '행사', exact: true })).toHaveAttribute('aria-current', 'location');
+  await expect(page.locator('.member-navigation, [data-action="member-section"]')).toHaveCount(0);
   await page.reload();
   await expect(page).toHaveURL(destination);
   await expect(form).toBeVisible();
 });
 
-test('the events alias preserves its URL while its section buttons and inline event panel stay on one page', async ({ page }) => {
+test('the events alias keeps all lounge content in the document and inline event actions preserve its URL', async ({ page }) => {
   await page.goto('/events');
   const alias = page.url();
   await expect(page.getByRole('heading', { name: '부원 로그인', exact: true })).toBeVisible();
@@ -76,18 +76,20 @@ test('the events alias preserves its URL while its section buttons and inline ev
   expect(eventId).toMatch(/^[a-zA-Z0-9_-]+$/);
   await expect(events.first()).toHaveAttribute('data-action', 'member-event-open');
   await expect(events.first()).not.toHaveAttribute('href');
-  const menu = page.getByRole('navigation', { name: '부원 메뉴', exact: true });
-  await expect(menu.getByRole('button', { name: '행사', exact: true })).toHaveAttribute('aria-current', 'location');
+  await expect(page.locator('.member-navigation, [data-action="member-section"], #member-coupons, .member-lounge details')).toHaveCount(0);
+  await page.locator('#member-more').scrollIntoViewIfNeeded();
+  await expect(action(page, 'member-visit')).toBeVisible();
+  await expect(action(page, 'member-inquiry')).toBeVisible();
+  await expect(page).toHaveURL(alias);
   await page.reload();
   await expect(page).toHaveURL(alias);
   await expect(events.first()).toBeVisible();
   await events.first().click();
   await expect(page).toHaveURL(alias);
   await expect(page.locator('#member-detail form[data-form=apply]')).toBeVisible();
-  await menu.getByRole('button', { name: '내 신청', exact: true }).click();
+  await page.locator('#member-more').scrollIntoViewIfNeeded();
   await expect(page).toHaveURL(alias);
-  await expect(menu.getByRole('button', { name: '내 신청', exact: true })).toHaveAttribute('aria-current', 'location');
-  await expect(page.getByRole('heading', { name: '내 신청', exact: true })).toBeVisible();
+  await expect(action(page, 'member-visit')).toBeVisible();
 });
 
 test('additional privacy guidance matches the identity and one-to-three visitor form', async ({ page }) => {
@@ -128,7 +130,6 @@ async function fixtureApplication(page, { status = 'registered', payment = 'unpa
       if (op === 'memberAccess') return { sessionKey: data.sessionKey, member: { name: ${JSON.stringify(member.name)}, semester: '2026-2' }, expiresAt: new Date(Date.now() + 7200000).toISOString() };
       if (op === 'memberPortal') return { member: { name: ${JSON.stringify(member.name)}, semester: '2026-2' }, events: [saved.event], requests: [] };
       if (op === 'memberApplications') return { applications: [result()], legacyAccessRequiresReceipt: true };
-      if (op === 'memberCoupons') return { capacity: 10, rewardStatus: 'undecided', coupons: [] };
       if (op === 'memberApplication') {
         if (data.id !== saved.application.id || !/^[a-f0-9]{64}$/.test(data.sessionKey || '')) throw new Error('Unexpected member application capability');
         if (data.action === 'payment') saved.application.payment = 'requested';

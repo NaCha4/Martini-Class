@@ -18,14 +18,14 @@ export async function renderPublic(ctx){
  const path=location.pathname.replace(/\/+$/,'')||'/',parts=path.split('/').filter(Boolean);
  if(path==='/')return home();
  if(isMemberRoute(path)&&!getMemberSessionKey(ctx))return shell(renderMemberVerificationGate(ctx,{returnTo:path}));
- const memberSections={'/members':'home','/events':'events','/members/events':'events','/members/applications':'applications','/members/coupons':'coupons','/members/more':'more'};
+ const memberPaths=['/members','/events','/members/events','/members/applications','/members/coupons','/members/more'];
  const memberDetail=parts[0]==='members'&&['events','applications'].includes(parts[1])&&parts.length===3;
- if(memberSections[path]||memberDetail){
+ if(memberPaths.includes(path)||memberDetail){
   if(ctx.state.memberRouteSource!==path){
    ctx.state.memberRouteSource=path;
    ctx.state.memberInlineDetail=memberDetail?{kind:parts[1]==='events'?'event':'application',id:parts[2]}:null;
-   ctx.state.memberActiveSection=memberDetail?parts[1]:memberSections[path];
-   ctx.state.memberScrollTarget=memberDetail?'member-detail':'member-'+memberSections[path];
+   if(memberDetail)ctx.state.memberScrollTarget='member-detail';
+   else delete ctx.state.memberScrollTarget;
   }
   const selection=ctx.state.memberInlineDetail,marker='<!--member-inline-detail-->';
   let content=await renderMemberPortal(ctx);
@@ -81,7 +81,6 @@ export async function publicAction(ctx,action,id,target){
    ctx.state.memberInlineDetail={kind:action==='member-event-open'?'event':'application',id};
   }
   delete ctx.state.currentEvent;delete ctx.state.currentReceipt;
-  ctx.state.memberActiveSection=(action==='member-detail-close'?previous?.kind:ctx.state.memberInlineDetail.kind)==='event'?'events':'applications';
   ctx.state.memberScrollTarget=action==='member-detail-close'?'member-'+(previous?.kind==='event'?'events':'applications'):'member-detail';
   await ctx.render();return;
  }
