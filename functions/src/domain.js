@@ -31,7 +31,8 @@ export const schemas={
  role:z.object({...meta,name:required(50),permissions:z.array(z.enum(permissionKeys)).max(permissionKeys.length).min(1)}).strict(),
  admin:z.object({uid:idSchema,displayName:required(80),role:idSchema,active:z.boolean(),expiresAt:iso}).strict(),
  transaction:z.object({requestId:idSchema,kind:z.enum(['income','expense','refund','dues']),amount:z.number().int().min(1).max(100000000),title:required(160),eventId:idSchema.or(z.literal('')).default(''),applicationId:idSchema.or(z.literal('')).default(''),memberId:idSchema.or(z.literal('')).default(''),note:text(2000).default(''),semester:required(30)}).strict(),
- stock:z.object({id:idSchema,revision:z.number().int().min(1),requestId:idSchema,action:z.enum(['receive','use','open','remaining','adjustRemaining','count','move']),amount:z.number().min(0).max(100000).default(0),bottleId:idSchema.optional(),percent:z.number().int().min(0).max(100).multipleOf(10).optional(),location:text(100).optional(),reason:required(500),eventId:idSchema.or(z.literal('')).default('')}).strict()
+ // Older clients may send an event ID; inventory records never retain that link.
+ stock:z.object({id:idSchema,revision:z.number().int().min(1),requestId:idSchema,action:z.enum(['receive','use','open','remaining','adjustRemaining','count','move']),amount:z.number().min(0).max(100000).default(0),bottleId:idSchema.optional(),percent:z.number().int().min(0).max(100).multipleOf(10).optional(),location:text(100).optional(),reason:required(500),eventId:idSchema.or(z.literal('')).optional()}).strict().transform(({eventId,...input})=>input)
 };
 export function parse(schema,value){const result=schema.safeParse(value);if(!result.success)fail('invalid-argument',result.error.issues.map(i=>i.path.join('.')+': '+i.message).slice(0,3).join(' / '));return result.data;}
 export const hash=value=>createHash('sha256').update(String(value)).digest('hex');

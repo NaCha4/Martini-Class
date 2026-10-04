@@ -1,7 +1,7 @@
 import { billingFee } from './billing.js';
 import { z } from 'zod';
 import { FieldValue } from 'firebase-admin/firestore';
-import { parse, fail, ensureScope, idSchema, stockTotal } from './domain.js';
+import { parse, fail, ensureScope, idSchema } from './domain.js';
 import { hasPermission } from './permissions.js';
 
 const scopes={events:'events',applications:'events',finance:'finance',inventory:'inventory',meetings:'meetings',decisions:'decisions',content:'content',budgets:'finance'};
@@ -28,7 +28,6 @@ export function createDeletion({db,col,clock,audit}){
     if(!['cancelled','expired'].includes(r.status))fail('failed-precondition','참가 신청을 먼저 취소한 뒤 삭제해 주세요.');
     if((r.paidAmount||0)>(r.refundAmount||0))fail('failed-precondition','환불할 금액이 남아 있습니다. 환불 기록을 먼저 완료해 주세요.');
    }
-   if(input.kind==='inventory'&&stockTotal(r)>0)fail('failed-precondition','보유 재고가 남아 있습니다. 사용·폐기 또는 실사를 기록해 수량을 정리한 뒤 삭제해 주세요.');
    if(input.kind==='meetings'){
     if(r.status==='final'&&!hasPermission(who,'settings'))fail('permission-denied','확정된 회의록 삭제는 회장단 권한이 필요합니다.');
     const linked=await tx.get(col('decisions').where('meetingId','==',input.id));

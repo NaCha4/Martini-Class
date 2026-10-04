@@ -134,6 +134,8 @@ test('existing photos never render and unknown categories retain their text card
  assert.equal((html.match(/data-inventory-card=/g)||[]).length,4);
  assert.equal((html.match(/data-action="item-view"/g)||[]).length,4);
  assert.equal((html.match(/data-action="stock-record"/g)||[]).length,4);
+ assert.equal((html.match(/data-action="record-delete" data-kind="inventory"/g)||[]).length,4);
+ assert.match(html,/data-id="safe" aria-label="진 삭제">삭제<\/button>/);
  assert.equal((html.match(/data-action="inventory-move"/g)||[]).length,4);
  assert.equal((html.match(/data-inventory-category=/g)||[]).length,1);
  assert.match(html,/미분류/);

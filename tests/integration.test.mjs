@@ -589,10 +589,9 @@ test('dues deletion permits a new corrected record and plan expense deletion res
  await service.handle(await deleteInput('finance',executed.transactionId),finance);
  const restored=(await db.doc('martini_v2_budgets/'+plan.id).get()).data();assert.equal(restored.status,'planned');assert.equal(restored.transactionId,undefined);assert.equal(restored.actualAmount,undefined);
 });
-test('stocked items and linked meetings are protected while empty items and unlinked records can be deleted',async()=>{
- await assert.rejects(service.handle(await deleteInput('inventory','gin'),education),e=>e.code==='failed-precondition');
- await db.doc('martini_v2_inventory/gin').update({quantity:0});
+test('stocked items can be deleted while linked meetings remain protected',async()=>{
  await service.handle(await deleteInput('inventory','gin'),education);
+ assert.equal((await db.doc('martini_v2_inventory/gin').get()).data().quantity,2);
  await assert.rejects(service.handle({op:'stock',id:'gin',revision:2,requestId:'deleted-stock',action:'receive',amount:1,reason:'삭제 뒤 입고'},education),e=>e.code==='not-found');
  await db.doc('martini_v2_meetings/meeting-delete').set({...meta,title:'회의',status:'draft',agendas:[]});
  await db.doc('martini_v2_decisions/decision-delete').set({...meta,title:'결정',meetingId:'meeting-delete'});

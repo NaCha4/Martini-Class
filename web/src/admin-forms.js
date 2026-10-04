@@ -4,7 +4,7 @@ import { shortLink } from './share-links.js';
 import { hasPermission, permissionLabels } from '../../functions/src/permissions.js';
 import { openChatUrl } from '../../functions/src/public-links.js';
 import { esc, field, icon, badge, button, date, money, label, modal, textBlock, downloadCSV } from './ui.js';
-import { read,readAll,total,unit,rosterSemester } from './admin.js';
+import { read,total,unit,rosterSemester } from './admin.js';
 import { itemEdit } from './inventory-forms.js';
 const uuid=()=>crypto.randomUUID();
 const val=(f,n)=>String(f.get(n)||'').trim(),num=(f,n)=>Number(f.get(n)||0);
@@ -57,15 +57,15 @@ async function eventEdit(ctx,id){
  if(r?.sequence){const warn=()=>{dialog.querySelector('[data-existing-applications]').hidden=Number(dialog.querySelector('[name=fee]').value)===r.fee&&dialog.querySelector('[name=semester]').value.trim()===r.semester;};for(const name of ['fee','semester'])dialog.querySelector('[name='+name+']').addEventListener('input',warn);warn();}
 }
 async function stockRecord(ctx,id){
- const r=await record(ctx,'inventory',id),events=hasPermission(ctx.state.profile,'eventRead')?(await readAll(ctx,'events')).rows:[];
+ const r=await record(ctx,'inventory',id);
+ if(!r)throw Error('품목을 찾을 수 없습니다. 목록을 새로고침해 주세요.');
  const choices=[['receive','입고'],['use','미개봉 · 일반 수량 사용'],['count','미개봉 · 일반 수량 실사']];
  if(r.unit==='bottle')choices.splice(2,0,['open','새 병 개봉'],['remaining','개봉 병 잔량 기록'],['adjustRemaining','개봉 병 잔량 실사 · 정정']);
  const requestId=uuid();
  const dialog=modal('재고 기록 · '+r.name,'<div class="wide stock-current">현재 <strong>'+total(r).toLocaleString()+' '+unit(r)+'</strong> · 미개봉/일반 수량 '+r.quantity+'</div>'+field('action','작업 종류','receive',{choices})+field('amount','입고 수량',0,{type:'number',min:1,max:100000,step:r.unit==='g'||r.unit==='ml'?'0.1':'1',required:true})+
  (r.unit==='bottle'?field('bottleId','개봉 병',Object.keys(r.bottles||{})[0]||'',{choices:[['','병 선택'],...Object.entries(r.bottles||{}).map(([id,p],index)=>[id,'개봉 병 '+(index+1)+' · 현재 '+p+'%'])]})+field('percent','사용 후 잔량 (%)',50,{choices:Array.from({length:11},(_,i)=>[i*10,i*10+'%'])}):'')+
- field('eventId','연결 행사','',{choices:[['','행사 연결 안 함'],...events.map(e=>[e.id,e.title])]})+
  field('reason','사유', '',{required:true,wide:true,maxLength:500}),
- async f=>save(ctx,'stock',{id:r.id,revision:r.revision,requestId,action:val(f,'action'),amount:num(f,'amount'),...(val(f,'bottleId')?{bottleId:val(f,'bottleId')} : {}),...(r.unit==='bottle'?{percent:num(f,'percent')}:{}),eventId:val(f,'eventId'),reason:val(f,'reason')}),{wide:true});
+ async f=>save(ctx,'stock',{id:r.id,revision:r.revision,requestId,action:val(f,'action'),amount:num(f,'amount'),...(val(f,'bottleId')?{bottleId:val(f,'bottleId')} : {}),...(r.unit==='bottle'?{percent:num(f,'percent')}:{}),reason:val(f,'reason')}),{wide:true});
  const update=()=>{const action=dialog.querySelector('[name=action]').value,amount=dialog.querySelector('[name=amount]'),quantityAction=['receive','use','count'].includes(action);amount.closest('label').hidden=!quantityAction;amount.required=quantityAction;amount.disabled=!quantityAction;amount.min=action==='count'?'0':amount.step;const title=amount.closest('label').querySelector('span');title.textContent={receive:'입고할 수량',use:'사용한 수량',count:'실사 후 남은 수량'}[action]||'수량';['bottleId','percent'].forEach(n=>{const el=dialog.querySelector('[name='+n+']');if(el){const visible=['remaining','adjustRemaining'].includes(action);el.closest('label').hidden=!visible;el.required=visible;el.disabled=!visible;}});};dialog.querySelector('[name=action]').onchange=update;update();
 }
 async function linkedRecords(ctx,kind,filter){
@@ -74,7 +74,9 @@ async function linkedRecords(ctx,kind,filter){
  ctx.state.data[kind]||={};rows.forEach(r=>ctx.state.data[kind][r.id]=r);return rows.sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt));
 }
 async function itemView(ctx,id){
- const r=await record(ctx,'inventory',id),moves=await linkedRecords(ctx,'stockMoves',{itemId:id});
+ const r=await record(ctx,'inventory',id);
+ if(!r)throw Error('품목을 찾을 수 없습니다. 목록을 새로고침해 주세요.');
+ const moves=await linkedRecords(ctx,'stockMoves',{itemId:id});
  modal(r.name,'<div class="wide detail-grid"><p>보유량<br><strong>'+total(r).toLocaleString()+' '+unit(r)+'</strong></p></div><div class="wide row-actions">'+button('품목 수정','item-edit',{id,class:'button secondary'})+button('카테고리 이동','inventory-move',{id,class:'button secondary',icon:'folder'})+button('입고 · 사용 · 실사','stock-record',{id})+'</div>'+(r.note?'<div class="wide"><h3>메모</h3>'+textBlock(r.note)+'</div>':'')+'<div class="wide"><h3>변경 이력</h3>'+ (moves.length?moves.map(m=>'<div class="history-entry"><strong>'+esc(m.reason)+'</strong><p>'+m.before+' → '+m.after+' · '+esc(m.actor)+' · '+date(m.createdAt,true)+'</p></div>').join(''):'<p class="help">기록 없음</p>')+'</div><div class="wide row-actions"><button type="button" class="button danger secondary" data-action="record-delete" data-kind="inventory" data-id="'+esc(id)+'">품목 삭제</button></div>',null,{wide:true});
 }
 async function applicationManage(ctx,id){
@@ -158,10 +160,13 @@ export async function handleAdminAction(ctx,action,id,target){
   const kind=target.dataset.kind,titles={events:'행사',applications:'참가 신청',inventory:'품목'};
   if(!titles[kind])throw Error('삭제할 항목을 확인해 주세요.');
   const r=(await read(ctx,kind,{recordId:id})).rows[0];
-  const effects={events:'행사 목록과 신청 링크에서 제외됩니다. 진행 중인 행사는 먼저 취소하거나 완료하고, 미납·대기·환불을 정리해 주세요. 연결된 신청·정산 이력은 보관됩니다.',applications:'취소·만료된 신청만 삭제할 수 있습니다. 환불이 남아 있으면 먼저 처리해 주세요. 개인 확인 링크는 사용할 수 없게 됩니다.',inventory:'품목 목록에서 제외됩니다. 보유 수량은 먼저 사용·폐기·실사로 정리해야 합니다. 입출고 이력은 보관됩니다.'};
-  modal(titles[kind]+' 삭제','<div class="wide delete-impact"><strong>'+esc(r.title||r.name||titles[kind])+'</strong><p>'+effects[kind]+'</p></div><p class="wide help">삭제 이력과 원본은 정산·운영 기록을 위해 보관합니다. 개인정보 영구 정리는 학기말 정보 정리에서 진행합니다.</p>'+field('confirmed','삭제 대상과 영향을 확인했습니다',false,{type:'checkbox',required:true,wide:true}),async()=>{
+  if(!r)throw Error(titles[kind]+'을 찾을 수 없습니다. 목록을 새로고침해 주세요.');
+  const effects={events:'행사 목록과 신청 링크에서 제외됩니다. 진행 중인 행사는 먼저 취소하거나 완료하고, 미납·대기·환불을 정리해 주세요. 연결된 신청·정산 이력은 보관됩니다.',applications:'취소·만료된 신청만 삭제할 수 있습니다. 환불이 남아 있으면 먼저 처리해 주세요. 개인 확인 링크는 사용할 수 없게 됩니다.'};
+  const body=kind==='inventory'?'<div class="wide delete-impact"><p><strong>'+esc(r.name)+'</strong> 품목을 삭제할까요?</p><p>수량과 입출고 이력은 보관됩니다.</p></div>':'<div class="wide delete-impact"><strong>'+esc(r.title||r.name||titles[kind])+'</strong><p>'+effects[kind]+'</p></div><p class="wide help">삭제 이력과 원본은 정산·운영 기록을 위해 보관합니다. 개인정보 영구 정리는 학기말 정보 정리에서 진행합니다.</p>'+field('confirmed','삭제 대상과 영향을 확인했습니다',false,{type:'checkbox',required:true,wide:true});
+  modal(titles[kind]+' 삭제',body,async()=>{
    await ctx.api('deleteRecord',{kind,id,updatedAt:r.updatedAt,...(r.revision!==undefined?{revision:r.revision}:{}),confirmed:true});
-   ctx.state.data={};ctx.state.pages={};delete ctx.state.publicInfo;
+   if(kind==='inventory'){delete ctx.state.data.inventory;delete ctx.state.data.stockMoves;if(ctx.state.pages)delete ctx.state.pages.inventory;}
+   else{ctx.state.data={};ctx.state.pages={};delete ctx.state.publicInfo;}
    if(kind==='events'&&location.pathname.replace(/\/+$/,'')==='/admin/events/'+id)await ctx.navigate('/admin/events',{discard:true});else await ctx.render();
    ctx.toast(titles[kind]+'을 삭제했습니다.');
   },{submit:'삭제',submitClass:'button danger',busyText:'삭제 중…'});return;
