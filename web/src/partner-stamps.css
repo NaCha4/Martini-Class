@@ -2,9 +2,12 @@ dialog.partner-dialog{width:min(740px,calc(100% - 32px));max-width:calc(100% - 3
 .partner-dialog>.dialog-frame{display:flex;flex-direction:column;max-height:inherit;min-height:0}
 .partner-dialog .dialog-content{width:100%;min-width:0;padding:16px 26px 24px}
 .partner-dialog [data-partner-body]{width:100%;min-width:0}
-.partner-heading{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:0 0 12px}
-.partner-heading p{color:var(--muted);font-size:14px;line-height:1.7}
-.partner-heading .button{flex:none;font-size:12px;padding:10px 12px}
+.partner-information{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-bottom:28px}
+.partner-info-card{min-width:0;min-height:136px;padding:22px;border:1px solid var(--line);border-radius:12px;background:var(--raised)}
+.partner-info-card h3{margin:0 0 14px;font-size:16px;line-height:1.5}
+.partner-info-card p{margin:0;color:var(--muted);font-size:13px;line-height:1.8}
+.partner-coupon-section{padding-top:24px;border-top:1px solid var(--line)}
+.partner-coupon-section>h3{margin:0 0 16px;font-size:18px;line-height:1.5}
 
 /* Preserve the original rectangular artwork and its 3000 × 1650 stamp positions. */
 .partner-coupon{margin:0;min-width:0;overflow:hidden;border:1px solid var(--line)}
@@ -13,7 +16,8 @@ dialog.partner-dialog{width:min(740px,calc(100% - 32px));max-width:calc(100% - 3
 .partner-stamps{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
 
 .partner-qr-slot{text-align:center;margin-top:20px;padding:18px 0 2px;border-top:1px solid var(--line)}
-.partner-qr-slot>.button{margin-top:12px;min-width:180px;min-height:48px}
+.partner-qr-slot>.button{min-width:180px;min-height:48px}
+.partner-qr-help+.button{margin-top:12px}
 .partner-qr-slot>.partner-qr-help:first-child{margin-top:0}
 .partner-qr-frame{display:inline-block;max-width:100%;position:relative;overflow:hidden;padding:7px;border-radius:15px;background:#705e3e;isolation:isolate}
 .partner-qr-frame::before{content:'';position:absolute;inset:-50%;background:conic-gradient(#897248,#f6deb0,#897248,#3b3020,#897248);animation:partner-live-ring 2s linear infinite;z-index:-1}
@@ -72,17 +76,18 @@ dialog.partner-dialog{width:min(740px,calc(100% - 32px));max-width:calc(100% - 3
  dialog.partner-dialog{width:calc(100% - 24px);max-width:calc(100% - 24px)}
  .partner-dialog header{padding:20px}
  .partner-dialog .dialog-content{padding:14px 16px 22px}
- .partner-dialog footer{padding:14px 20px}
- .partner-heading{gap:10px;margin-bottom:12px}
- .partner-heading p{font-size:13px}
+ .partner-information{gap:10px;margin-bottom:20px}
+ .partner-info-card{min-height:116px;padding:16px}
+ .partner-info-card h3{font-size:14px;margin-bottom:10px}
+ .partner-coupon-section{padding-top:20px}
  .partner-qr-slot{margin-top:16px;padding-top:16px}
  .merchant-page{padding:32px 16px 22px}
  .merchant-panel{padding:22px 18px}
 }
 @media(max-width:360px){
  .partner-dialog .dialog-content{padding-inline:12px}
- .partner-heading p{font-size:12px}
- .partner-heading .button{padding:8px;font-size:11px}
+ .partner-information{grid-template-columns:1fr}
+ .partner-info-card{min-height:96px}
  .merchant-panel{padding:20px 12px}
 }
 @media(prefers-reduced-motion:reduce){.partner-qr-frame::before,.partner-live-dot{animation-duration:4s}}

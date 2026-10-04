@@ -18,7 +18,7 @@ async function host(run,{path='/partners/feelingfine',blocked=false}={}){
  class Element{
   constructor(tag='div'){this.tag=tag;this.innerHTML='';this.textContent='';this.style={};this.attrs=new Map();this.listeners=new Map();this.parts=new Map();this.dataset={};this.isConnected=true;const classes=new Set();this.classList={add:(...names)=>names.forEach(name=>classes.add(name)),remove:(...names)=>names.forEach(name=>classes.delete(name)),contains:name=>classes.has(name)};}
   setAttribute(n,v){this.attrs.set(n,String(v));}getAttribute(n){return this.attrs.get(n)||null;}removeAttribute(n){this.attrs.delete(n);}addEventListener(n,fn){listen(this.listeners,n,fn);}focus(){document.activeElement=this;}matches(){return false;}getClientRects(){return [1];}closest(){return null;}remove(){this.isConnected=false;}showModal(){this.open=true;}close(){if(!this.open)return;this.open=false;for(const fn of this.listeners.get('close')||[])fn();}
-  querySelector(selector){if(selector==='form'||selector==='form[aria-busy=true]'||selector==='#discard-changes')return null;if(!this.parts.has(selector)){const part=new Element();part.parent=this;this.parts.set(selector,part);}return this.parts.get(selector);}
+  querySelector(selector){if(selector==='form'||selector==='form[aria-busy=true]'||selector==='#discard-changes')return null;if(this.tag==='dialog'&&['.dialog-actions','.dialog-status'].includes(selector)&&!this.innerHTML.includes('class="'+selector.slice(1)+'"'))return null;if(!this.parts.has(selector)){const part=new Element();part.parent=this;this.parts.set(selector,part);}return this.parts.get(selector);}
   querySelectorAll(){return [];}
  }
  const panel=new Element();
@@ -201,9 +201,17 @@ test('member QR remains visible after ten seconds, disappears after thirty, and 
  html=dialog.querySelector('[data-partner-body]').innerHTML;assert.doesNotMatch(html,/data:image/);assert.match(html,/새 QR 표시/);assert.equal(timers.size,0);assert.equal(calls.filter(call=>call.op==='issueCouponQr').length,1);
 },{path:'/members'}));
 
-test('hiding a member QR or closing its dialog destroys the QR and its timers',async()=>host(async({hidden,timers})=>{
- const {ctx}=context();memberSignIn(ctx);const dialog=await openMemberPartner(ctx);await partnerAction(ctx,'partner-qr');await hidden(true);
- assert.doesNotMatch(dialog.querySelector('[data-partner-body]').innerHTML,/data:image/);assert.equal(timers.size,0);await hidden(false);await partnerAction(ctx,'partner-qr');assert.equal(timers.size,1);dialog.close();assert.equal(timers.size,0);assert.equal(ctx.state.memberPartner,undefined);
+test('member partner dialog puts information above stamps and closes safely with one header X and no footer',async()=>host(async({hidden,timers})=>{
+ const {ctx}=context();memberSignIn(ctx);const dialog=await openMemberPartner(ctx),html=dialog.innerHTML,body=()=>dialog.querySelector('[data-partner-body]').innerHTML;
+ assert.ok(html.includes('partner-information'));assert.ok(html.indexOf('partner-information')<html.indexOf('partner-coupon-section'));
+ for(const title of ['제휴 혜택','이용 안내','스탬프'])assert.ok(html.includes(title));assert.match(html,/안내 준비 중/);
+ assert.doesNotMatch(html,/<footer\b/);assert.equal((html.match(/\bdata-close\b/g)||[]).length,1);assert.match(html,/<button\b[^>]*data-close[^>]*aria-label="닫기"[^>]*>[\s\S]*?data-lucide="x"/);
+ assert.equal(dialog.querySelector('.dialog-actions'),null);assert.equal(dialog.querySelector('.dialog-status'),null);
+ assert.doesNotMatch(body(),/data-action="partner-refresh"|방문하고 스탬프를 모아 보세요|매장에서 적립할 때 QR을 표시해 주세요/);
+ await partnerAction(ctx,'partner-qr');await hidden(true);
+ assert.doesNotMatch(body(),/data:image/);assert.equal(timers.size,0);await hidden(false);await partnerAction(ctx,'partner-qr');assert.equal(timers.size,1);
+ dialog.pendingRequest=true;assert.equal(await dialog.requestClose(),false);assert.equal(dialog.open,true);dialog.pendingRequest=false;
+ assert.equal(await dialog.requestClose(true),true);assert.equal(dialog.open,false);assert.equal(timers.size,0);assert.equal(ctx.state.memberPartner,undefined);assert.equal(dialog.querySelector('.partner-qr-slot').innerHTML,'');
 },{path:'/members'}));
 
 test('a QR issuance that returns after the member dialog closes cannot restore a QR',async()=>host(async()=>{

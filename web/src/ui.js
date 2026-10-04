@@ -66,33 +66,33 @@ export async function closeModal({discard=false}={}) {
   const dialog=document.querySelector('#modal[open]');
   return dialog?dialog.requestClose(discard):true;
 }
-export function modal(title, body, onSubmit, {wide=false,submit='저장',submitClass='button',busyText='저장 중…',contentOnly=false,onClose}={}) {
+export function modal(title, body, onSubmit, {wide=false,submit='저장',submitClass='button',busyText='저장 중…',contentOnly=false,footer=true,onClose}={}) {
   const previous=document.querySelector('#modal');
   if(previous){previous.replaced=true;previous.close();previous.remove();}
   const opener=previous?.modalOpener||captureFocus(),openedPath=location.pathname;
   const dialog=document.createElement('dialog');
   dialog.modalOpener=opener;
   dialog.id='modal';dialog.setAttribute('aria-labelledby','modal-title');dialog.setAttribute('aria-modal','true');dialog.className=wide?'wide-dialog':'';
-  dialog.innerHTML=(contentOnly?'<div class="dialog-frame">':'<form id="modal-form">')+'<header><div><h2 id="modal-title" tabindex="-1">'+esc(title)+'</h2></div><button type="button" class="icon-button" data-close aria-label="닫기">'+icon('x')+'</button></header><div class="dialog-scroll"><div class="'+(contentOnly?'dialog-content':'form-grid')+'">'+body+'</div>'+(contentOnly?'':'<p class="form-error" role="alert"></p>')+'</div><footer><p class="dialog-status" role="status"></p><div class="dialog-actions"><button type="button" class="button secondary" data-close>닫기</button>'+(!contentOnly&&onSubmit?'<button class="'+esc(submitClass)+'" type="submit">'+esc(submit)+'</button>':'')+'</div></footer>'+(contentOnly?'</div>':'</form>');
+  dialog.innerHTML=(contentOnly?'<div class="dialog-frame">':'<form id="modal-form">')+'<header><div><h2 id="modal-title" tabindex="-1">'+esc(title)+'</h2></div><button type="button" class="icon-button" data-close aria-label="닫기">'+icon('x')+'</button></header><div class="dialog-scroll"><div class="'+(contentOnly?'dialog-content':'form-grid')+'">'+body+'</div>'+(contentOnly?'':'<p class="form-error" role="alert"></p>')+'</div>'+(!contentOnly||footer?'<footer><p class="dialog-status" role="status"></p><div class="dialog-actions"><button type="button" class="button secondary" data-close>닫기</button>'+(!contentOnly&&onSubmit?'<button class="'+esc(submitClass)+'" type="submit">'+esc(submit)+'</button>':'')+'</div></footer>':'')+(contentOnly?'</div>':'</form>');
   document.body.append(dialog);
   const form=dialog.querySelector('form'),scroll=dialog.querySelector('.dialog-scroll'),actions=dialog.querySelector('.dialog-actions');
   let baseline=form?formSignature(form):null,saving=false,resolveClose=null;
   dialog.isDirty=()=>!!form&&(!!onSubmit||contentOnly)&&formSignature(form)!==baseline;
   dialog.isSaving=()=>saving||!!dialog.pendingRequest||!!dialog.querySelector('form[aria-busy=true]');
   const releaseConfirmation=accepted=>{
-    dialog.querySelector('#discard-changes')?.remove();scroll.inert=false;actions.inert=false;
+    dialog.querySelector('#discard-changes')?.remove();scroll.inert=false;if(actions)actions.inert=false;
     const resolve=resolveClose;resolveClose=null;resolve?.(accepted);
   };
   dialog.requestClose=async(discard=false)=>{
     if(!dialog.open)return true;
     if(discard){releaseConfirmation(true);dialog.close();return true;}
-    if(dialog.isSaving()){dialog.querySelector('.dialog-status').textContent='처리 중입니다. 완료될 때까지 기다려 주세요.';return false;}
+    if(dialog.isSaving()){const status=dialog.querySelector('.dialog-status');if(status)status.textContent='처리 중입니다. 완료될 때까지 기다려 주세요.';return false;}
     if(!dialog.isDirty()){dialog.close();return true;}
     if(resolveClose)return false;
     const savedFocus=captureFocus();
     const notice=document.createElement('section');notice.id='discard-changes';notice.className='discard-confirmation';notice.setAttribute('role','alert');
     notice.innerHTML='<h3>작성 중인 내용이 있습니다</h3><p>저장하지 않고 닫으면 변경 내용이 사라집니다.</p><div><button type="button" class="button secondary" data-keep-editing>계속 작성</button><button type="button" class="button danger" data-discard-editing>변경사항 버리기</button></div>';
-    dialog.querySelector('header').after(notice);scroll.inert=true;actions.inert=true;
+    dialog.querySelector('header').after(notice);scroll.inert=true;if(actions)actions.inert=true;
     const result=new Promise(resolve=>{resolveClose=resolve;});
     notice.querySelector('[data-keep-editing]').onclick=()=>{releaseConfirmation(false);const el=savedFocus?.element;if(el?.isConnected)el.focus({preventScroll:true});};
     notice.querySelector('[data-discard-editing]').onclick=()=>{releaseConfirmation(true);dialog.close();};
