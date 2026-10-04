@@ -9,8 +9,9 @@ import { createDeletion } from './deletion.js';
 import { createDecisionCategories } from './decision-categories.js';
 import { createInventoryBoard, inventoryCategoryId } from './inventory-board.js';
 import { createMemberPortal } from './member-portal.js';
-import { createCoupons } from './coupons.js';
+import { createPartnerStamps } from './partner-stamps.js';
 import { createOnTheRock } from './on-the-rock.js';
+import { createBudgetPlanner } from './budget-planner.js';
 import { Timestamp, FieldValue } from 'firebase-admin/firestore';
 import { schemas, parse, fail, ensureScope, hash, secret, identity, normalizePhone, validateEvent, allocate, changeStock, stockTotal, matches, publicEvent, requireRevision, occupied, idSchema, roles } from './domain.js';
 const PREFIX='martini_v2_';
@@ -23,10 +24,11 @@ export function createService(db,clock=Date.now){
  const roster=createRoster(col);
  const snapshot=snap=>snap.exists&&!snap.data().deletedAt?{...snap.data(),id:snap.id}:null;
  const clean=record=>{const {linkHash,receiptHash,identityHash,memberIdentityHash,isStaff,staffFee,staffFeeRevision,pricingRevision,...safe}=record;return safe;};
+ function protectedRole(builtin,stored){return {...builtin,permissions:[...builtin.permissions,...(!stored?.deletedAt&&Array.isArray(stored?.permissions)&&stored.permissions.includes('budget')?['budget']:[])],revision:stored?.revision||0};}
  async function roleDefinition(id,tx){
   const builtin=defaultRoles.find(r=>r.id===id);
-  if(['owner','chair'].includes(id))return {...builtin,revision:0};
   const ref=col('roles').doc(id),doc=tx?await tx.get(ref):await ref.get();
+  if(['owner','chair'].includes(id))return protectedRole(builtin,doc.data());
   return doc.exists?(doc.data().deletedAt?null:{...doc.data(),id,system:!!builtin}):builtin?{...builtin,revision:0}:null;
  }
  async function admin(ctx){
@@ -51,6 +53,7 @@ export function createService(db,clock=Date.now){
  const inventoryBoard=createInventoryBoard({db,col,clock,now,audit});
  const staffPricing=createStaffPricing({db,col,clock,now,audit});
  const onTheRock=createOnTheRock({db,col,now,audit});
+ const budgetPlanner=createBudgetPlanner({db,col,clock,now,audit});
  // Serialize hot-event transactions within an instance; Firestore still guards cross-instance capacity.
  const eventQueues=new Map(),queueSizes=new Map();
  function serializeEvent(id,run){
@@ -66,10 +69,10 @@ export function createService(db,clock=Date.now){
  }
  async function settings(){return (await col('settings').doc('club').get()).data()||null;}
  const memberPortal=createMemberPortal({db,col,clock,now,roster,throttle,audit});
- const memberCoupons=createCoupons({db,authenticate:memberPortal.authenticate,throttle});
+ const partnerStamps=createPartnerStamps({db,col,clock,now,roster,throttle,audit,authenticate:memberPortal.authenticate,authenticateSessionHash:memberPortal.authenticateSessionHash,identityFingerprint:memberPortal.identityFingerprint});
  async function verifyEvent(eventId,key,tx){
   const ref=col('events').doc(eventId),s=tx?await tx.get(ref):await ref.get(),e=snapshot(s);
-  if(!e||!matches(key,e.linkHash)||e.status==='draft')fail('not-found','유효한 행사 링크를 확인해 주세요.');
+  if(!e||e.memberVisible===false||!matches(key,e.linkHash)||e.status==='draft')fail('not-found','유효한 행사 링크를 확인해 주세요.');
   return e;
  }
  async function save(kind,schema,data,who,scope){
@@ -95,6 +98,8 @@ export function createService(db,clock=Date.now){
    }
    if(kind==='budgets'){if(old?.status==='executed')fail('failed-precondition','집행 완료한 계획은 수정할 수 없습니다.');next.status='planned';}
    if(kind==='events'){
+    // Cached editors that omit visibility must not make a private event public.
+    next.memberVisible=input.memberVisible??(old?.memberVisible!==false);
     for(const key of ['staffFee','staffFeeRevision'])if(old?.[key]!==undefined)next[key]=old[key];
     for(const key of ['accountNumber','bankName','accountHolder'])next[key]=input[key]??old?.[key]??'';
     validateEvent(input,old?.registered||0);
@@ -287,7 +292,7 @@ export function createService(db,clock=Date.now){
     if(!memberPortal.ownsApplication(record,member))continue;
     if(!events.has(record.eventId))events.set(record.eventId,snapshot(await tx.get(col('events').doc(record.eventId))));
     const event=events.get(record.eventId);
-    if(event&&event.semester===member.semester)applications.push(memberApplicationView(record,event));
+    if(event&&event.memberVisible!==false&&event.semester===member.semester)applications.push(memberApplicationView(record,event));
    }
    applications.sort((a,b)=>(b.application.createdAt||'').localeCompare(a.application.createdAt||'')||a.application.id.localeCompare(b.application.id));
    return {applications:applications.slice(0,500),expiresAt,legacyAccessRequiresReceipt:true,...(rows.size>500?{truncated:true}:{})};
@@ -301,7 +306,7 @@ export function createService(db,clock=Date.now){
    const ref=col('applications').doc(input.id),record=snapshot(await tx.get(ref));
    if(!memberPortal.ownsApplication(record,member))fail('not-found','신청 내역을 확인해 주세요.');
    const event=snapshot(await tx.get(col('events').doc(record.eventId)));
-   if(!event||event.semester!==member.semester)fail('not-found','행사를 찾을 수 없습니다.');
+   if(!event||event.memberVisible===false||event.semester!==member.semester)fail('not-found','행사를 찾을 수 없습니다.');
    const result=await applicationAction(tx,ref,record,event,input.action);
    return memberApplicationView(result.record,result.event);
   });
@@ -383,22 +388,26 @@ export function createService(db,clock=Date.now){
    await throttle(ctx,'resolve-link:'+input.kind+':'+(parseInt(secret().slice(0,4),16)%16),100);
    const rows=await col(input.kind==='e'?'events':'applications').where(input.kind==='e'?'linkHash':'receiptHash','==',hash(input.key)).limit(2).get();
    const record=rows.size===1?snapshot(rows.docs[0]):null;
-   if(!record||record.anonymizedAt)fail('not-found','링크를 확인해 주세요.');
+   if(!record||record.anonymizedAt||(input.kind==='e'&&record.memberVisible===false))fail('not-found','링크를 확인해 주세요.');
    return {id:rows.docs[0].id};
   }
   if(op==='eventAccess'){const input=parse(z.object({eventId:idSchema,key:token}).strict(),data);await throttle(ctx,'event:'+input.eventId+':'+(parseInt(secret().slice(0,4),16)%16),100);return publicEvent(await verifyEvent(input.eventId,input.key));}
   if(op==='apply')return apply(data,ctx);
   if(op==='receipt')return receipt(data,ctx);
   if(op==='memberAccess')return memberPortal.access(data,ctx);
+  if(op==='memberLogout')return memberPortal.logout(data,ctx);
   if(op==='memberPortal')return memberPortal.portal(data,ctx);
   if(op==='memberEventAccess')return memberPortal.eventAccess(data,ctx);
   if(op==='memberApplications')return memberApplications(data,ctx);
   if(op==='memberApplication')return memberApplication(data,ctx);
-  if(op==='memberCoupons')return memberCoupons(data,ctx);
+  if(['memberCoupons','issueCouponQr','merchantLogin','merchantSession','merchantLogout','merchantCouponPreview','stampCoupon'].includes(op))return partnerStamps[op](data,ctx);
   if(op==='submitClubRequest')return memberPortal.submit(data,ctx);
   if(op==='clubRequestReceipt')return memberPortal.getReceipt(data,ctx);
   if(op==='cancelClubRequest')return memberPortal.cancel(data,ctx);
   const who=await admin(ctx);
+  if(['couponSettings','couponHistory','saveCouponSettings'].includes(op))return partnerStamps[op](data,who);
+  if(op==='budgetPlanner')return budgetPlanner.read(data,who);
+  if(op==='saveBudgetPlanner')return budgetPlanner.save(data,who);
   if(['onTheRockBoard','saveOnTheRockGroup','recordOnTheRockMission','updateOnTheRockRecord','voidOnTheRockRecord'].includes(op))return onTheRock(op,data,who);
   if(op==='clubRequests')return memberPortal.list(data,who);
   if(op==='clubRequestCommand')return memberPortal.command(data,who);
@@ -422,8 +431,18 @@ export function createService(db,clock=Date.now){
    ensureScope(who,'admins',clock());
    const stored=await col('roles').get(),assigned=await col('admins').get();
    const map=new Map(defaultRoles.map(r=>[r.id,{...r,revision:0}]));
-   stored.docs.forEach(doc=>{if(['owner','chair'].includes(doc.id))return;if(doc.data().deletedAt)map.delete(doc.id);else map.set(doc.id,{...doc.data(),id:doc.id,system:defaultRoles.some(r=>r.id===doc.id)});});
+   stored.docs.forEach(doc=>{if(['owner','chair'].includes(doc.id)){map.set(doc.id,protectedRole(defaultRoles.find(role=>role.id===doc.id),doc.data()));return;}if(doc.data().deletedAt)map.delete(doc.id);else map.set(doc.id,{...doc.data(),id:doc.id,system:defaultRoles.some(r=>r.id===doc.id)});});
    return {rows:[...map.values()].map(r=>({...r,assigned:assigned.docs.filter(a=>a.data().role===r.id).length}))};
+  }
+  if(op==='setRoleBudget'){
+   ensureScope(who,'admins',clock());
+   const input=parse(z.object({id:z.enum(['owner','chair']),revision:z.number().int().min(0),enabled:z.boolean()}).strict(),data);
+   return db.runTransaction(async tx=>{
+    const old=await roleDefinition(input.id,tx);requireRevision(old,input.revision);
+    const builtin=defaultRoles.find(role=>role.id===input.id);
+    const next={id:input.id,name:builtin.name,permissions:[...builtin.permissions,...(input.enabled?['budget']:[])],revision:old.revision+1,updatedAt:now()};
+    tx.set(col('roles').doc(input.id),next);audit(tx,who,'roles',input.id,'예산 업무 권한 '+(input.enabled?'허용':'해제'));return next;
+   });
   }
   if(op==='saveRole'){
    ensureScope(who,'admins',clock());const input=parse(schemas.role,data),id=input.id||col('roles').doc().id;

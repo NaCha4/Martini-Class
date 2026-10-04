@@ -18,7 +18,7 @@ function monthBody(month,selected){
 }
 
 export function visitCalendar(){
- return '<section class="visit-calendar" aria-labelledby="visit-calendar-title"><span class="member-section-kicker">STEP 01</span><h3 id="visit-calendar-title">언제 방문하나요?</h3><p>달력에서 방문할 날짜를 눌러 주세요.</p><input type="hidden" name="visitDate" value=""><div data-visit-calendar data-month="'+koreaDay().slice(0,7)+'">'+monthBody(koreaDay().slice(0,7),'')+'</div><p class="visit-calendar-hint">한국 시간 기준 · 오늘부터 90일 이내</p><div class="visit-selection" role="status" aria-live="polite"><strong data-visit-selected>방문 날짜를 선택해 주세요</strong><span data-visit-summary>날짜와 시간을 선택하면 여기에 표시됩니다.</span></div><p class="visit-approval-note">간부 승인 후, 신청한 부원과 함께 입장해 주세요.</p></section>';
+ return '<section class="visit-calendar" aria-label="방문 날짜"><p>달력에서 방문할 날짜를 눌러 주세요.</p><input type="hidden" name="visitDate" value=""><div data-visit-calendar data-month="'+koreaDay().slice(0,7)+'">'+monthBody(koreaDay().slice(0,7),'')+'</div><p class="visit-calendar-hint">한국 시간 기준 · 오늘부터 90일 이내</p><div class="visit-selection" role="status" aria-live="polite"><strong data-visit-selected>방문 날짜를 선택해 주세요</strong><span data-visit-summary>날짜와 시간을 선택하면 여기에 표시됩니다.</span></div><p class="visit-approval-note">간부 승인 후, 신청한 부원과 함께 입장해 주세요.</p></section>';
 }
 
 export function visitSchedule(data){

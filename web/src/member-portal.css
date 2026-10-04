@@ -9,7 +9,7 @@
 .member-footer{max-width:1088px;margin:0 auto;padding:16px 24px 24px;color:var(--muted);font-size:12px}
 .member-footer>a{display:inline-flex;align-items:center;min-height:40px}
 .member-footer>a:hover{color:var(--gold)}
-.member-shell :is(a,button):focus-visible,.member-login-page :is(a,button):focus-visible,.member-retry-page :is(a,button):focus-visible,.member-footer>a:focus-visible{outline:2px solid #ddbd84;outline-offset:4px}
+.member-shell :is(a,button):focus-visible,.member-dialog :is(a,button,summary):focus-visible,.member-login-page :is(a,button):focus-visible,.member-retry-page :is(a,button):focus-visible,.member-footer>a:focus-visible{outline:2px solid #ddbd84;outline-offset:4px}
 
 /* Authentication is independent of the member shell. */
 .member-login-page,.member-retry-page{display:grid;place-items:center;min-height:min(600px,calc(100svh - 210px));padding:24px 0;background:var(--bg)}
@@ -34,7 +34,7 @@
 .member-retry-card>.button{margin-top:12px}
 .member-retry-card>.button+.button{margin-left:8px}
 
-/* Compact account line and visible content sections. */
+/* A compact account line and three visible service cards. */
 .member-account-bar{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:20px}
 .member-account-bar>strong{font-size:14px;font-weight:500;line-height:1.6;overflow-wrap:anywhere}
 .member-account-bar>.button{flex-shrink:0;font-size:12px;min-height:40px}
@@ -48,6 +48,29 @@
 .member-section-heading>svg{width:20px;height:20px;color:var(--muted)}
 .member-event-directory{margin:0 auto}
 .member-history{margin-top:24px}
+.member-services{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}
+.member-service-card{display:flex;flex-direction:column;align-items:flex-start;min-width:0;min-height:264px;margin:0;padding:28px 24px;border:1px solid #514a3f;border-radius:12px;background:var(--member-panel);color:var(--text);font:inherit;text-align:left;cursor:pointer;transition:border-color .15s,background .15s,box-shadow .15s}
+.member-service-card:hover{border-color:#b79b70;background:#292620;box-shadow:0 4px 18px #00000020}
+.member-service-card:active{background:#302b23}
+.member-service-icon{display:grid;place-items:center;flex-shrink:0;width:48px;height:48px;margin-bottom:22px;border:1px solid #615441;border-radius:12px;background:#d7b5800a;color:var(--member-accent)}
+.member-service-icon>svg{width:24px;height:24px}
+.member-service-title{display:block;font-size:22px;font-weight:600;line-height:1.45;letter-spacing:-.04em;overflow-wrap:anywhere}
+.member-service-description{display:block;margin:8px 0 24px;font-size:13px;line-height:1.8;color:var(--muted);word-break:keep-all;overflow-wrap:anywhere}
+.member-service-open{display:flex;align-items:center;justify-content:space-between;gap:16px;width:100%;margin-top:auto;color:var(--member-accent);font-size:13px;font-weight:500;line-height:1.6}
+.member-service-open>svg{width:18px;height:18px;flex-shrink:0}
+.member-records{margin-top:40px;padding-top:28px;border-top:1px solid var(--member-line);scroll-margin-top:20px}
+.member-records>h2{margin:0 0 24px;font-size:20px;font-weight:600;line-height:1.5;letter-spacing:-.03em}
+.member-record-groups{display:grid;gap:28px;min-width:0}
+.member-service-history{min-width:0;scroll-margin-top:20px}
+.member-service-history+.member-service-history{padding-top:24px;border-top:1px solid var(--member-line)}
+.member-service-history:focus{outline:none}
+.member-service-history>h3{margin:0 0 2px;font-size:14px;font-weight:600;line-height:1.7;letter-spacing:-.02em}
+.member-service-history>h4{margin:18px 0 0;padding-top:18px;border-top:1px solid var(--member-line);font-size:12px;font-weight:500;line-height:1.7;color:var(--muted)}
+.member-partnership-empty{display:flex;align-items:center;gap:12px;padding:20px 0 26px;color:var(--muted)}
+.member-partnership-empty>svg{flex-shrink:0;width:18px;height:18px}
+.member-partnership-empty>p{margin:0;font-size:14px;line-height:1.8;word-break:keep-all;overflow-wrap:anywhere}
+.member-events-dialog{width:min(740px,calc(100% - 32px))}
+.member-event-picker{padding-bottom:18px}
 
 /* Event and application rows. */
 .member-event{display:flex;align-items:center;gap:15px;width:100%;padding:20px 0;border:0;border-bottom:1px solid var(--member-line);background:transparent;color:var(--text);text-align:left}
@@ -58,6 +81,7 @@
 .member-event-copy{display:block;min-width:0}
 .member-event-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px;font-size:11px;color:var(--muted)}
 .member-event-title{display:block;font-size:16px;font-weight:600;line-height:1.6;overflow-wrap:anywhere;transition:color .15s}
+.member-event-title.is-closed{text-decoration:line-through}
 .member-event-summary,.member-event small{display:block;font-size:12px;line-height:1.8;color:var(--muted);overflow-wrap:anywhere;margin-top:5px}
 .member-event small{font-size:11px;margin-top:2px}
 .member-event:hover .member-event-title{color:var(--gold)}
@@ -86,9 +110,6 @@
 
 /* Essential actions and real loading errors. */
 .member-quiet-empty{padding:20px 0 4px;color:var(--muted);font-size:13px;line-height:1.8}
-.member-quick-actions{display:flex;flex-wrap:wrap;gap:12px}
-.member-quick-actions>.button{min-height:46px;justify-content:center}
-.member-quick-actions+.member-receipt-banner,.member-quick-actions+.member-connection-note{margin-top:20px}
 .member-connection-note{display:flex;align-items:center;gap:13px;padding:16px 18px;margin-bottom:20px;border:1px solid #775148;border-radius:8px;background:#302523}
 .member-connection-note>svg{width:20px;height:20px;flex-shrink:0;color:#ecb4a6}
 .member-connection-note>p{flex:1;font-size:13px;line-height:1.8;overflow-wrap:anywhere}
@@ -97,24 +118,22 @@
 .member-inline-message{padding:22px 0;color:var(--muted);font-size:13px;line-height:1.8}
 .member-inline-message .button{margin-top:12px}
 
-/* Member event detail pages keep their existing forms and receipt functions. */
-.member-inline-detail{margin:0 0 28px;padding:24px;border:1px solid #786344;border-radius:10px;background:#24221f;scroll-margin-top:20px}
-.member-inline-detail:focus{outline:none}
-.member-inline-heading{display:flex;align-items:center;justify-content:space-between;gap:16px;padding-bottom:18px;margin-bottom:20px;border-bottom:1px solid #554a38}
-.member-inline-heading>span{font-size:15px;font-weight:600;line-height:1.5;letter-spacing:-.03em;color:#dec79e}
-.member-inline-heading :is(button,.button){flex-shrink:0}
-.member-inline-detail .application-layout{margin-top:0}
-.member-inline-detail .receipt-card{margin:0 auto;background:var(--member-panel)}
-.member-inline-detail .event-public-detail>h2{font-size:26px;line-height:1.45;margin:14px 0 22px}
-.member-inline-detail .receipt-card>h2{font-size:24px;line-height:1.5;margin:12px 0}
-.member-shell .application-layout{grid-template-columns:minmax(0,1fr) minmax(280px,340px);gap:32px;margin-top:16px}
-.member-shell .event-public-detail>:is(h1,h2){font-size:30px;margin:16px 0 24px}
-.member-shell .apply-card{padding:24px}
-.member-shell .apply-card h2{font-size:22px}
-.member-shell .receipt-card{max-width:680px;padding:28px;border-radius:10px}
-.member-shell .receipt-card>:is(h1,h2){font-size:26px;line-height:1.5}
-.member-shell .receipt-card .success-mark{width:44px;height:44px;margin-bottom:20px}
-.member-shell .receipt-card .success-mark>svg{width:23px;height:23px}
+/* Event and application popups retain their forms inside one scrollable frame. */
+.member-detail-dialog.wide-dialog{width:min(980px,calc(100% - 32px))}
+.member-detail-dialog>.dialog-frame{display:flex;flex-direction:column;max-height:inherit;min-height:0}
+.member-detail-dialog .dialog-content{min-width:0;padding:24px 26px 28px}
+:is(.member-shell,.member-detail-dialog) .application-layout{grid-template-columns:minmax(0,1fr) minmax(280px,340px);gap:32px;margin-top:0}
+:is(.member-shell,.member-detail-dialog) .event-public-detail>:is(h1,h2){font-size:28px;line-height:1.45;margin:16px 0 24px}
+:is(.member-shell,.member-detail-dialog) .apply-card{padding:24px}
+.member-detail-dialog .apply-card{top:0}
+:is(.member-shell,.member-detail-dialog) .apply-card h2{font-size:22px}
+.member-detail-dialog .apply-card .form-error:not(:empty){margin:16px 0;padding:12px 14px}
+.member-detail-dialog .apply-card .form-error:empty{padding:0;margin:0}
+:is(.member-shell,.member-detail-dialog) .receipt-card{max-width:680px;padding:28px;border-radius:10px}
+.member-detail-dialog .receipt-card{margin:0 auto;padding:0;border:0;background:transparent}
+:is(.member-shell,.member-detail-dialog) .receipt-card>:is(h1,h2){font-size:26px;line-height:1.5}
+:is(.member-shell,.member-detail-dialog) .receipt-card .success-mark{width:44px;height:44px;margin-bottom:20px}
+:is(.member-shell,.member-detail-dialog) .receipt-card .success-mark>svg{width:23px;height:23px}
 .member-receipt-recovery>summary{min-height:44px;line-height:1.7}
 .member-receipt-recovery p{font-size:12px;color:var(--muted);line-height:1.8}
 .member-receipt-recovery .button{margin-top:12px;font-size:12px}
@@ -131,15 +150,26 @@
 @media(max-width:680px){.member-receipt-banner{padding:16px;flex-wrap:wrap;gap:12px}.member-receipt-banner>p{flex-basis:calc(100% - 36px);font-size:12px}.member-receipt-banner>.button{margin-left:32px;min-height:44px;font-size:12px}.member-save-receipt{padding:14px}}
 @media(max-width:900px){
  .member-section{padding:20px}
- .member-shell .application-layout{grid-template-columns:1fr;gap:24px}
+ :is(.member-shell,.member-detail-dialog) .application-layout{grid-template-columns:1fr;gap:24px}
+ .member-detail-dialog .apply-card{position:static}
+}
+@media(max-width:760px){
+ .member-services{grid-template-columns:minmax(0,1fr);gap:14px}
+ .member-service-card{min-height:192px;padding:22px 24px}
+ .member-service-icon{width:42px;height:42px;margin-bottom:16px}
+ .member-service-icon>svg{width:22px;height:22px}
+ .member-service-title{font-size:21px}
+ .member-service-description{margin:6px 0 18px}
 }
 @media(max-width:600px){
  .public-header.member-public-header{height:60px;padding:0 20px}
  .public-page.member-public-page{padding:20px 20px 28px;min-height:calc(100svh - 136px)}
  .member-footer{padding:8px 20px 20px}
  .member-account-bar{margin-bottom:16px}
- .member-quick-actions{gap:10px}
- .member-quick-actions>.button{flex:1 1 140px;padding:12px;font-size:13px}
+ .member-service-card{padding:22px 20px}
+ .member-records{margin-top:32px;padding-top:24px}
+ .member-records>h2{font-size:18px;margin-bottom:20px}
+ .member-record-groups{gap:24px}
  .member-login-page,.member-retry-page{min-height:0;padding:8px 0;align-items:start}
  .member-login-card,.member-retry-card{max-width:420px;padding:20px 0;border:0;background:none}
  .member-login-card h1,.member-retry-card h1{font-size:27px}
@@ -167,13 +197,11 @@
  .member-detail-facts>div{grid-template-columns:75px minmax(0,1fr);font-size:12px}
  .member-dialog .member-form-intro{font-size:13px}
  .member-visit-guidance,.member-consent-note{padding:14px}
- .member-shell .receipt-card,.member-shell .apply-card{padding:22px 18px}
- .member-inline-detail{padding:18px 14px;margin-bottom:24px}
- .member-inline-heading{gap:10px;padding-bottom:14px;margin-bottom:16px}
- .member-inline-heading>span{font-size:13px}
- .member-inline-heading>.button{font-size:11px;padding:9px 12px}
- .member-shell .event-public-detail>:is(h1,h2),.member-shell .receipt-card>:is(h1,h2){font-size:25px}
+ .member-shell .receipt-card,:is(.member-shell,.member-detail-dialog) .apply-card{padding:22px 18px}
+ .member-detail-dialog.wide-dialog{width:calc(100% - 20px)}
+ .member-detail-dialog .dialog-content{padding:20px 18px 24px}
+ :is(.member-shell,.member-detail-dialog) .event-public-detail>:is(h1,h2),:is(.member-shell,.member-detail-dialog) .receipt-card>:is(h1,h2){font-size:25px}
 }
 @media(prefers-reduced-motion:reduce){
- .member-event-title,.member-request-row,.member-application-row,.visit-guest-option span{transition:none}
+ .member-service-card,.member-event-title,.member-request-row,.member-application-row,.visit-guest-option span{transition:none}
 }

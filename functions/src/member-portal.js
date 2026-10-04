@@ -34,8 +34,12 @@ export function createMemberPortal({db,col,clock,now,roster,throttle,audit}){
   return settings.semester;
  }
  async function authenticate(sessionKey,tx){
-  const session=(await read(tx).get(col('memberSessions').doc(hash(sessionKey)))).data();
-  if(!session||!session.expiresAt?.toMillis||session.expiresAt.toMillis()<=clock())fail('unauthenticated','부원 인증이 만료되었습니다. 다시 인증해 주세요.');
+  return authenticateSessionHash(hash(sessionKey),tx);
+ }
+ // Internal callers can bind a short-lived QR to a session without storing its bearer token.
+ async function authenticateSessionHash(sessionHash,tx){
+  const session=(await read(tx).get(col('memberSessions').doc(sessionHash))).data();
+  if(!session||session.revokedAt||!session.expiresAt?.toMillis||session.expiresAt.toMillis()<=clock())fail('unauthenticated','부원 인증이 만료되었습니다. 다시 인증해 주세요.');
   const semester=await currentSemester(tx);
   if(session.semester!==semester)fail('unauthenticated','학기가 변경되었습니다. 다시 부원 인증을 해 주세요.');
   const member=await roster.get(session.memberId,semester,tx);
@@ -51,7 +55,7 @@ export function createMemberPortal({db,col,clock,now,roster,throttle,audit}){
   if(subject)await throttle({ip:hash(subject)},'club-'+bucket+'-identity',bucket==='access'?8:20);
  }
  async function access(data,ctx){
-  const input=parse(z.object({...applicant,phone:legacyPhone,sessionKey:key}).strict(),data);
+  const input=parse(z.object({...applicant,phone:legacyPhone,sessionKey:key,remember:z.boolean().optional()}).strict(),data);
   await guard(ctx,'access',input.studentId.toLowerCase(),60);
   return db.runTransaction(async tx=>{
    const semester=await currentSemester(tx),members=await roster.findStudent(input.studentId,semester,tx);
@@ -59,10 +63,20 @@ export function createMemberPortal({db,col,clock,now,roster,throttle,audit}){
    if(matched.length!==1)fail('permission-denied','이름, 학번 또는 현재 활동 자격을 확인할 수 없습니다. 운영진에게 문의해 주세요.');
    const member=matched[0],ref=col('memberSessions').doc(hash(input.sessionKey)),prior=(await tx.get(ref)).data();
    if(prior&&(prior.memberId!==member.id||prior.semester!==semester||prior.identityHash!==fingerprint(member)))fail('already-exists','새 인증으로 다시 시도해 주세요.');
-   if(prior&&prior.expiresAt.toMillis()<=clock())fail('unauthenticated','새 인증으로 다시 시도해 주세요.');
-   const expiresAt=prior?.expiresAt||Timestamp.fromMillis(clock()+2*3600000);
+   if(prior&&(prior.revokedAt||!prior.expiresAt?.toMillis||prior.expiresAt.toMillis()<=clock()))fail('unauthenticated','새 인증으로 다시 시도해 주세요.');
+   const expiresAt=prior?.expiresAt||Timestamp.fromMillis(clock()+(input.remember?7*DAY:2*3600000));
    if(!prior)tx.create(ref,{memberId:member.id,semester,identityHash:fingerprint(member),createdAt:now(),expiresAt});
    return {member:{name:member.name,semester},expiresAt:expiresAt.toDate().toISOString()};
+  });
+ }
+ async function logout(data,ctx){
+  const input=parse(z.object({sessionKey:key}).strict(),data);
+  await guard(ctx,'logout',input.sessionKey,60);
+  return db.runTransaction(async tx=>{
+   const ref=col('memberSessions').doc(hash(input.sessionKey)),session=(await tx.get(ref)).data();
+   // Possession of this token is enough to revoke it, even after roster changes.
+   if(session&&!session.revokedAt)tx.update(ref,{revokedAt:now()});
+   return {signedOut:true};
   });
  }
  async function portal(data,ctx){
@@ -73,14 +87,14 @@ export function createMemberPortal({db,col,clock,now,roster,throttle,audit}){
    const events=await tx.get(col('events').where('semester','==',member.semester));
    const requests=await tx.get(col('clubRequests').where('memberScope','==',scope(member)).orderBy('createdAt','desc').limit(100));
    return {member:{name:member.name,semester:member.semester},expiresAt,
-    events:events.docs.map(doc=>({...doc.data(),id:doc.id})).filter(event=>!event.deletedAt&&['open','closed'].includes(event.status)&&Date.parse(event.endsAt)>clock()).sort((a,b)=>a.startsAt.localeCompare(b.startsAt)).map(event=>({...publicEvent(event),eventId:event.id})),
+    events:events.docs.map(doc=>({...doc.data(),id:doc.id})).filter(event=>!event.deletedAt&&event.memberVisible!==false&&['open','closed'].includes(event.status)&&Date.parse(event.endsAt)>clock()).sort((a,b)=>a.startsAt.localeCompare(b.startsAt)).map(event=>({...publicEvent(event),eventId:event.id})),
     requests:requests.docs.filter(doc=>!doc.data().deletedAt&&!doc.data().anonymizedAt&&requestFingerprint(doc.data())===fingerprint(member)).map(doc=>safeRequest({...doc.data(),id:doc.id}))};
   },{readOnly:true});
  }
  async function verifyEvent(eventId,sessionKey,tx){
   const verified=await authenticate(sessionKey,tx),doc=await read(tx).get(col('events').doc(eventId));
   const event=doc.exists?{...doc.data(),id:doc.id}:null;
-  if(!event||event.deletedAt||event.semester!==verified.member.semester||!['open','closed'].includes(event.status)||Date.parse(event.endsAt)<=clock())fail('not-found','현재 학기의 진행 중인 행사를 확인해 주세요.');
+  if(!event||event.deletedAt||event.memberVisible===false||event.semester!==verified.member.semester||!['open','closed'].includes(event.status)||Date.parse(event.endsAt)<=clock())fail('not-found','현재 학기의 진행 중인 행사를 확인해 주세요.');
   return {...verified,event};
  }
  async function eventAccess(data,ctx){
@@ -164,5 +178,5 @@ export function createMemberPortal({db,col,clock,now,roster,throttle,audit}){
    return {saved:true,request:safeRequest({...record,...patch,id:input.id})};
   });
  }
- return {access,portal,eventAccess,verifyEvent,submit,getReceipt,cancel,list,command,authenticate,ownsApplication,identityFingerprint:fingerprint};
+ return {access,logout,portal,eventAccess,verifyEvent,submit,getReceipt,cancel,list,command,authenticate,authenticateSessionHash,ownsApplication,identityFingerprint:fingerprint};
 }

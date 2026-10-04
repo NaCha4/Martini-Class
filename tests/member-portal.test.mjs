@@ -422,7 +422,7 @@ test('member offer acceptance preserves expiry, retry and effective-fee rules',a
  assert.equal((await ref('events','event-one').get()).data().registered,1);
 });
 
-test('member applications and preparing coupons require a live current-semester session',async()=>{
+test('member applications and coupon balances require a live current-semester session',async()=>{
  await access();const saved=await service.handle(eventApply(),guest);
  const requests=[{op:'memberApplications',sessionKey:session},{op:'memberApplication',sessionKey:session,id:saved.id},{op:'memberCoupons',sessionKey:session}];
  now+=7200001;
@@ -431,22 +431,26 @@ test('member applications and preparing coupons require a live current-semester 
  for(const request of requests)await assert.rejects(service.handle(request,guest),e=>e.code==='unauthenticated');
 });
 
-test('coupon reads remain preparing, disclose no balance or QR and create no coupon records',async()=>{
+test('an unconfigured coupon card is unavailable with an empty balance and creates no partner records',async()=>{
  await access();
  const before=(await db.listCollections()).map(collection=>collection.id).sort();
  const result=await service.handle({op:'memberCoupons',sessionKey:session},guest);
- assert.deepEqual(result,{status:'preparing',available:false,capacity:10,rewardStatus:'undecided',expiresAt:new Date(now+7200000).toISOString()});
+ assert.deepEqual(result,{available:false,capacity:10,stampCount:0,revision:0,expiresAt:new Date(now+7200000).toISOString()});
  assert.deepEqual((await db.listCollections()).map(collection=>collection.id).sort(),before);
- for(const field of ['balance','stampCount','coupons','qr','memberId','reward'])assert.equal(result[field],undefined);
+ for(const field of ['balance','coupons','qr','token','memberId','reward','code','codeHash','codeSalt'])assert.equal(result[field],undefined);
+ assert.deepEqual(await service.handle({op:'couponSettings'},owner),{revision:0,configured:false,enabled:false});
+ await assert.rejects(service.handle({op:'issueCouponQr',sessionKey:session},guest),e=>e.code==='failed-precondition');
  await assert.rejects(service.handle({op:'memberCoupons',sessionKey:session,action:'issue'},guest),e=>e.code==='invalid-argument');
- for(const op of ['issueCoupon','stampCoupon','redeemCoupon'])await assert.rejects(service.handle({op},owner),e=>e.code==='not-found');
+ for(const op of ['issueCoupon','redeemCoupon'])await assert.rejects(service.handle({op},owner),e=>e.code==='not-found');
+ await assert.rejects(service.handle({op:'stampCoupon'},owner),e=>e.code==='invalid-argument');
+ await assert.rejects(service.handle({op:'stampCoupon',sessionKey:session,token:'f'.repeat(64)},owner),e=>e.code==='unauthenticated');
  await memberRef('member-1').update({removedAt:stamp()});
  await assert.rejects(service.handle({op:'memberCoupons',sessionKey:session},guest),e=>e.code==='permission-denied');
 });
 
 test('member apply and coupon requests encounter the IP guard before unverified session reads',async()=>{
  const minute=Math.floor(now/60000);
- for(const [bucket,count,input] of [['apply-session-ip',200,eventApply({sessionKey:'f'.repeat(64)})],['member-coupons',200,{op:'memberCoupons',sessionKey:'f'.repeat(64)}]]){
+ for(const [bucket,count,input] of [['apply-session-ip',200,eventApply({sessionKey:'f'.repeat(64)})],['partner-coupons-ip',200,{op:'memberCoupons',sessionKey:'f'.repeat(64)}]]){
   await ref('rateLimits',hash(guest.ip+':'+bucket+':'+minute)).set({count});
   await assert.rejects(service.handle(input,guest),e=>e.code==='resource-exhausted');
  }

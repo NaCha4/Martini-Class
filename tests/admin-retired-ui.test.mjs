@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { registerHooks } from 'node:module';
+import { defaultRoles, hasPermission, permissionLabels } from '../functions/src/permissions.js';
+import { field } from '../web/src/ui.js';
 
 // Load the actual renderer and form handlers without initializing Firebase.
 // In particular, these checks never load the app's Firebase configuration.
@@ -64,7 +66,7 @@ const nav=(html,label)=>html.match(new RegExp('<nav aria-label="'+label+'">([\\s
 // Browser layout and icon replacement are outside these checks.
 async function withDialogs(run){
  const dialogs=[];
- const element=()=>({innerHTML:'',style:{},listeners:new Map(),setAttribute(){},removeAttribute(){},addEventListener(name,handler){this.listeners.set(name,handler);},focus(){}});
+ const element=()=>({innerHTML:'',style:{},classList:{toggle(){},add(){}},listeners:new Map(),setAttribute(){},removeAttribute(){},addEventListener(name,handler){this.listeners.set(name,handler);},querySelectorAll:()=>[],focus(){},scrollIntoView(){}});
  const document={
   activeElement:null,
   body:{append:dialog=>dialogs.push(dialog)},
@@ -76,7 +78,22 @@ async function withDialogs(run){
    form.entries=[];
    const error=element();
    form.querySelector=selector=>selector.includes('form-error')?error:null;
-   dialog.querySelector=selector=>parts.get(selector)||null;
+   dialog.querySelector=selector=>{
+    if(parts.has(selector))return parts.get(selector);
+    if(selector==='[type=submit]'||selector==='[data-event-status-help]'||selector==='[data-existing-applications]'){
+     const control=element();parts.set(selector,control);return control;
+    }
+    const name=selector.match(/^\[name=([^\]]+)\]$/)?.[1];
+    if(name){
+     const tag=dialog.innerHTML.match(new RegExp('<(?:input|select|textarea)\\b[^>]*name="'+name+'"[^>]*>'))?.[0];
+     if(!tag)return null;
+     const control=element(),wrapper=element();
+     control.value=tag.match(/\bvalue="([^"]*)"/)?.[1]??dialog.innerHTML.match(new RegExp('<select\\b[^>]*name="'+name+'"[^>]*>[\\s\\S]*?<option value="([^"]*)" selected'))?.[1]??'';
+     control.checked=/\bchecked\b/.test(tag);
+     control.closest=()=>wrapper;parts.set(selector,control);return control;
+    }
+    return null;
+   };
    dialog.querySelectorAll=()=>[];
    dialog.showModal=()=>{dialog.open=true;};
    dialog.close=()=>{dialog.open=false;};
@@ -95,6 +112,77 @@ async function withDialogs(run){
   return result;
  });
 }
+
+test('partner management requires settings permission and reads only safe dedicated configuration',async()=>{
+ for(const permitted of [false,true]){
+  const {ctx,calls}=context({operator:profile({permissions:permitted?['settings']:['events']})}),api=ctx.api;
+  ctx.api=async(op,data)=>{if(op==='couponSettings'){calls.push({op,data});return {revision:1,configured:true,enabled:true};}return api(op,data);};
+  const html=await at('/admin/partners',()=>renderAdmin(ctx));
+  if(permitted){assert.match(html,/필링파인/);assert.doesNotMatch(html,/사장님 화면 열기|href="\/partners\/feelingfine/);assert.match(html,/설정됨/);assert.match(html,/data-action="partneradmin-edit"/);assert.match(html,/data-action="partneradmin-history"/);assert.deepEqual(calls.map(call=>call.op),['profile','couponSettings']);}
+  else{assert.match(html,/접근 권한이 없습니다/);assert.doesNotMatch(html,/필링파인|설정됨/);assert.deepEqual(calls.map(call=>call.op),['profile']);}
+ }
+});
+
+test('partner code editor has no enable control or length limits and saves confirmed short and long codes',async()=>{
+ for(const code of ['7','synthetic-long-code-'.repeat(20)]){
+ const {ctx}=context(),api=ctx.api,payloads=[];
+ ctx.render=async()=>{};ctx.toast=()=>{};
+ ctx.api=async(op,data)=>{if(op==='couponSettings')return {revision:0,configured:false,enabled:false};if(op==='saveCouponSettings'){payloads.push(data);return {revision:1,configured:true,enabled:true};}return api(op,data);};
+ await at('/admin/partners',async()=>{
+  await renderAdmin(ctx);
+  await withDialogs(async dialogs=>{
+   await adminAction(ctx,'partneradmin-edit');const dialog=dialogs[0],form=dialog.querySelector('form');
+   assert.doesNotMatch(dialog.innerHTML,/name="enabled"|스탬프 적립 사용/);
+   for(const name of ['code','codeConfirmation']){
+    const input=dialog.innerHTML.match(new RegExp('<input\\b[^>]*name="'+name+'"[^>]*>'))?.[0];
+    assert.ok(input);assert.match(input,/\brequired\b/);assert.match(input,/type="password"[^>]*value=""/);assert.doesNotMatch(input,/\b(?:minlength|maxlength)=/);
+   }
+   form.entries=[['code',code],['codeConfirmation',code]];
+   await form.listeners.get('submit')({preventDefault(){}});
+   assert.deepEqual(payloads,[{revision:0,code}]);assert.equal(dialog.open,false);
+   assert.equal(Object.hasOwn(ctx.state.partnerAdminView||{},'code'),false);
+   if(code.length>1)assert.ok(!JSON.stringify(ctx.state).includes(code));
+  });
+ });
+ }
+});
+
+test('partner code editor still requires a nonblank initial code and matching confirmation',async()=>{
+ for(const [code,confirmation] of [['',''],['  ','  '],['7','8'],['synthetic-long-code-'.repeat(20),'different']]){
+  const {ctx}=context(),api=ctx.api,payloads=[];ctx.render=async()=>{};ctx.toast=()=>{};
+  ctx.api=async(op,data)=>{if(op==='couponSettings')return {revision:0,configured:false,enabled:false};if(op==='saveCouponSettings'){payloads.push(data);return {revision:1,configured:true,enabled:true};}return api(op,data);};
+  await at('/admin/partners',async()=>{
+   await renderAdmin(ctx);
+   await withDialogs(async dialogs=>{
+    await adminAction(ctx,'partneradmin-edit');const dialog=dialogs[0],form=dialog.querySelector('form');form.entries=[['code',code],['codeConfirmation',confirmation]];
+    await form.listeners.get('submit')({preventDefault(){}});
+    assert.deepEqual(payloads,[]);assert.equal(dialog.open,true);assert.ok(form.querySelector('.form-error').textContent);
+   });
+  });
+ }
+});
+
+test('ordinary fields retain their existing default length limits',()=>{
+ assert.match(field('title','제목'),/maxlength="200"/);
+ assert.match(field('description','내용','',{type:'textarea'}),/maxlength="12000"/);
+});
+
+test('partner settings can retain a configured code and cannot submit after permission removal',async()=>{
+ for(const revoked of [false,true]){
+  const {ctx}=context(),api=ctx.api,payloads=[];ctx.render=async()=>{};ctx.toast=()=>{};
+  ctx.api=async(op,data)=>{if(op==='couponSettings')return {revision:3,configured:true,enabled:true};if(op==='saveCouponSettings'){payloads.push(data);return {revision:4,configured:true,enabled:true};}return api(op,data);};
+  await at('/admin/partners',async()=>{
+   await renderAdmin(ctx);
+   await withDialogs(async dialogs=>{
+    await adminAction(ctx,'partneradmin-edit');const form=dialogs[0].querySelector('form');form.entries=[['code',''],['codeConfirmation','']];
+    if(revoked)ctx.state.profile={...ctx.state.profile,permissions:[]};
+    await form.listeners.get('submit')({preventDefault(){}});
+    assert.deepEqual(payloads,revoked?[]:[{revision:3}]);
+    if(revoked)assert.match(form.querySelector('.form-error').textContent,/계정이나 권한이 변경/);
+   });
+  });
+ }
+});
 
 test('all retired routes redirect before authentication and API reads, including old detail and query links',async()=>{
  for(const kind of retired)for(const suffix of ['', '/', '/old-record?category=old&tab=detail'])for(const authenticated of [true,false]){
@@ -127,7 +215,7 @@ test('desktop groups and mobile quick navigation retain active menus for an oper
  const html=await at('/admin/events',()=>renderAdmin(ctx));
  const desktop=nav(html,'운영 메뉴');
  assert.ok(desktop,'Grouped desktop navigation must render');
- assert.deepEqual(hrefs(desktop),['/admin','/admin/events','/admin/members','/admin/requests','/admin/on-the-rock','/admin/inventory','/admin/settings','/admin/roles','/admin/admins','/admin/privacy','/admin/audit']);
+ assert.deepEqual(hrefs(desktop),['/admin','/admin/events','/admin/members','/admin/requests','/admin/on-the-rock','/admin/partners','/admin/inventory','/admin/settings','/admin/roles','/admin/admins','/admin/privacy','/admin/audit']);
  assert.match(desktop,/<a href="\/admin\/events"[^>]*aria-current="page"/);
  const mobile=html.match(/<nav class="mobile-admin-nav"[^>]*>([\s\S]*?)<\/nav>/)?.[1];
  assert.ok(mobile,'Mobile quick navigation must render');
@@ -158,6 +246,67 @@ test('event preparation keeps its inventory workflow without meetings, tasks, pu
  assert.doesNotMatch(body,/회의록|결정 · 할 일|지출 · 정산|활동 기록/);
  assert.deepEqual(calls.filter(call=>call.op==='read').map(call=>call.data.kind),['settings','events']);
  noRetiredLinks(html);
+});
+
+test('new, legacy, and private event editors preserve visibility defaults and save an explicit public flag',async()=>{
+ for(const {existing,storedVisible,submitVisible} of [{existing:false,submitVisible:true},{existing:true,submitVisible:true},{existing:true,storedVisible:false,submitVisible:false},{existing:false,submitVisible:false}]){
+  const current=event({revision:4,sequence:1,questions:['준비물 확인'],...(storedVisible===undefined?{}:{memberVisible:storedVisible})});
+  const {ctx}=context();
+  if(existing)ctx.state.data.events={[current.id]:current};
+  const saved=[];let rendered=0;
+  ctx.api=async(op,data)=>{assert.equal(op,'saveEvent');saved.push(data);return {saved:true,...(!submitVisible?{linkKey:'legacy-private-link'}:{})};};
+  ctx.render=async()=>{rendered++;};ctx.toast=()=>{};
+  await at('/admin/events'+(existing?'/'+current.id:''),()=>withDialogs(async dialogs=>{
+   await adminAction(ctx,'event-edit',existing?current.id:undefined);
+   assert.equal(dialogs.length,1);
+   const dialog=dialogs[0],html=dialog.innerHTML;
+   assert.equal(dialog.open,true);
+   assert.match(html,new RegExp(existing?'행사 편집':'새 행사 만들기'));
+   for(const title of ['1. 기본 정보','2. 행사 · 신청 일정','3. 정원 · 참가비','4. 모집 상태 확인'])assert.ok(html.includes(title),title);
+   for(const name of ['title','semester','location','startsAt','endsAt','opensAt','closesAt','cancelUntil','capacity','fee','policy']){
+    assert.match(html,new RegExp('<(?:input|textarea)\\b[^>]*name="'+name+'"[^>]*\\brequired\\b'),name+' must be editable and required');
+   }
+   assert.equal(dialog.querySelector('[name=status]').value,existing?'open':'draft');
+   assert.equal(dialog.querySelector('[name=memberVisible]').checked,storedVisible!==false);
+   assert.match(html,/부원에게 공개/);assert.match(html,/체크를 해제하면 부원 라운지와 행사 신청 링크에서 숨겨지며/);
+   assert.equal(dialog.querySelector('[name=confirmCancellation]').disabled,true);
+   assert.equal(dialog.querySelector('[type=submit]').textContent,'행사 저장');
+   if(existing){
+    assert.match(html,/name="title"[^>]*value="가을 교육"/);
+    assert.equal(dialog.querySelector('[data-existing-applications]').hidden,true);
+   }
+   const dates={startsAt:'2026-11-10T18:00',endsAt:'2026-11-10T20:00',opensAt:'2026-11-01T09:00',closesAt:'2026-11-09T18:00',cancelUntil:'2026-11-09T18:00'};
+   const values={title:'  새 칵테일 교육  ',type:'class',semester:'2026-2',description:'잔을 준비해 주세요.',location:'교육실',owner:'교육부',...dates,capacity:'24',fee:'5000',status:'open',...(submitVisible?{memberVisible:'on'}:{}),waitlist:'on',questions:'준비물 확인\n\n기타 요청',policy:'취소 마감 전 환불 가능',accountNumber:'000-000',bankName:'테스트은행',accountHolder:'테스트동아리'};
+   const form=dialog.querySelector('form');form.entries=Object.entries(values);
+   await form.listeners.get('submit')({preventDefault(){}});
+   assert.deepEqual(saved,[{...(existing?{id:current.id,revision:4}:{revision:0}),...values,title:'새 칵테일 교육',...Object.fromEntries(Object.entries(dates).map(([key,value])=>[key,new Date(value).toISOString()])),capacity:24,fee:5000,memberVisible:submitVisible,waitlist:true,questions:['준비물 확인','기타 요청']}]);
+   assert.equal(rendered,1);
+   assert.equal(dialog.open,false);
+   if(!submitVisible){await new Promise(resolve=>setTimeout(resolve,0));assert.equal(dialogs.length,1,'Private event saves must not open a share dialog even if an older response contains a link');}
+  }));
+ }
+});
+
+test('private events remain in admin cards and details with a clear label and editable settings, without invite controls',async()=>{
+ for(const memberVisible of [undefined,true,false]){
+  const current=event(memberVisible===undefined?{}:{memberVisible}),{ctx}=context({rows:{events:[current]}});
+  const list=main(await at('/admin/events',()=>renderAdmin(ctx)));
+  assert.match(list,memberVisible===false?/event-term[^>]*>[^<]*운영진 전용/:/event-term[^>]*>[^<]*부원 공개/);
+  assert.ok(hrefs(list).includes('/admin/events/event-a'));
+  const detail=main(await at('/admin/events/event-a',()=>renderAdmin(ctx)));
+  assert.match(detail,/data-action="event-edit"/);
+  assert.match(detail,memberVisible===false?/<span class="badge">운영진 전용<\/span>/:/<span class="badge">부원 공개<\/span>/);
+  if(memberVisible===false){assert.doesNotMatch(detail,/data-action="event-link"|신청 링크를 복사해서/);assert.match(detail,/공개 설정을 변경해 주세요/);}
+  else assert.match(detail,/data-action="event-link"/);
+ }
+});
+
+test('private event link actions do not open the share workflow or request a new link',async()=>{
+ const {ctx,calls}=context(),messages=[];ctx.state.data.events={'event-a':event({memberVisible:false})};ctx.toast=message=>messages.push(message);
+ await at('/admin/events/event-a',()=>withDialogs(async dialogs=>{
+  await adminAction(ctx,'event-link','event-a');assert.equal(dialogs.length,0);
+ }));
+ assert.deepEqual(calls,[]);assert.match(messages[0],/운영진 전용 행사/);
 });
 
 test('finance permission still opens event participants and existing event payment controls',async()=>{
@@ -252,6 +401,127 @@ test('participant payment and refund records stay linked to their application wi
    const {requestId,...payload}=saved[0];
    assert.ok(requestId);
    assert.deepEqual(payload,{kind,amount,title:'참가비 기록',eventId:'event-a',applicationId:'application-a',semester:'2026-2',note:'확인 완료'});
+  }));
+ }
+});
+
+test('budget access is an explicit grant and is absent from every built-in default role',()=>{
+ assert.equal(permissionLabels.budget,'예산 업무');
+ for(const role of defaultRoles){
+  assert.ok(!role.permissions.includes('budget'),role.id+' must opt in to budget work');
+  assert.equal(hasPermission({role:role.id},'budget'),false,role.id);
+ }
+ assert.equal(hasPermission(profile({permissions:['finance']}),'budget'),false);
+ assert.equal(hasPermission(profile({permissions:['admins']}),'budget'),false);
+ assert.equal(hasPermission(profile({permissions:['budget']}),'budget'),true);
+ assert.equal(hasPermission(profile({permissions:['budget']}),'finance'),false);
+ assert.equal(hasPermission(profile({permissions:['budget']}),'eventRead'),false);
+});
+
+test('the budget menu is in operational support only for explicitly granted roles',async()=>{
+ for(const granted of [true,false]){
+  const {ctx,calls}=context({operator:profile({role:'custom',permissions:granted?['budget']:['finance']})});
+  const html=await at('/admin',()=>renderAdmin(ctx)),desktop=nav(html,'운영 메뉴');
+  const support=desktop.match(/<section class="nav-group"><h2>운영 지원<\/h2>([\s\S]*?)<\/section>/)?.[1]||'';
+  assert.equal(hrefs(support).includes('/admin/budget'),granted);
+  assert.equal(hrefs(html).includes('/admin/budget'),granted);
+  assert.ok(!calls.some(({op,data})=>op.toLowerCase().includes('budget')||data?.kind?.toLowerCase().includes('budget')),'The dashboard must not load independent budget data');
+  await at('/admin',()=>withDialogs(async dialogs=>{
+   await adminAction(ctx,'mobile-menu');
+   assert.equal(hrefs(dialogs[0].innerHTML).includes('/admin/budget'),granted);
+  }));
+ }
+});
+
+test('direct budget URLs deny access before data reads without a current budget grant',async()=>{
+ for(const role of ['owner','chair','finance','custom']){
+  const operator=profile({role,permissions:role==='finance'?['finance']:role==='custom'?[]:[...permissions]});
+  const {ctx,calls}=context({operator});
+  const html=await at('/admin/budget',()=>renderAdmin(ctx));
+  assert.match(html,/접근 권한이 없습니다/);
+  assert.deepEqual(calls,[{op:'profile',data:undefined}],role);
+ }
+ // The fresh profile response must override a stale grant held by the page.
+ const {ctx,calls}=context({operator:profile({permissions:['finance']})});
+ ctx.state.profile=profile({permissions:['finance','budget']});
+ const html=await at('/admin/budget',()=>renderAdmin(ctx));
+ assert.match(html,/접근 권한이 없습니다/);
+ assert.deepEqual(calls,[{op:'profile',data:undefined}]);
+});
+
+test('authorized budget pages load their independent board without reading settings, events, participants, or finance',async()=>{
+ const {ctx,calls}=context({operator:profile({role:'planner',permissions:['budget']})}),api=ctx.api;
+ ctx.api=async(op,data)=>{
+  if(op==='budgetPlanner'){
+   calls.push({op,data});
+   return {revision:2,funds:100000,plans:[{id:'plan-a',name:'독립 행사 예산',allocated:80000,items:[{id:'food',title:'식비',amount:50000}]}]};
+  }
+  return api(op,data);
+ };
+ const html=await at('/admin/budget',()=>renderAdmin(ctx)),body=main(html);
+ assert.deepEqual(calls,[{op:'profile',data:undefined},{op:'budgetPlanner',data:{}}]);
+ assert.match(body,/독립 행사 예산/);
+ assert.match(body,/식비/);
+ assert.match(body,/지출 후 남을 금액/);
+ assert.match(nav(html,'운영 메뉴'),/<a href="\/admin\/budget"[^>]*aria-current="page"/);
+ assert.equal(hrefs(body).some(href=>/^\/admin\/(?:events|finance|members|settings)/.test(href)),false);
+});
+
+test('role editors expose and persist a separate budget checkbox without adding finance or event grants',async()=>{
+ for(const existing of [false,true]){
+  const role={id:'planner',name:'예산 담당',revision:4,permissions:['inventory'],assigned:2};
+  const {ctx}=context({roles:[role]});
+  const saved=[],api=ctx.api;
+  ctx.api=async(op,data)=>{if(op==='saveRole'){saved.push(data);return data;}return api(op,data);};
+  ctx.render=async()=>{};ctx.toast=()=>{};
+  await at('/admin/roles',()=>withDialogs(async dialogs=>{
+   await adminAction(ctx,'role-edit',existing?role.id:undefined);
+   const dialog=dialogs[0],html=dialog.innerHTML,form=dialog.querySelector('form');
+   assert.match(html,/name="permission-budget"/);
+   assert.match(html,/예산 업무/);
+   assert.doesNotMatch(html,/name="permission-budget"[^>]*checked/);
+   form.entries=[['name','예산 담당'],['permission-budget','on']];
+   await form.listeners.get('submit')({preventDefault(){}});
+   assert.deepEqual(saved,[{...(existing?{id:role.id,revision:4}:{revision:0}),name:'예산 담당',permissions:['budget']}]);
+   assert.equal(dialog.open,false);
+  }));
+ }
+});
+
+test('unchecking budget on an ordinary role removes only that grant and preserves historical permissions',async()=>{
+ const {ctx}=context({roles:[{id:'planner',name:'운영팀',revision:7,permissions:['finance','budget','meetings','decisions','content'],assigned:2}]});
+ const saved=[],api=ctx.api;
+ ctx.api=async(op,data)=>{if(op==='saveRole'){saved.push(data);return data;}return api(op,data);};
+ ctx.render=async()=>{};ctx.toast=()=>{};
+ await at('/admin/roles',()=>withDialogs(async dialogs=>{
+  await adminAction(ctx,'role-edit','planner');
+  const dialog=dialogs[0],form=dialog.querySelector('form');
+  assert.match(dialog.innerHTML,/name="permission-budget"[^>]*checked/);
+  form.entries=[['name','운영팀'],['permission-finance','on']];
+  await form.listeners.get('submit')({preventDefault(){}});
+  assert.deepEqual(saved,[{id:'planner',revision:7,name:'운영팀',permissions:['finance','meetings','decisions','content']}]);
+ }));
+});
+
+test('protected leadership roles expose only a budget opt-in and save it through the restricted endpoint',async()=>{
+ for(const id of ['owner','chair'])for(const enabled of [false,true]){
+  const role={id,name:id==='owner'?'회장':'부회장',revision:3,permissions:[...permissions,...(enabled?[]:['budget'])],assigned:1};
+  const {ctx}=context({roles:[role]});
+  const saved=[],api=ctx.api;
+  ctx.api=async(op,data)=>{if(op==='setRoleBudget'){saved.push(data);return data;}return api(op,data);};
+  ctx.render=async()=>{};ctx.toast=()=>{};
+  const page=await at('/admin/roles',()=>renderAdmin(ctx));
+  assert.match(main(page),new RegExp('data-action="role-edit"[^>]*data-id="'+id+'"'));
+  await at('/admin/roles',()=>withDialogs(async dialogs=>{
+   await adminAction(ctx,'role-edit',id);
+   const dialog=dialogs[0],form=dialog.querySelector('form');
+   assert.match(dialog.innerHTML,/예산 업무 설정/);
+   assert.match(dialog.innerHTML,/name="permission-budget"/);
+   assert.doesNotMatch(dialog.innerHTML,/name="(?:name|permission-(?:admins|finance|events|members|inventory|settings|audit))"/);
+   form.entries=enabled?[['permission-budget','on']]:[];
+   await form.listeners.get('submit')({preventDefault(){}});
+   assert.deepEqual(saved,[{id,revision:3,enabled}]);
+   assert.equal(dialog.open,false);
   }));
  }
 });

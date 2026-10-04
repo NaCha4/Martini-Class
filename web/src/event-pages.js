@@ -183,8 +183,8 @@ export async function eventSubmit(ctx,form,f){
  delete ctx.state.pendingApplications[storageKey];
  if(e.embedded){
   delete ctx.state.currentEvent;delete ctx.state.currentReceipt;
-  ctx.state.memberInlineDetail={kind:'application',id:result.id};ctx.state.memberScrollTarget='member-detail';
-  await ctx.render();ctx.toast('신청을 접수했습니다. 아래에서 신청 상태를 확인하세요.');
+  ctx.state.memberInlineDetail={kind:'application',id:result.id};delete ctx.state.memberScrollTarget;
+  await ctx.render();ctx.toast('신청을 접수했습니다. 신청 상태를 확인해 주세요.');
  }else await ctx.navigate(e.memberAccess?'/members/applications/'+encodeURIComponent(result.id):shortLink('r',pending.receiptKey),{discard:true});
 }
 export async function eventAction(ctx,action,id,target){
@@ -197,18 +197,27 @@ export async function eventAction(ctx,action,id,target){
  const actionSession=r.memberAccess?getMemberSessionKey(ctx):'';
  if(r.memberAccess&&!actionSession){await requireMemberAgain(ctx);return;}
  const current=()=>ctx.state.currentReceipt===r&&r.accessUrl===location.href&&(!r.memberAccess||getMemberSessionKey(ctx)===actionSession)&&(!r.embedded||ctx.state.memberInlineDetail===r.inlineSelection);
+ if(!current())return;
+ const receiptModal=(title,body,onSubmit,options={})=>{
+  const dialog=modal(title,body,onSubmit,{...options,onClose:({replaced})=>{
+   if(!replaced&&r.embedded&&current())void ctx.render();
+  }});
+  if(r.memberAccess)dialog.classList.add('member-dialog');
+  return dialog;
+ };
  if(action==='account-copy'){
   const number=r?.event?.accountNumber;if(!number)return;
-  try{await navigator.clipboard.writeText(number);ctx.toast('계좌번호를 복사했습니다.');}
-  catch{const dialog=modal('계좌번호 복사',field('accountCopy','입금 계좌번호',number,{wide:true,readOnly:true,hint:'계좌번호를 선택해 직접 복사해 주세요.'}),null);const input=dialog.querySelector('[name=accountCopy]');input.focus();input.select();}
+  try{await navigator.clipboard.writeText(number);if(current())ctx.toast('계좌번호를 복사했습니다.');}
+  catch{if(!current())return;const dialog=receiptModal('계좌번호 복사',field('accountCopy','입금 계좌번호',number,{wide:true,readOnly:true,hint:'계좌번호를 선택해 직접 복사해 주세요.'}),null);const input=dialog.querySelector('[name=accountCopy]');input.focus();input.select();}
   return;
  }
  if(action==='receipt-copy'){
   if(!r)return;
   const shareUrl=location.origin+(r.memberAccess?'/members/applications/'+encodeURIComponent(r.id):shortLink('r',r.key));
-  try{await navigator.clipboard.writeText(shareUrl);ctx.toast(r.memberAccess?'신청 페이지를 복사했습니다. 다시 열 때 부원 확인이 필요합니다.':'개인 확인 링크를 복사했습니다. 나만 볼 수 있는 곳에 보관해 주세요.');}
+  try{await navigator.clipboard.writeText(shareUrl);if(current())ctx.toast(r.memberAccess?'신청 페이지를 복사했습니다. 다시 열 때 부원 확인이 필요합니다.':'개인 확인 링크를 복사했습니다. 나만 볼 수 있는 곳에 보관해 주세요.');}
   catch{
-   const dialog=modal(r.memberAccess?'신청 페이지':'개인 확인 링크',field('receiptLink','복사해서 보관할 링크',shareUrl,{wide:true,readOnly:true,spellcheck:false,hint:r.memberAccess?'선택한 주소를 직접 복사해 주세요. 이 신청은 부원 확인 후에 열 수 있습니다.':'자동 복사를 사용할 수 없습니다. 선택한 주소를 직접 복사해 주세요. 다른 사람에게 공유하지 마세요.'}),null);
+   if(!current())return;
+   const dialog=receiptModal(r.memberAccess?'신청 페이지':'개인 확인 링크',field('receiptLink','복사해서 보관할 링크',shareUrl,{wide:true,readOnly:true,spellcheck:false,hint:r.memberAccess?'선택한 주소를 직접 복사해 주세요. 이 신청은 부원 확인 후에 열 수 있습니다.':'자동 복사를 사용할 수 없습니다. 선택한 주소를 직접 복사해 주세요. 다른 사람에게 공유하지 마세요.'}),null);
    const input=dialog.querySelector('[name=receiptLink]');input.focus();input.select();input.addEventListener('click',()=>input.select());
   }
   return;
@@ -219,12 +228,16 @@ export async function eventAction(ctx,action,id,target){
   if(!current())return;
   const sessionKey=actionSession;
   if(r.memberAccess&&!sessionKey){await requireMemberAgain(ctx);throw new Error('부원 확인을 마친 뒤 다시 시도해 주세요.');}
-  try{await ctx.api(r.memberAccess?'memberApplication':'receipt',{id:r.id,...(r.memberAccess?{sessionKey}:{key:r.key}),action:op});}
-  catch(error){if(!current())return;if(r.memberAccess&&isMemberAccessError(error))await requireMemberAgain(ctx,error);throw error;}
-  if(!current())return;
-  await ctx.render();ctx.toast(messages[op]||'신청 상태를 반영했습니다.');
+  const pendingDialog=r.embedded?globalThis.document?.querySelector?.('#modal[open]'):null;
+  if(pendingDialog)pendingDialog.pendingRequest=true;
+  try{
+   try{await ctx.api(r.memberAccess?'memberApplication':'receipt',{id:r.id,...(r.memberAccess?{sessionKey}:{key:r.key}),action:op});}
+   catch(error){if(!current())return;if(r.memberAccess&&isMemberAccessError(error))await requireMemberAgain(ctx,error);throw error;}
+   if(!current())return;
+   await ctx.render();ctx.toast(messages[op]||'신청 상태를 반영했습니다.');
+  }finally{if(pendingDialog)pendingDialog.pendingRequest=false;}
  };
- if(op==='cancel'||op==='decline')return modal(op==='decline'?'참가 자리를 거절할까요?':'신청을 취소할까요?','<p class="wide prose"><strong>'+esc(r.event.title)+'</strong><br>취소 후에는 좌석이 다른 부원에게 돌아갈 수 있습니다. 납부한 참가비는 취소·환불 안내에 따라 운영진이 확인합니다.</p>',submit,{submit:op==='decline'?'참가 자리 거절':'신청 취소',submitClass:'button danger',busyText:'처리 중…'});
- if(op==='payment')return modal('입금을 완료하셨나요?','<p class="wide prose">참가비 <strong>'+money(r.application.fee)+'</strong>를 안내된 계좌로 입금한 뒤 확인을 요청해 주세요.</p>'+field('paymentConfirmed','안내에 따라 입금을 완료했습니다',false,{type:'checkbox',required:true,wide:true}),submit,{submit:'입금 확인 요청',busyText:'요청 중…'});
+ if(op==='cancel'||op==='decline')return receiptModal(op==='decline'?'참가 자리를 거절할까요?':'신청을 취소할까요?','<p class="wide prose"><strong>'+esc(r.event.title)+'</strong><br>취소 후에는 좌석이 다른 부원에게 돌아갈 수 있습니다. 납부한 참가비는 취소·환불 안내에 따라 운영진이 확인합니다.</p>',submit,{submit:op==='decline'?'참가 자리 거절':'신청 취소',submitClass:'button danger',busyText:'처리 중…'});
+ if(op==='payment')return receiptModal('입금을 완료하셨나요?','<p class="wide prose">참가비 <strong>'+money(r.application.fee)+'</strong>를 안내된 계좌로 입금한 뒤 확인을 요청해 주세요.</p>'+field('paymentConfirmed','안내에 따라 입금을 완료했습니다',false,{type:'checkbox',required:true,wide:true}),submit,{submit:'입금 확인 요청',busyText:'요청 중…'});
  return submit();
 }

@@ -1,19 +1,23 @@
 import './style.css';
 import { api, auth, onAuthStateChanged } from './firebase.js';
 import { esc, icon, refreshIcons, toast, modal, closeModal, formSignature, captureFocus, restoreFocus, busyControl, showFormError } from './ui.js';
-import { renderScreen, screenAction, screenSubmit, isAdminScreen } from './screen-router.js';
+import { renderScreen, screenAction, screenSubmit, isAdminScreen, isMerchantScreen } from './screen-router.js';
 import { sortMemberRows } from './admin.js';
 import { bindInventoryBoard } from './inventory.js';
 import { filterListRows } from './list-filters.js';
-import { isMemberRoute, getMemberSessionKey, memberStorage } from './member-session.js';
+import { isMemberRoute, getMemberSessionKey, memberStorage, MEMBER_SESSION_CHANNEL } from './member-session.js';
+import { mountMemberDetail } from './member-detail.js';
+import { mountPartnerViews, clearPartnerViews } from './partner-stamps.js';
 export const state={profile:null,user:null,authReady:false,data:{},settings:{},search:'',filter:'all',eventType:'all'};
 export const ctx={state,api,toast,navigate,render,mayLeave};
 const app=document.querySelector('#app');
 let renderNumber=0,rendering=false,trackedForm=null,navigating=false;
-let memberExpiryTimer;
+let memberExpiryTimer,renderedMemberSession='';
 function expireMemberView(){
-  if(!isMemberRoute()||getMemberSessionKey(ctx))return;
-  if(!app.querySelector('.member-shell,.member-retry-page')&&!document.querySelector('.member-dialog'))return;
+  if(!isMemberRoute())return;
+  const session=getMemberSessionKey(ctx);
+  if(session===renderedMemberSession&&(session||!app.querySelector('.member-shell,.member-retry-page')&&!document.querySelector('.member-dialog')))return;
+  // A cookie changed in another tab. Remove the previous member's view immediately.
   void closeModal({discard:true});
   void render({focus:true});
 }
@@ -24,7 +28,12 @@ function scheduleMemberExpiry(){
   memberExpiryTimer=setTimeout(()=>{expireMemberView();scheduleMemberExpiry();},Math.max(0,Math.min(remaining+20,2147483647)));
 }
 window.addEventListener('focus',expireMemberView);
+window.addEventListener('pageshow',expireMemberView);
+window.addEventListener('pageshow',event=>{if(event.persisted&&(isMerchantScreen()||isMemberRoute())){void closeModal({discard:true});void render({focus:true});}});
+window.addEventListener('hashchange',()=>{if(isMerchantScreen())void render({focus:true});});
+window.addEventListener('pagehide',()=>clearPartnerViews(ctx));
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')expireMemberView();});
+try{if(window.BroadcastChannel){const channel=new window.BroadcastChannel(MEMBER_SESSION_CHANNEL);channel.addEventListener('message',expireMemberView);}}catch{}
 let currentIndex=Number(history.state?.martiniIndex||0),currentUrl=location.pathname+location.search+location.hash,restoringHistory=false;
 const positions=new Map();
 history.replaceState({...history.state,martiniIndex:currentIndex},'');
@@ -47,6 +56,7 @@ export async function navigate(path,{discard=false,replace=false}={}) {
   try {
     if(!discard&&!await mayLeave())return false;
     if(discard)await closeModal({discard:true});
+    clearPartnerViews(ctx);
     rememberPosition();
     if(!replace)currentIndex++;
     history[replace?'replaceState':'pushState']({martiniIndex:currentIndex},'',path);
@@ -66,12 +76,14 @@ window.addEventListener('popstate',async event=>{
     return;
   }
   currentIndex=destination;currentUrl=destinationUrl;
+  clearPartnerViews(ctx);
   const remembered=positions.get(currentIndex);
   state.search=remembered?.search||'';state.filter=remembered?.filter||'all';state.eventType=remembered?.eventType||'all';
   await render({focus:true,scroll:remembered?.scroll||0});
 });
 window.addEventListener('beforeunload',event=>{
-  if(document.querySelector('#modal[open]')?.isDirty()||dirtyApplication()||document.querySelector('form[aria-busy=true]')){event.preventDefault();event.returnValue='';}
+  const dialog=document.querySelector('#modal[open]');
+  if(dialog?.isDirty()||dialog?.isSaving()||dirtyApplication()||document.querySelector('form[aria-busy=true]')){event.preventDefault();event.returnValue='';}
 });
 function closePublicMenus(except=null){document.querySelectorAll('.public-mobile-menu[open]').forEach(menu=>{if(menu!==except)menu.open=false;});}
 document.addEventListener('keydown',event=>{
@@ -160,7 +172,7 @@ document.addEventListener('change',async event=>{
 const filterRows=()=>filterListRows(app,state);
 export async function render({focus=false,scroll}={}) {
   const current=++renderNumber,savedFocus=captureFocus(),savedScroll=scrollY;
-  const memberLocked=isMemberRoute()&&!getMemberSessionKey(ctx);
+  const session=isMemberRoute()?getMemberSessionKey(ctx):'',memberLocked=isMemberRoute()&&(!session||session!==renderedMemberSession);
   if(memberLocked)void closeModal({discard:true});
   rendering=true;app.setAttribute('aria-busy','true');
   let progress=document.querySelector('#page-progress');
@@ -173,9 +185,11 @@ export async function render({focus=false,scroll}={}) {
   }
   try{
     let html=await renderScreen(ctx);
-    if(current===renderNumber&&!html&&isMemberRoute()&&!getMemberSessionKey(ctx))html=await renderScreen(ctx);
+    if(current===renderNumber&&!html&&isMemberRoute())html=await renderScreen(ctx);
     if(current!==renderNumber)return;
-    app.innerHTML=html;refreshIcons();bindInventoryBoard(ctx,app);
+    if(isMemberRoute()&&!getMemberSessionKey(ctx))await closeModal({discard:true});
+    app.innerHTML=html;renderedMemberSession=isMemberRoute()?getMemberSessionKey(ctx):'';refreshIcons();bindInventoryBoard(ctx,app);
+    currentUrl=location.pathname+location.search+location.hash;
     const search=app.querySelector('[data-search]'),filter=app.querySelector('[data-filter]');
     if(search)search.value=state.search;if(filter)filter.value=state.filter;const type=app.querySelector('[data-event-type]');if(type)type.value=state.eventType;filterRows();
     document.title=location.pathname==='/'?'Martini · 마티니':(app.querySelector('h1')?.textContent||'마티니')+' · Martini';
@@ -188,6 +202,8 @@ export async function render({focus=false,scroll}={}) {
       const section=document.getElementById(state.memberScrollTarget);delete state.memberScrollTarget;
       if(section){section.scrollIntoView({block:'start',behavior:'instant'});section.focus({preventScroll:true});}
     }
+    mountMemberDetail(ctx);
+    mountPartnerViews(ctx);
   }catch(error){
     if(current!==renderNumber)return;
     app.innerHTML='<main class="connection-page"><a href="/" data-nav class="brand">MARTINI</a><h1 tabindex="-1">연결을 확인해 주세요</h1><p>'+esc(error.message)+'</p><button class="button" type="button" id="retry-page">다시 시도</button></main>';
@@ -195,6 +211,7 @@ export async function render({focus=false,scroll}={}) {
   }finally{if(current===renderNumber){rendering=false;app.removeAttribute('aria-busy');progress.remove();scheduleMemberExpiry();}}
 }
 onAuthStateChanged(auth,async user=>{
+  if(state.user?.uid!==user?.uid){delete state.budgetPlannerView;delete state.partnerAdminView;if(document.querySelector('.budgetplanner-dialog,.partneradmin-dialog'))await closeModal({discard:true});}
   state.user=user;state.profile=null;
   if(user){try{state.profile=await api('profile');}catch(error){state.authError=error.message;}}
   state.authReady=true;if(isAdminScreen())render();

@@ -67,7 +67,8 @@ async function selectVisitDay(dialog, day) {
 }
 
 async function submitVisit(page, purpose) {
-  await page.goto('/members/more');
+  const destination = page.url();
+  await page.locator('#member-visits').scrollIntoViewIfNeeded();
   await action(page, 'member-visit').click();
   const dialog = page.getByRole('dialog');
   await selectVisitDay(dialog, visitDay());
@@ -78,7 +79,7 @@ async function submitVisit(page, purpose) {
   await dialog.locator('[name=purpose]').fill(purpose);
   await dialog.locator('[name=consent]').check();
   await submitDialog(page, '출입 승인 요청');
-  await page.goto('/members/applications');
+  await expect(page).toHaveURL(destination);
   await expect(ownRequest(page, purpose).locator('.member-status')).toHaveText('승인 대기');
 }
 
@@ -91,7 +92,7 @@ test('visit calendar preserves input across months and validates dates, start ti
     return [koreaDay('2026-12-31T15:00:00Z'), visitSchedule(data)];
   });
   expect(dates).toEqual(['2027-01-01', { startsAt: '2026-12-31T23:00' }]);
-  await page.goto('/members/more');
+  await page.locator('#member-visits').scrollIntoViewIfNeeded();
   await action(page, 'member-visit').click();
   const dialog = page.getByRole('dialog');
   await expect(dialog.getByRole('button', { name: '이전 달', exact: true })).toBeDisabled();
@@ -145,7 +146,7 @@ test('visit calendar preserves input across months and validates dates, start ti
   expect(payload.startsAt).toBe(new Date(visitDay() + 'T23:00:00+09:00').toISOString());
   expect(payload).not.toHaveProperty('endsAt');
   expect(payload).not.toHaveProperty('phone');
-  await page.goto('/members/applications');
+  await expect(page).toHaveURL(/\/members$/);
   await expect(ownRequest(page, purpose)).toContainText('외부인 3명');
 });
 
@@ -165,22 +166,82 @@ test('member verification rejects wrong identity and can be cleared on a shared 
   await login.getByRole('button', { name: '로그인', exact: true }).click();
   await expect(login).toHaveCount(0);
   await expect(page.locator('.member-account-bar')).toContainText(member.name);
-  await expect(page.locator('.member-event').first()).toBeVisible();
-  for (const section of ['home', 'events', 'more']) await expect(page.locator('#member-' + section)).toBeVisible();
-  await expect(page.locator('.member-home-grid, .member-home-notices, .member-home-coupon, #member-coupons, [data-coupon-state], [data-action="member-section"], .member-lounge details, .member-lounge summary')).toHaveCount(0);
+  await expect(page.locator('.member-event')).toHaveCount(0);
+  await expect(page.locator('.member-services > button.member-service-card')).toHaveCount(3);
+  for (const [section, title] of [['visits', '외부인 출입신청'], ['events', '행사'], ['partners', '제휴']]) {
+    const card = page.locator('#member-' + section);
+    await card.scrollIntoViewIfNeeded();
+    await expect(card).toBeVisible();
+    await expect(card).toHaveAttribute('aria-haspopup', 'dialog');
+    await expect(card).toContainText(title);
+    await expect(card.locator('button, a, input, select, .member-request-row, .member-application-row')).toHaveCount(0);
+    await expect(page).toHaveURL(/\/members$/);
+  }
+  await expect(page.locator('.member-home-grid, .member-home-notices, .member-home-coupon, #member-coupons, [data-coupon-state], [data-action="member-section"], [data-action="member-inquiry"], #member-more, .member-lounge details, .member-lounge summary')).toHaveCount(0);
   const menu = page.getByRole('navigation', { name: '부원 메뉴', exact: true });
   await expect(menu).toHaveCount(0);
   await page.screenshot({ path: '.local/screenshots/member-portal-hub-' + test.info().project.name + '.png' });
   await page.reload();
   await expect(page.locator('.member-account-bar')).toContainText(member.name);
-  await page.locator('#member-more').scrollIntoViewIfNeeded();
+  await page.locator('#member-visits').scrollIntoViewIfNeeded();
   await expect(page).toHaveURL(/\/members$/);
-  await expect(page.locator('.member-quick-actions').getByRole('button')).toHaveCount(2);
-  for (const name of ['member-visit', 'member-inquiry']) await expect(action(page, name)).toBeVisible();
+  await expect(page.locator('#member-visits[data-action="member-visit"]')).toBeVisible();
+  await expect(action(page, 'member-inquiry')).toHaveCount(0);
   await action(page, 'member-forget').click();
   await expect(page.locator('form[data-form="member-login"]')).toBeVisible();
   await expect(menu).toHaveCount(0);
   await expect(action(page, 'member-forget')).toHaveCount(0);
+});
+
+test('remembered member login reopens in a new tab and logout clears access for both tabs', async ({ page, context }) => {
+  await verifyMember(page);
+  const cookies = (await context.cookies()).filter(cookie => ['__Host-martini-member-session', 'martini-member-session-local'].includes(cookie.name));
+  expect(cookies).toHaveLength(1);
+  expect(cookies[0].expires).toBeGreaterThan(Date.now() / 1000 + 6 * 86400);
+  const saved = await page.evaluate(() => JSON.parse(sessionStorage.getItem('martini-member-lounge-v1')));
+  expect(saved.sessionMigrated).toBe(true);
+  expect(saved).not.toHaveProperty('session');
+  const reopened = await context.newPage();
+  try {
+    await reopened.goto(new URL('/members', page.url()).href);
+    await expect(reopened.locator('.member-account-bar')).toContainText(member.name);
+    await expect(reopened.locator('form[data-form="member-login"]')).toHaveCount(0);
+    await expect(reopened.locator('.member-services > button.member-service-card')).toHaveCount(3);
+    await page.bringToFront();
+    await action(page, 'member-forget').click();
+    await expect(page.locator('form[data-form="member-login"]')).toBeVisible();
+    expect((await context.cookies()).some(cookie => cookies.some(previous => previous.name === cookie.name))).toBe(false);
+    await reopened.bringToFront();
+    await reopened.reload();
+    await expect(reopened.locator('form[data-form="member-login"]')).toBeVisible();
+    await expect(reopened.locator('.member-services')).toHaveCount(0);
+  } finally {
+    await reopened.close();
+  }
+});
+
+test('three large service buttons open popups and leave all application records below the cards', async ({ page }) => {
+  await verifyMember(page);
+  const destination = page.url();
+  await expect(page.locator('.member-services > button.member-service-card')).toHaveCount(3);
+  await expect(page.locator('.member-services .member-request-row, .member-services .member-application-row')).toHaveCount(0);
+  expect(await page.locator('#member-records').evaluate(el => !!(document.querySelector('.member-services').compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING))).toBeTruthy();
+  await action(page, 'member-events').click();
+  const eventDialog = page.getByRole('dialog');
+  await expect(eventDialog).toHaveClass(/member-events-dialog/);
+  await expect(eventDialog.locator('.member-event').first()).toBeVisible();
+  await eventDialog.getByRole('button', { name: '닫기', exact: true }).last().click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(page.locator('.member-event')).toHaveCount(0);
+  await action(page, 'member-partners').click();
+  await expect(page.getByRole('dialog')).toHaveClass(/member-partners-dialog/);
+  await expect(page.getByRole('dialog')).toContainText('등록된 제휴 정보가 없습니다.');
+  await page.getByRole('dialog').getByRole('button', { name: '닫기', exact: true }).last().click();
+  await expect(page).toHaveURL(destination);
+  await action(page, 'member-visit').click();
+  await expect(page.getByRole('dialog')).toContainText('외부인 출입 신청');
+  await page.getByRole('dialog').getByRole('button', { name: '닫기', exact: true }).last().click();
+  await expect(page).toHaveURL(destination);
 });
 
 test('visitor request passes through officer approval and both future and pending visits can be cancelled', async ({ page, browser, baseURL }) => {
@@ -227,56 +288,57 @@ test('visitor request passes through officer approval and both future and pendin
   }
 });
 
-test('a logged-in member can recover an inquiry and its personal link requires login before opening', async ({ page, browser, baseURL }) => {
+test('a logged-in member can recover a visitor request and its personal link requires login before opening', async ({ page, browser, baseURL }) => {
   const suffix = unique();
   const applicant = member;
-  await page.goto('/members/more');
+  await page.goto('/members');
   await expect(action(page, 'member-join')).toHaveCount(0);
   await expect(action(page, 'member-inquiry')).toHaveCount(0);
   await loginHere(page);
 
-  const subject = '동아리 활동 문의 ' + suffix;
-  await action(page, 'member-inquiry').click();
+  const purpose = '접수 응답 복구 방문 ' + suffix;
+  await action(page, 'member-visit').click();
   await expect(page.getByRole('dialog').locator('[name=name], [name=studentId], [name=phone]')).toHaveCount(0);
-  await page.getByRole('dialog').locator('[name=subject]').fill(subject);
-  await page.getByRole('dialog').locator('[name=message]').fill('첫 교육에 준비해야 할 도구가 있나요?');
+  await selectVisitDay(page.getByRole('dialog'), visitDay());
+  await page.getByRole('dialog').locator('[name=startTime]').fill('18:00');
+  await page.getByRole('dialog').locator('[name=guestNames]').fill('가상 방문자 가');
+  await page.getByRole('dialog').locator('[name=purpose]').fill(purpose);
   await page.getByRole('dialog').locator('[name=consent]').check();
   let lostSubmissionResponse = false;
   await page.route('**/martiniApi', async route => {
     const body = route.request().method() === 'POST' ? route.request().postDataJSON() : null;
     if (body?.data?.op === 'submitClubRequest') expect(body.data).not.toHaveProperty('phone');
-    if (!lostSubmissionResponse && body?.data?.op === 'submitClubRequest' && body.data.kind === 'inquiry') {
+    if (!lostSubmissionResponse && body?.data?.op === 'submitClubRequest' && body.data.kind === 'visit') {
       const savedResponse = await route.fetch();
       expect(savedResponse.ok()).toBeTruthy();
       lostSubmissionResponse = true;
       await route.abort('failed');
     } else await route.continue();
   });
-  await page.getByRole('dialog').getByRole('button', { name: '문의 보내기', exact: true }).click();
+  await page.getByRole('dialog').getByRole('button', { name: '출입 승인 요청', exact: true }).click();
   await expect(page.getByRole('dialog').locator('.form-error')).toContainText('연결하지 못했습니다');
   expect(lostSubmissionResponse).toBeTruthy();
   page.once('dialog', dialog => dialog.accept());
   await page.reload();
   await expect(page.getByRole('dialog')).toHaveCount(0);
-  await page.goto('/members/applications');
-  await expect(ownRequest(page, subject)).toHaveCount(1);
-  await expect(ownRequest(page, subject).locator('.member-status')).toHaveText('답변 대기');
-  expect(await page.evaluate(() => !JSON.parse(sessionStorage.getItem('martini-member-lounge-v1')).pending.inquiry)).toBeTruthy();
+  await expect(page).toHaveURL(/\/members$/);
+  await expect(ownRequest(page, purpose)).toHaveCount(1);
+  await expect(ownRequest(page, purpose).locator('.member-status')).toHaveText('승인 대기');
+  expect(await page.evaluate(() => !JSON.parse(sessionStorage.getItem('martini-member-lounge-v1')).pending.visit)).toBeTruthy();
 
   const adminContext = await browser.newContext({ viewport: page.viewportSize() });
   const admin = await adminContext.newPage();
   try {
     await loginAdmin(admin, baseURL);
-    await adminRequest(admin, subject).getByRole('button', { name: '검토', exact: true }).click();
+    await adminRequest(admin, purpose).getByRole('button', { name: '검토', exact: true }).click();
     await expect(admin.getByRole('dialog')).toContainText(applicant.name);
-    const reply = '필요한 도구는 동아리에서 준비합니다. 편하게 참여해 주세요.';
+    const reply = '신청한 시간에 부원과 함께 방문해 주세요.';
     await admin.getByRole('dialog').locator('[name=response]').fill(reply);
-    await submitDialog(admin, '답변 저장');
-    await expect(adminRequest(admin, subject).locator('.request-status')).toHaveText('답변 완료');
+    await submitDialog(admin, '승인');
+    await expect(adminRequest(admin, purpose).locator('.request-status')).toHaveText('승인');
     await page.reload();
-    await expect(ownRequest(page, subject).locator('.member-status')).toHaveText('답변 완료');
-    await page.locator('.member-past-history > summary').click();
-    await ownRequest(page, subject).click();
+    await expect(ownRequest(page, purpose).locator('.member-status')).toHaveText('승인');
+    await ownRequest(page, purpose).click();
     await expect(page.getByRole('dialog')).toContainText(reply);
     // Capture the copy action without changing the desktop user's clipboard.
     await page.evaluate(() => {
@@ -287,7 +349,7 @@ test('a logged-in member can recover an inquiry and its personal link requires l
     const receiptLink = await page.evaluate(() => window._portalCopiedLink);
     expect(Boolean(receiptLink && new URL(receiptLink).hash.startsWith('#request='))).toBeTruthy();
     await page.getByRole('dialog').getByRole('button', { name: '닫기', exact: true }).last().click();
-    await expect(ownRequest(page, subject)).toHaveCount(1);
+    await expect(ownRequest(page, purpose)).toHaveCount(1);
 
     const reopenedContext = await browser.newContext({ viewport: page.viewportSize() });
     try {
@@ -297,7 +359,7 @@ test('a logged-in member can recover an inquiry and its personal link requires l
       await loginHere(reopened);
       await expect(reopened.locator('.member-receipt-banner')).toContainText('개인 확인 링크의 신청을 불러왔습니다.');
       await reopened.locator('.member-receipt-banner').getByRole('button', { name: '신청 내역 보기', exact: true }).click();
-      await expect(reopened.getByRole('dialog')).toContainText(subject);
+      await expect(reopened.getByRole('dialog')).toContainText(purpose);
       await expect(reopened.getByRole('dialog')).toContainText(reply);
       expect(await reopened.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBeTruthy();
     } finally {
@@ -323,9 +385,10 @@ test('member event application uses verified identity and its direct detail surv
     await admin.getByRole('dialog').getByRole('button', { name: '닫기', exact: true }).last().click();
 
     await verifyMember(page);
+    await action(page, 'member-events').click();
     await page.locator('.member-event').filter({ hasText: title }).click();
     await expect(page).toHaveURL(/\/members$/);
-    await expect(page.locator('#member-detail').getByRole('heading', { name: title, exact: true })).toBeVisible();
+    await expect(page.getByRole('dialog').getByRole('heading', { name: title, exact: true })).toBeVisible();
     const application = page.locator('form[data-form=apply]');
     await expect(application).toBeVisible();
     await expect(application.locator('[name=name], [name=studentId], [name=phone]')).toHaveCount(0);
@@ -376,7 +439,10 @@ test('member event application uses verified identity and its direct detail surv
       await reopenedContext.close();
     }
     await page.getByRole('button', { name: '신청 취소', exact: true }).click();
-    await submitDialog(page, '신청 취소');
+    const cancellation = page.getByRole('dialog', { name: '신청을 취소할까요?', exact: true });
+    await cancellation.getByRole('button', { name: '신청 취소', exact: true }).click();
+    await expect(cancellation).toHaveCount(0);
+    await expect(page.getByRole('dialog')).toHaveClass(/member-detail-dialog/);
     await expect(page.locator('.receipt-status')).toContainText('취소');
   } finally {
     await adminContext.close();
