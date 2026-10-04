@@ -34,7 +34,11 @@ export function createMemberPortal({db,col,clock,now,roster,throttle,audit}){
   return settings.semester;
  }
  async function authenticate(sessionKey,tx){
-  const session=(await read(tx).get(col('memberSessions').doc(hash(sessionKey)))).data();
+  return authenticateSessionHash(hash(sessionKey),tx);
+ }
+ // Internal callers can bind a short-lived QR to a session without storing its bearer token.
+ async function authenticateSessionHash(sessionHash,tx){
+  const session=(await read(tx).get(col('memberSessions').doc(sessionHash))).data();
   if(!session||session.revokedAt||!session.expiresAt?.toMillis||session.expiresAt.toMillis()<=clock())fail('unauthenticated','부원 인증이 만료되었습니다. 다시 인증해 주세요.');
   const semester=await currentSemester(tx);
   if(session.semester!==semester)fail('unauthenticated','학기가 변경되었습니다. 다시 부원 인증을 해 주세요.');
@@ -174,5 +178,5 @@ export function createMemberPortal({db,col,clock,now,roster,throttle,audit}){
    return {saved:true,request:safeRequest({...record,...patch,id:input.id})};
   });
  }
- return {access,logout,portal,eventAccess,verifyEvent,submit,getReceipt,cancel,list,command,authenticate,ownsApplication,identityFingerprint:fingerprint};
+ return {access,logout,portal,eventAccess,verifyEvent,submit,getReceipt,cancel,list,command,authenticate,authenticateSessionHash,ownsApplication,identityFingerprint:fingerprint};
 }

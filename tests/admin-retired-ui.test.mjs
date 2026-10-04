@@ -64,7 +64,7 @@ const nav=(html,label)=>html.match(new RegExp('<nav aria-label="'+label+'">([\\s
 // Browser layout and icon replacement are outside these checks.
 async function withDialogs(run){
  const dialogs=[];
- const element=()=>({innerHTML:'',style:{},classList:{toggle(){}},listeners:new Map(),setAttribute(){},removeAttribute(){},addEventListener(name,handler){this.listeners.set(name,handler);},focus(){},scrollIntoView(){}});
+ const element=()=>({innerHTML:'',style:{},classList:{toggle(){},add(){}},listeners:new Map(),setAttribute(){},removeAttribute(){},addEventListener(name,handler){this.listeners.set(name,handler);},querySelectorAll:()=>[],focus(){},scrollIntoView(){}});
  const document={
   activeElement:null,
   body:{append:dialog=>dialogs.push(dialog)},
@@ -111,6 +111,52 @@ async function withDialogs(run){
  });
 }
 
+test('partner management requires settings permission and reads only safe dedicated configuration',async()=>{
+ for(const permitted of [false,true]){
+  const {ctx,calls}=context({operator:profile({permissions:permitted?['settings']:['events']})}),api=ctx.api;
+  ctx.api=async(op,data)=>{if(op==='couponSettings'){calls.push({op,data});return {revision:1,configured:true,enabled:true};}return api(op,data);};
+  const html=await at('/admin/partners',()=>renderAdmin(ctx));
+  if(permitted){assert.match(html,/필링파인/);assert.match(html,/사장님 화면 열기/);assert.match(html,/설정됨/);assert.match(html,/data-action="partneradmin-edit"/);assert.deepEqual(calls.map(call=>call.op),['profile','couponSettings']);}
+  else{assert.match(html,/접근 권한이 없습니다/);assert.doesNotMatch(html,/필링파인|설정됨/);assert.deepEqual(calls.map(call=>call.op),['profile']);}
+ }
+});
+
+test('partner code editor starts empty and saves a new confirmed code without keeping it in view state',async()=>{
+ const {ctx}=context(),api=ctx.api,payloads=[];
+ ctx.render=async()=>{};ctx.toast=()=>{};
+ ctx.api=async(op,data)=>{if(op==='couponSettings')return {revision:0,configured:false,enabled:false};if(op==='saveCouponSettings'){payloads.push(data);return {revision:1,configured:true,enabled:true};}return api(op,data);};
+ await at('/admin/partners',async()=>{
+  await renderAdmin(ctx);
+  await withDialogs(async dialogs=>{
+   await adminAction(ctx,'partneradmin-edit');const dialog=dialogs[0],form=dialog.querySelector('form');
+   assert.match(dialog.innerHTML,/name="code"[^>]*required[^>]*minlength="12"[^>]*type="password"[^>]*value=""/);
+   assert.match(dialog.innerHTML,/name="codeConfirmation"/);
+   const code='Synthetic-code-for-test';
+   form.entries=[['enabled','on'],['code',code],['codeConfirmation',code]];
+   await form.listeners.get('submit')({preventDefault(){}});
+   assert.deepEqual(payloads,[{revision:0,enabled:true,code}]);assert.equal(dialog.open,false);
+   assert.doesNotMatch(JSON.stringify(ctx.state),new RegExp(code));
+  });
+ });
+});
+
+test('partner settings can retain a configured code and cannot submit after permission removal',async()=>{
+ for(const revoked of [false,true]){
+  const {ctx}=context(),api=ctx.api,payloads=[];ctx.render=async()=>{};ctx.toast=()=>{};
+  ctx.api=async(op,data)=>{if(op==='couponSettings')return {revision:3,configured:true,enabled:true};if(op==='saveCouponSettings'){payloads.push(data);return {revision:4,configured:true,enabled:false};}return api(op,data);};
+  await at('/admin/partners',async()=>{
+   await renderAdmin(ctx);
+   await withDialogs(async dialogs=>{
+    await adminAction(ctx,'partneradmin-edit');const form=dialogs[0].querySelector('form');form.entries=[['code',''],['codeConfirmation','']];
+    if(revoked)ctx.state.profile={...ctx.state.profile,permissions:[]};
+    await form.listeners.get('submit')({preventDefault(){}});
+    assert.deepEqual(payloads,revoked?[]:[{revision:3,enabled:false}]);
+    if(revoked)assert.match(form.querySelector('.form-error').textContent,/계정이나 권한이 변경/);
+   });
+  });
+ }
+});
+
 test('all retired routes redirect before authentication and API reads, including old detail and query links',async()=>{
  for(const kind of retired)for(const suffix of ['', '/', '/old-record?category=old&tab=detail'])for(const authenticated of [true,false]){
   const {ctx,calls,navigations}=context();
@@ -142,7 +188,7 @@ test('desktop groups and mobile quick navigation retain active menus for an oper
  const html=await at('/admin/events',()=>renderAdmin(ctx));
  const desktop=nav(html,'운영 메뉴');
  assert.ok(desktop,'Grouped desktop navigation must render');
- assert.deepEqual(hrefs(desktop),['/admin','/admin/events','/admin/members','/admin/requests','/admin/on-the-rock','/admin/inventory','/admin/settings','/admin/roles','/admin/admins','/admin/privacy','/admin/audit']);
+ assert.deepEqual(hrefs(desktop),['/admin','/admin/events','/admin/members','/admin/requests','/admin/on-the-rock','/admin/partners','/admin/inventory','/admin/settings','/admin/roles','/admin/admins','/admin/privacy','/admin/audit']);
  assert.match(desktop,/<a href="\/admin\/events"[^>]*aria-current="page"/);
  const mobile=html.match(/<nav class="mobile-admin-nav"[^>]*>([\s\S]*?)<\/nav>/)?.[1];
  assert.ok(mobile,'Mobile quick navigation must render');

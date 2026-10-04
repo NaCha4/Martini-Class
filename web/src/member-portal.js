@@ -3,6 +3,7 @@ import { visitCalendar, bindVisitCalendar, visitSchedule } from './visit-calenda
 import { esc, icon, field, button, date, label, money, textBlock, modal } from './ui.js';
 import { memberState as state, memberStorage as storage, persistMemberStorage as persist, clearMemberIdentity as clearIdentity, validMemberReceipt as validReceipt, getMemberSessionKey, getVerifiedMember, setMemberSession, refreshMemberSession, isMemberAccessError, safeMemberReturnTarget, forgetMemberDevice } from './member-session.js';
 import { memberShell } from './member-navigation.js';
+import { openMemberPartner } from './partner-stamps.js';
 export { getMemberSessionKey } from './member-session.js';
 
 // Keep labels and receipt recovery for requests submitted before online joining closed.
@@ -235,8 +236,7 @@ export async function memberPortalAction(ctx,action,id){
  }
  if(action==='member-partners'){
   if(!getVerifiedMember(ctx))return ctx.render();
-  const dialog=modal('제휴','<div class="wide member-partnership-empty">'+icon('ticket')+'<p>등록된 제휴 정보가 없습니다.</p></div>',null);
-  dialog.classList.add('member-dialog','member-partners-dialog');return dialog;
+  return openMemberPartner(ctx);
  }
  if(action==='member-receipt-copy'){
   const receipt=receiptFor(ctx,id);if(!receipt)throw new Error('이 탭의 접수 확인 정보가 없습니다.');

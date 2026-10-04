@@ -40,7 +40,7 @@ function sectionDocument(){
 // Exercise the actual dialog listeners without a browser. This host models form
 // values and close events; browser focus/layout and native dialog behavior are not tested.
 async function withDialogs(run){
- const previous=new Map(['document','CSS','FormData'].map(key=>[key,Object.getOwnPropertyDescriptor(globalThis,key)])),NativeFormData=globalThis.FormData,dialogs=[];
+ const previous=new Map(['document','window','CSS','FormData'].map(key=>[key,Object.getOwnPropertyDescriptor(globalThis,key)])),NativeFormData=globalThis.FormData,dialogs=[];
  let template=null;
  class Element{
   constructor(tag='div'){this.tag=tag;this.innerHTML='';this.textContent='';this.style={};this.attrs=new Map();this.listeners=new Map();this.parts=new Map();this.dataset={};this.isConnected=true;this.entries=[];const classes=new Set();this.classList={add:(...names)=>names.forEach(name=>classes.add(name)),remove:(...names)=>names.forEach(name=>classes.delete(name)),contains:name=>classes.has(name)};}
@@ -68,7 +68,7 @@ async function withDialogs(run){
   }
   querySelectorAll(selector){return selector==='[data-close]'?[this.querySelector('button.header-close'),this.querySelector('button.footer-close')]:[];}
  }
- const document={activeElement:null,body:new Element('body'),documentElement:new Element('html'),querySelector(selector){
+ const document={activeElement:null,body:new Element('body'),documentElement:new Element('html'),addEventListener(){},removeEventListener(){},querySelector(selector){
   if(selector==='#member-detail-content')return template;
   if(selector==='#modal')return dialogs.findLast(dialog=>dialog.isConnected)||null;
   if(['#modal[open]','dialog[open]'].includes(selector))return dialogs.findLast(dialog=>dialog.isConnected&&dialog.open)||null;
@@ -76,7 +76,7 @@ async function withDialogs(run){
  },querySelectorAll:()=>[],createElement:tag=>new Element(tag)};
  document.body.append=dialog=>dialogs.push(dialog);document.activeElement=document.body;
  class DialogFormData extends NativeFormData{constructor(form){super();for(const [key,value] of form?.entries||[])this.append(key,value);}}
- for(const [key,value] of Object.entries({document,CSS:{supports:()=>true},FormData:DialogFormData}))Object.defineProperty(globalThis,key,{configurable:true,writable:true,value});
+ for(const [key,value] of Object.entries({document,window:{addEventListener(){},removeEventListener(){}},CSS:{supports:()=>true},FormData:DialogFormData}))Object.defineProperty(globalThis,key,{configurable:true,writable:true,value});
  const host={dialogs,document,setTemplate({kind,id,title='상세',body='<form data-form="apply"></form>'}){template=new Element('template');template.innerHTML=body;template.dataset={kind,id,title};return template;}};
  try{return await run(host);}
  finally{await Promise.resolve();for(const [key,descriptor] of previous)if(descriptor)Object.defineProperty(globalThis,key,descriptor);else delete globalThis[key];}
@@ -93,6 +93,7 @@ function context({events=[event('one')],requests=[],applications=[],verified=tru
   if(op==='publicRead')return {content:[]};
   if(op==='memberPortal')return {member,events,requests,expiresAt:time(60000)};
   if(op==='memberApplications')return {applications,legacyAccessRequiresReceipt:true,expiresAt:time(60000)};
+  if(op==='memberCoupons')return {available:true,stampCount:3,capacity:10,revision:1,expiresAt:time(60000)};
   if(op==='memberEventAccess'||op==='eventAccess')return event(data.eventId);
   if(op==='memberApplication'||op==='receipt')return application(data.id);
   if(op==='resolveLink')return {id:data.kind==='e'?'event-one':'request-one'};
@@ -159,7 +160,7 @@ test('all three service cards remain visible when empty and refresh reloads thei
  assert.deepEqual(calls.map(call=>call.op),['memberPortal','memberApplications']);
 });
 
-test('event and partner service buttons open dialogs without navigation, history rows, or extra API calls',async()=>{
+test('event and partner service buttons open dialogs without navigation or history rows and load partner stamps on demand',async()=>{
  const {ctx,calls,navigations}=await view('home',{applications:[application('one')],requests:[{id:'visit-one',kind:'visit',purpose:'내 방문',status:'pending'}]});
  const initialCalls=calls.length;
  await withDialogs(async({dialogs})=>{
@@ -167,10 +168,10 @@ test('event and partner service buttons open dialogs without navigation, history
   assert.ok(events.open);assert.ok(events.classList.contains('member-events-dialog'));assert.match(events.innerHTML,/data-action="member-event-open"/);assert.doesNotMatch(events.innerHTML,/member-application-row|member-request-row/);
   await events.requestClose();assert.equal(events.open,false);
   await publicAction(ctx,'member-partners');const partners=dialogs.at(-1);
-  assert.ok(partners.open);assert.ok(partners.classList.contains('member-partners-dialog'));assert.match(partners.innerHTML,/등록된 제휴 정보가 없습니다/);assert.doesNotMatch(partners.innerHTML,/member-application-row|member-request-row|data-action="member-event-open"/);
+  assert.ok(partners.open);assert.ok(partners.classList.contains('partner-dialog'));assert.match(partners.innerHTML,/필링파인/);assert.match(partners.querySelector('[data-partner-body]').innerHTML,/QR 표시/);assert.doesNotMatch(partners.innerHTML,/member-application-row|member-request-row|data-action="member-event-open"/);
   await partners.requestClose();assert.equal(partners.open,false);
  });
- assert.equal(calls.length,initialCalls);assert.deepEqual(navigations,[]);assert.equal(location.pathname,'/members');
+ assert.equal(calls.length,initialCalls+1);assert.equal(calls.at(-1).op,'memberCoupons');assert.deepEqual(navigations,[]);assert.equal(location.pathname,'/members');
 });
 
 test('service popup switching respects an unsaved form and does not clear its selection when leaving is declined',async()=>{

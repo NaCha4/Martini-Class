@@ -16,6 +16,7 @@
   "admin/meetings/index.html",
   "admin/members/index.html",
   "admin/on-the-rock/index.html",
+  "admin/partners/index.html",
   "admin/privacy/index.html",
   "admin/requests/index.html",
   "admin/roles/index.html",
@@ -24,8 +25,8 @@
   "assets/fonts/Pretendard-Bold.otf",
   "assets/fonts/Pretendard-ExtraBold.otf",
   "assets/fonts/Pretendard-Regular.otf",
-  "assets/index-C6LLKUUe.js",
-  "assets/index-WhSiGzEy.css",
+  "assets/index-BvR2xsdd.js",
+  "assets/index-CZE4puXC.css",
   "assets/logo.png",
   "assets/wordmark.png",
   "e/index.html",
@@ -38,6 +39,7 @@
   "members/index.html",
   "members/more/index.html",
   "notices/index.html",
+  "partners/feelingfine/index.html",
   "privacy/index.html",
   "r/index.html"
 ]
