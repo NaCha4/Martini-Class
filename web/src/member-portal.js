@@ -153,7 +153,7 @@ function visitsPanel(ctx){
  return '<div class="member-app-intro"><h1 id="member-visit-title">출입 신청</h1><p>방문 일정과 외부인 정보를 입력해 주세요.</p></div><form class="member-visit-form" data-form="member-visit" aria-labelledby="member-visit-title">'+visitBody(ctx)+'<p class="form-error" role="alert"></p><button type="submit" class="button full">출입 승인 요청</button></form>';
 }
 function benefitsPanel(){
- return appIntro('혜택')+'<button type="button" class="member-benefit-feature" data-action="member-partners" aria-haspopup="dialog" aria-label="필링파인 스탬프 열기"><span class="member-benefit-photo"><img src="/assets/feelingfine-bar-hero.jpg" alt="" loading="lazy"></span><span class="member-benefit-copy"><strong class="member-benefit-title">필링파인</strong><span class="member-benefit-cta">스탬프'+icon('arrow-up-right')+'</span></span></button>';
+ return appIntro('혜택')+'<button type="button" class="member-benefit-feature" data-action="member-partners" aria-haspopup="dialog" aria-label="필링파인 열기"><span class="member-benefit-photo"><img src="/assets/feelingfine-bar-hero.jpg" alt="" loading="lazy"></span><span class="member-benefit-copy"><strong class="member-benefit-title">필링파인</strong><span class="member-benefit-cta" aria-hidden="true">'+icon('arrow-up-right')+'</span></span></button>';
 }
 function activityPanel(ctx){
  const view=state(ctx),groups={action:[],current:[],past:[]};

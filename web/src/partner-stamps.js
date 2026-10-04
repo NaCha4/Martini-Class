@@ -28,7 +28,7 @@ function stampCard(total,view,{member=false}={}){
  const label=member?'내 스탬프 쿠폰. 누르면 뒷면에 적립 QR이 표시됩니다. 좌우로 끌면 쿠폰을 돌려볼 수 있습니다.':'쿠폰 돌려보기. 좌우로 끌거나 방향키를 누르면 돌아가고, 놓으면 앞면으로 돌아옵니다.';
  return '<figure class="partner-coupon"><div class="partner-coupon-stage" data-coupon-interactive tabindex="0" role="button" aria-label="'+label+'"><div class="partner-coupon-float"><div class="partner-card"><div class="partner-card-face partner-card-front" aria-hidden="true"><img class="partner-card-art" src="/assets/FeelingFineCoupon.png?v=07f0f639" width="3000" height="1650" alt="Feeling Fine × Martini 쿠폰 앞면" draggable="false"><svg class="partner-stamps" viewBox="0 0 3000 1650" aria-hidden="true" focusable="false">'+marks+'</svg></div><div class="partner-card-face partner-card-back" aria-hidden="true"><img class="partner-card-art" src="/assets/FeelingFineCouponBack.png?v=b71658ac" width="3000" height="1650" alt="Feeling Fine × Martini 쿠폰 뒷면" draggable="false">'+(member?'<div class="partner-card-qr" data-partner-qr-face hidden></div>':'')+'</div></div></div></div><ol class="sr-only" aria-label="스탬프 '+completed+'개 적립, 총 10개">'+Array.from({length:CAPACITY},(_,index)=>'<li>'+(index+1)+'번째 '+(index<completed?'적립 완료':'미적립')+'</li>').join('')+'</ol></figure>';
 }
-function memberCurrent(ctx,view){return ctx.state.memberPartner===view&&!view.disposed&&view.dialog?.open&&isMemberRoute()&&getMemberSessionKey(ctx)===view.sessionKey;}
+function memberCurrent(ctx,view){return ctx.state.memberPartner===view&&!view.disposed&&!view.closing&&view.dialog?.open&&isMemberRoute()&&getMemberSessionKey(ctx)===view.sessionKey;}
 function stop(view){view.stop?.();view.stop=null;}
 function clearCouponMotion(view){view.couponCleanup?.();view.couponCleanup=null;}
 function canIssueQr(view){return view.coupons?.available&&count(view.coupons.stampCount)<CAPACITY;}
@@ -78,7 +78,7 @@ function paintMember(ctx,view){
 }
 function expireMemberQr(view){stop(view);view.qr=null;view.issuing=false;view.expired=true;view.generation++;if(!view.disposed)syncMemberQr(view);}
 function disposeMember(ctx){
- const view=ctx.state.memberPartner;if(!view)return;stop(view);clearCouponMotion(view);view.revealCleanup?.();view.cleanup?.();view.disposed=true;view.generation++;view.qr=null;
+ const view=ctx.state.memberPartner;if(!view)return;stop(view);clearCouponMotion(view);view.revealCleanup?.();view.cleanup?.();view.disposed=true;view.generation++;view.qr=null;view.expansion?.cancel();view.expansion=null;
  for(const selector of ['.partner-qr-slot','[data-partner-qr-face]']){const element=view.dialog?.querySelector(selector);if(element)element.innerHTML='';}
  delete ctx.state.memberPartner;
 }
@@ -107,15 +107,40 @@ async function loadCoupons(ctx,view){
   view.error=error.message||'스탬프를 불러오지 못했습니다.';paintMember(ctx,view);
  }
 }
+function animateMemberExpansion(view,opening){
+ const dialog=view.dialog,origin=view.origin?.getBoundingClientRect?.(),frame=dialog?.getBoundingClientRect?.();
+ if(!dialog?.animate||window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches||!origin?.width||!origin?.height||!frame?.width||!frame?.height||document.hidden)return Promise.resolve();
+ const top=Math.max(0,origin.top-frame.top),left=Math.max(0,origin.left-frame.left);
+ const bottom=Math.max(0,frame.bottom-origin.bottom),right=Math.max(0,frame.right-origin.right);
+ if(![top,left,bottom,right].every(Number.isFinite))return Promise.resolve();
+ const cardClip='inset('+top+'px '+right+'px '+bottom+'px '+left+'px round 16px)',fullClip='inset(0px 0px 0px 0px round 0px)';
+ const currentClip=globalThis.getComputedStyle?.(dialog)?.clipPath;
+ view.expansion?.cancel();
+ const motion=dialog.animate([{clipPath:opening?cardClip:currentClip&&currentClip!=='none'?currentClip:fullClip},{clipPath:opening?fullClip:cardClip}],{duration:opening?360:240,easing:'cubic-bezier(.22,.8,.25,1)'});
+ view.expansion=motion;
+ return motion.finished.catch(()=>{}).finally(()=>{if(view.expansion===motion)view.expansion=null;});
+}
 export async function openMemberPartner(ctx){
  const sessionKey=getMemberSessionKey(ctx);if(!sessionKey||!isMemberRoute())return ctx.render();
- disposeMember(ctx);const view={sessionKey,generation:0,coupons:null,qr:null,revealed:false,disposed:false,error:'',qrError:''};
+ disposeMember(ctx);const view={sessionKey,generation:0,coupons:null,qr:null,revealed:false,disposed:false,closing:false,error:'',qrError:'',origin:document.querySelector('.member-benefit-feature')};
  const content='<section class="partner-feelingfine" aria-labelledby="modal-title">'+
   '<div class="partner-intro"><div class="partner-hero"><img src="/assets/feelingfine-bar-hero.jpg" width="1672" height="941" alt="분위기를 표현한 가상의 바 테이블 이미지" decoding="async" draggable="false"><div class="partner-hero-title"><p class="partner-brand" aria-hidden="true">Feeling Fine</p><h2 id="modal-title" tabindex="-1">필링파인</h2><div class="partner-intro-copy"><p class="partner-intro-description">다양한 칵테일과 안주를 즐기는 공간.</p></div></div></div></div>'+
   '<div class="partner-benefits-copy"><p class="partner-benefits-eyebrow">MARTINI MEMBERS</p><h3>함께하는 시간에, 작은 혜택을.</h3><p class="partner-benefits-description">부원 전용 스탬프 적립</p></div>'+
   '<div class="partner-coupon-area"><div data-partner-body>'+memberBody(view)+'</div></div></section>';
  const dialog=modal('필링파인',content,null,{contentOnly:true,bodyTitle:true,footer:false,onClose:()=>{if(ctx.state.memberPartner===view)disposeMember(ctx);}});
- dialog.classList.add('member-dialog','member-partners-dialog','partner-dialog');view.dialog=dialog;ctx.state.memberPartner=view;
+ dialog.classList.add('member-dialog','member-partners-dialog','partner-dialog','partner-expanded');view.dialog=dialog;ctx.state.memberPartner=view;
+ const back=dialog.querySelector('[data-close]');
+ if(back){back.innerHTML=icon('arrow-left');back.setAttribute('aria-label','혜택으로 돌아가기');back.setAttribute('title','뒤로');}
+ const close=dialog.requestClose.bind(dialog);
+ dialog.requestClose=discard=>{
+  if(discard){view.expansion?.cancel();view.closing=true;expireMemberQr(view);return close(true);}
+  if(view.closing)return view.closePromise||Promise.resolve(true);
+  if(dialog.isSaving())return close();
+  view.closing=true;expireMemberQr(view);
+  view.closePromise=animateMemberExpansion(view,false).then(()=>close());
+  return view.closePromise;
+ };
+ refreshIcons();void animateMemberExpansion(view,true);
  const hidden=()=>{if(document.hidden&&(view.qr||view.issuing))expireMemberQr(view);};
  const leave=()=>{if(view.qr||view.issuing)expireMemberQr(view);};
  document.addEventListener('visibilitychange',hidden);window.addEventListener('pagehide',leave);
