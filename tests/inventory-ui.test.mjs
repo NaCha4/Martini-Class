@@ -288,4 +288,13 @@ test('delegated drag/drop accepts the dragged item, blocks external drops and cl
  assert.equal(dom.board.inert,false);assert.equal(dom.board.attributes.has('aria-busy'),false);assert.equal(dom.status.textContent,'');
  assert.deepEqual(state.notifications,['변경 버전을 다시 확인해 주세요.']);
  assert.equal(state.renders(),1);
+ // The full card is also a drag source, not only its nested move control.
+ dom.first.dataset.inventoryDrag='gin';
+ dom.first.closest=selector=>['[data-inventory-drag]','[data-inventory-card]'].includes(selector)?dom.first:null;
+ state.ctx.api=async(op,data)=>{state.calls.push({op,data});return {};};
+ dom.board.listeners.get('dragstart')(dom.event(dom.first));
+ await dom.board.listeners.get('drop')(dom.event(dom.nestedLane));
+ assert.deepEqual(state.calls.at(-1),{op:'moveInventoryItem',data:{id:'gin',revision:3,categoryId:'party'}});
+ assert.equal(state.notifications.at(-1),'카테고리를 옮겼습니다.');
+ assert.equal(state.renders(),2);
 });

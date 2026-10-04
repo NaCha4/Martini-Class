@@ -22,7 +22,7 @@
 .inventory-lane-heading .icon-button{width:34px;height:34px;border-color:transparent;color:var(--muted)}
 .inventory-lane-heading .icon-button:hover{background:var(--raised);color:var(--text)}
 .inventory-lane-items{display:grid;gap:12px}
-.inventory-card{min-width:0;overflow:hidden;background:var(--surface);border:1px solid #424044;border-radius:8px;transition:opacity .15s,border-color .15s}
+.inventory-card{min-width:0;overflow:hidden;background:var(--surface);border:1px solid #424044;border-radius:8px;cursor:grab;transition:opacity .15s,border-color .15s}
 .inventory-card:hover{border-color:#82725b}
 .inventory-card-open{display:block;width:100%;text-align:left;background:transparent;color:var(--text);padding:0;border:0}
 .inventory-card-open:focus-visible{outline-offset:-3px}
