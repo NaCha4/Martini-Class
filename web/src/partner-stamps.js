@@ -70,7 +70,7 @@ export async function openMemberPartner(ctx){
  const sessionKey=getMemberSessionKey(ctx);if(!sessionKey||!isMemberRoute())return ctx.render();
  disposeMember(ctx);const view={sessionKey,generation:0,coupons:null,qr:null,disposed:false,error:''};
  const content='<section class="partner-feelingfine" aria-labelledby="modal-title">'+
-  '<div class="partner-intro"><span class="partner-intro-mark" aria-hidden="true">'+icon('martini')+'</span><h2 id="modal-title" tabindex="-1">필링파인</h2><p class="partner-intro-tagline">칵테일 한 잔에, 맛있는 한 끼.</p><p class="partner-intro-description">한양대학교 ERICA 앞에서<br>다양한 칵테일과 파스타, 피자를 즐길 수 있는 공간입니다.</p></div>'+
+  '<div class="partner-intro"><span class="partner-intro-mark" aria-hidden="true">'+icon('martini')+'</span><h2 id="modal-title" tabindex="-1">필링파인</h2><p class="partner-intro-tagline">좋은 사람들과, 기분 좋은 한 잔.</p><p class="partner-intro-description">한양대학교 ERICA 앞에서<br>다양한 칵테일과 안주를 함께 즐길 수 있는 공간입니다.</p></div>'+
   '<section class="partner-coupon-section" aria-labelledby="partner-benefit-title"><div class="partner-benefit-heading"><div><p class="partner-benefit-eyebrow">제휴 혜택</p><h3 id="partner-benefit-title">음료 스탬프</h3></div><span class="partner-benefit-symbol" aria-hidden="true">'+icon('ticket')+'</span></div><div data-partner-body>'+memberBody(view)+'</div></section></section>';
  const dialog=modal('필링파인',content,null,{contentOnly:true,bodyTitle:true,footer:false,onClose:()=>{if(ctx.state.memberPartner===view)disposeMember(ctx);}});
  dialog.classList.add('member-dialog','member-partners-dialog','partner-dialog');view.dialog=dialog;ctx.state.memberPartner=view;
