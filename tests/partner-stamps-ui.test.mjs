@@ -33,6 +33,35 @@ async function host(run,{path='/partners/feelingfine',blocked=false}={}){
 }
 function signIn(ctx){setMerchantSession(ctx,{sessionKey:merchantKey,expiresAt:future(365*86400000)});}
 function memberSignIn(ctx){setMemberSession(ctx,{sessionKey:memberKey,expiresAt:future(600000),member:{name:'테스트 부원',semester:'2026-2'}});}
+async function withRandom(values,run){
+ const previous=Math.random;let index=0;Math.random=()=>values[index++%values.length];
+ try{return await run();}finally{Math.random=previous;}
+}
+const stampGroups=html=>[...html.matchAll(/<g\b[^>]*class="is-stamped"[^>]*>[\s\S]*?<\/g>/g)].map(match=>match[0]);
+const stampAngles=html=>stampGroups(html).map(group=>Number(group.match(/\brotate\(([-\d.]+)\)/)?.[1]));
+
+test('earned stamps use the supplied image with individually randomized angles within eighteen degrees',async()=>host(async()=>withRandom([0,.5,.999999],async()=>{
+ const {ctx}=context();memberSignIn(ctx);const dialog=await openMemberPartner(ctx),html=dialog.querySelector('[data-partner-body]').innerHTML,marks=stampGroups(html),angles=stampAngles(html);
+ assert.equal(marks.length,3);
+ for(const mark of marks){assert.equal((mark.match(/<image\b/g)||[]).length,1);assert.match(mark,/\bhref="\/assets\/stamp\.png\?v=[a-f0-9]+"/);}
+ assert.ok(angles.every(angle=>Number.isFinite(angle)&&angle>=-18&&angle<=18));assert.equal(new Set(angles).size,3);assert.ok(angles.some(angle=>angle<0));assert.ok(angles.some(angle=>angle>0));
+}),{path:'/members'}));
+
+test('member refresh preserves existing stamp angles and adds only the newly earned stamp',async()=>host(async()=>withRandom([0,.15,.3,.45,.6,.75,.9],async()=>{
+ const {ctx}=context(),api=ctx.api;let total=3;
+ ctx.api=async(op,data)=>op==='memberCoupons'?{available:true,stampCount:total,capacity:10,expiresAt:future(600000)}:api(op,data);
+ memberSignIn(ctx);const dialog=await openMemberPartner(ctx),html=()=>dialog.querySelector('[data-partner-body]').innerHTML,initial=stampAngles(html());assert.equal(initial.length,3);
+ await partnerAction(ctx,'partner-refresh');assert.deepEqual(stampAngles(html()),initial);
+ total=4;await partnerAction(ctx,'partner-refresh');const updated=stampAngles(html());assert.equal(updated.length,4);assert.deepEqual(updated.slice(0,3),initial);assert.ok(updated[3]>=-18&&updated[3]<=18);
+ assert.equal(stampGroups(html()).filter(mark=>mark.includes('/assets/stamp.png')).length,4);
+}),{path:'/members'}));
+
+test('merchant result keeps preview stamp angles while a newly scanned QR starts a fresh set',async()=>host(async()=>withRandom([0,.12,.24,.36,.48,.6,.72,.84,.96],async()=>{
+ const {ctx}=context();signIn(ctx);location.hash='#qr='+qrToken;const initial=stampAngles(await renderMerchant(ctx));assert.equal(initial.length,3);
+ assert.deepEqual(stampAngles(await renderMerchant(ctx)),initial);
+ await merchantAction(ctx,'merchant-stamp');const result=stampAngles(await renderMerchant(ctx));assert.equal(result.length,4);assert.deepEqual(result.slice(0,3),initial);
+ location.hash='#qr='+otherKey;const next=stampAngles(await renderMerchant(ctx));assert.equal(next.length,3);assert.notDeepEqual(next,initial);assert.ok(next.every(angle=>Number.isFinite(angle)&&angle>=-18&&angle<=18));
+})));
 
 test('merchant cookies persist only opaque credentials with host-only HTTPS attributes and a one-year ceiling',async()=>host(async({writes,cookies})=>{
  const {ctx}=context();setMerchantSession(ctx,{sessionKey:merchantKey,expiresAt:future(500*86400000),code:'never-save-this',memberName:'never-save-name'});
