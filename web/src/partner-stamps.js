@@ -4,6 +4,7 @@ import { getMemberSessionKey, isMemberRoute, refreshMemberSession, clearMemberId
 import { getMerchantSessionKey, setMerchantSession, clearMerchantSession, merchantCookieUnavailable, isMerchantAccessError, MERCHANT_SESSION_CHANNEL } from './merchant-session.js';
 import { bindCouponMotion } from './coupon-motion.js';
 import './partner-stamps.css';
+import './merchant-stamps.css';
 
 const TOKEN=/^[a-f0-9]{64}$/;
 const CAPACITY=10;
@@ -70,7 +71,7 @@ export async function openMemberPartner(ctx){
  const sessionKey=getMemberSessionKey(ctx);if(!sessionKey||!isMemberRoute())return ctx.render();
  disposeMember(ctx);const view={sessionKey,generation:0,coupons:null,qr:null,disposed:false,error:''};
  const content='<section class="partner-feelingfine" aria-labelledby="modal-title">'+
-  '<div class="partner-intro"><span class="partner-intro-mark" aria-hidden="true">'+icon('martini')+'</span><h2 id="modal-title" tabindex="-1">필링파인</h2><p class="partner-intro-tagline">좋은 사람들과, 기분 좋은 한 잔.</p><p class="partner-intro-description">한양대학교 ERICA 앞에서<br>다양한 칵테일과 안주를 함께 즐길 수 있는 공간입니다.</p></div>'+
+  '<div class="partner-intro"><div class="partner-hero"><img src="/assets/feelingfine-bar-hero.jpg" width="1672" height="941" alt="분위기를 표현한 가상의 바 테이블 이미지" decoding="async" draggable="false"><div class="partner-hero-title"><p>한양대학교 ERICA 앞</p><h2 id="modal-title" tabindex="-1">필링파인</h2></div></div><div class="partner-intro-copy"><p class="partner-intro-tagline">좋은 사람들과, 기분 좋은 한 잔.</p><p class="partner-intro-description">다양한 칵테일과 안주를 함께 즐기는 공간.</p></div></div>'+
   '<section class="partner-coupon-section" aria-labelledby="partner-benefit-title"><div class="partner-benefit-heading"><div><p class="partner-benefit-eyebrow">제휴 혜택</p><h3 id="partner-benefit-title">음료 스탬프</h3></div><span class="partner-benefit-symbol" aria-hidden="true">'+icon('ticket')+'</span></div><div data-partner-body>'+memberBody(view)+'</div></section></section>';
  const dialog=modal('필링파인',content,null,{contentOnly:true,bodyTitle:true,footer:false,onClose:()=>{if(ctx.state.memberPartner===view)disposeMember(ctx);}});
  dialog.classList.add('member-dialog','member-partners-dialog','partner-dialog');view.dialog=dialog;ctx.state.memberPartner=view;
@@ -101,32 +102,50 @@ export async function partnerAction(ctx,action){
  }
 }
 
-function merchantView(ctx){return ctx.state.feelingfineMerchant??={token:'',preview:null,result:null,error:'',request:null,pending:false,sessionKey:''};}
+function merchantView(ctx){return ctx.state.feelingfineMerchant??={token:'',preview:null,result:null,error:'',request:null,pending:false,sessionKey:'',history:null,nextCursor:null,edit:null,notice:''};}
+function clearMerchantHistory(view){view.history=null;view.nextCursor=null;view.edit=null;view.notice='';}
 function captureQr(view){
  const hash=location.hash||'';if(!hash)return;
  const token=/^#qr=([a-f0-9]{64})$/.exec(hash)?.[1]||'';
  history.replaceState(history.state,'',location.pathname+location.search);
- stop(view);clearCouponMotion(view);view.token=token;view.preview=null;view.result=null;view.stampAngles=[];view.pending=false;view.error=token?'':'올바른 적립 QR이 아닙니다. 부원에게 새 QR을 요청해 주세요.';
+ stop(view);clearCouponMotion(view);clearMerchantHistory(view);view.token=token;view.preview=null;view.result=null;view.stampAngles=[];view.pending=false;view.error=token?'':'올바른 적립 QR이 아닙니다. 부원에게 새 QR을 요청해 주세요.';
 }
-function merchantCurrent(ctx,view,sessionKey,request){return isMerchantRoute()&&ctx.state.feelingfineMerchant===view&&getMerchantSessionKey(ctx)===sessionKey&&(!request||view.request===request);}
+function merchantCurrent(ctx,view,sessionKey,request){return !document.hidden&&isMerchantRoute()&&ctx.state.feelingfineMerchant===view&&getMerchantSessionKey(ctx)===sessionKey&&(!request||view.request===request);}
 function merchantShell(body,authenticated=false){return '<main id="main-content" class="merchant-page"><header><span class="merchant-brand">FEELING FINE</span><h1 id="page-title" tabindex="-1">필링파인 스탬프</h1><p>매장용 적립 화면</p></header>'+body+(authenticated?'<footer>'+button('로그아웃','merchant-logout',{class:'button ghost'})+'</footer>':'')+'</main>';}
 function loginHtml(view){return merchantShell('<section class="merchant-panel"><h2>매장 로그인</h2><p>운영진에게 전달받은 매장 코드를 입력해 주세요.</p>'+(view.token?'<p class="merchant-note">로그인 후 스캔한 QR을 확인합니다.</p>':'')+'<form data-form="merchant-login">'+field('code','매장 코드','',{type:'password',required:true,maxLength:null,autocomplete:'off',spellcheck:false})+'<p class="form-error" role="alert">'+esc(view.error)+'</p><button type="submit" class="button full">로그인</button></form><p class="merchant-note">이 기기에서 최대 1년간 로그인 상태가 유지됩니다.</p></section>');}
+function merchantTime(at){const value=new Date(at);return Number.isFinite(value.getTime())?new Intl.DateTimeFormat('ko-KR',{year:'numeric',month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit',hour12:false,timeZone:'Asia/Seoul'}).format(value):'시간 확인 불가';}
+function merchantHistoryHtml(view){
+ const rows=(view.history||[]).map(row=>{
+  const editing=view.edit?.id===row.id;
+  const balance=Number.isInteger(row.currentStampCount)?row.currentStampCount+'개':'확인 불가';
+  return '<li class="merchant-history-row"><div class="merchant-history-person"><strong>'+esc(row.memberName||'확인할 수 없는 부원')+'</strong><time datetime="'+esc(row.at)+'">'+esc(merchantTime(row.at))+'</time></div><span class="merchant-history-earned">+'+esc(row.amount??1)+'개 적립</span><div class="merchant-history-balance"><span>현재 <strong>'+esc(balance)+'</strong></span>'+(!editing&&row.adjustable?button('수정','merchant-edit',{id:row.id,class:'button ghost',icon:'pencil',disabled:view.pending}):'')+'</div>'+(editing?'<form class="merchant-adjust-form" data-form="merchant-adjust">'+field('stampCount','현재 스탬프 개수',view.edit.stampCount,{type:'number',required:true,min:0,max:CAPACITY,step:1,inputMode:'numeric',id:'merchant-adjust-count'})+'<p class="merchant-adjust-hint">'+esc(row.memberName)+' 님의 현재 보유 개수를 변경합니다.</p><div class="merchant-adjust-actions">'+button('취소','merchant-edit-cancel',{class:'button secondary',disabled:view.pending})+'<button type="submit" class="button"'+(view.pending?' disabled':'')+'>저장</button></div><p class="form-error" role="alert"></p></form>':'')+'</li>';
+ }).join('');
+ return '<section class="merchant-panel merchant-dashboard"><div class="merchant-dashboard-heading"><div><p class="merchant-eyebrow">STAMP HISTORY</p><h2>적립 내역</h2></div>'+button('새로고침','merchant-history-refresh',{class:'button ghost',icon:'refresh-cw',disabled:view.pending})+'</div><p class="merchant-dashboard-hint">부원의 QR을 스캔하면 새로 적립할 수 있습니다.</p>'+(view.notice?'<p class="merchant-feedback" role="status">'+esc(view.notice)+'</p>':'')+(view.error?'<p class="form-error" role="alert">'+esc(view.error)+'</p>':'')+(rows?'<ol class="merchant-history-list">'+rows+'</ol>':'<p class="merchant-history-empty">'+(view.history?'아직 적립 내역이 없습니다.':'적립 내역을 불러오지 못했습니다.')+'</p>')+(view.nextCursor?button('이전 내역 더 보기','merchant-history-more',{class:'button secondary full',disabled:view.pending}):'')+'</section>';
+}
 function merchantHtml(ctx,view){
  let body='';
- if(view.result)body='<section class="merchant-panel merchant-result">'+icon('check')+'<h2>'+(view.result.duplicate?'이미 적립된 QR입니다':'스탬프를 적립했습니다')+'</h2>'+(view.result.memberName?'<p>'+esc(view.result.memberName)+' 님</p>':'')+stampCard(count(view.result.stampCount),view)+'<p class="merchant-note">다음 부원의 QR을 휴대전화 카메라로 스캔해 주세요.</p></section>';
- else if(view.preview){const full=count(view.preview.stampCount)>=CAPACITY;body='<section class="merchant-panel"><p class="merchant-eyebrow">적립할 부원</p><h2>'+esc(view.preview.memberName)+' 님</h2>'+stampCard(count(view.preview.stampCount),view)+(full?'<p>스탬프 10개가 모두 채워져 있습니다.</p>':button('스탬프 1개 적립','merchant-stamp',{class:'button full',icon:'plus',disabled:view.pending}))+'<p class="form-error" role="alert">'+esc(view.error)+'</p></section>';}
- else body='<section class="merchant-panel merchant-scan">'+icon('ticket')+'<h2>'+(view.error?'QR을 다시 확인해 주세요':'부원의 QR을 스캔해 주세요')+'</h2><p'+(view.error?' role="status"':'')+'>'+esc(view.error||'휴대전화 카메라로 부원이 표시한 QR을 스캔하면 적립 화면이 열립니다.')+'</p></section>';
+ if(view.result)body='<section class="merchant-panel merchant-result">'+icon('check')+'<h2>'+(view.result.duplicate?'이미 적립된 QR입니다':'스탬프 '+esc(view.result.amount??1)+'개를 적립했습니다')+'</h2>'+(view.result.memberName?'<p>'+esc(view.result.memberName)+' 님</p>':'')+stampCard(count(view.result.stampCount),view)+button('적립 내역으로','merchant-main',{class:'button full',icon:'house'})+'</section>';
+ else if(view.preview){const remaining=CAPACITY-count(view.preview.stampCount);body='<section class="merchant-panel"><p class="merchant-eyebrow">적립할 부원</p><h2>'+esc(view.preview.memberName)+' 님</h2>'+stampCard(count(view.preview.stampCount),view)+(remaining?'<form class="merchant-stamp-form" data-form="merchant-stamp">'+field('amount','이번에 적립할 개수',1,{type:'number',required:true,min:1,max:remaining,step:1,inputMode:'numeric',id:'merchant-stamp-amount'})+'<p class="merchant-quantity-hint">현재 '+count(view.preview.stampCount)+'개 · 최대 '+remaining+'개 추가 가능</p><button type="submit" class="button full"'+(view.pending?' disabled':'')+'>'+icon('plus')+'적립하기</button><p class="form-error" role="alert">'+esc(view.error)+'</p></form>':'<p>스탬프 10개가 모두 채워져 있습니다.</p>')+button('적립 내역으로','merchant-main',{class:'button ghost full',disabled:view.pending})+'</section>';}
+ else body=merchantHistoryHtml(view);
  if(merchantCookieUnavailable(ctx))body+='<p class="merchant-note">쿠키를 저장하지 못해 이 화면을 닫으면 다시 로그인해야 할 수 있습니다.</p>';
  return merchantShell(body,true);
 }
 function clearMerchantQr(view,message='QR을 다시 스캔해 주세요.'){
  stop(view);clearCouponMotion(view);view.token='';view.preview=null;view.result=null;view.stampAngles=[];view.error=message;
 }
+async function loadMerchantHistory(ctx,view,sessionKey,request,cursor){
+ const result=await ctx.api('merchantCouponHistory',{sessionKey,...(cursor?{cursor}:{})});
+ if(!merchantCurrent(ctx,view,sessionKey,request)||document.hidden)return false;
+ const items=Array.isArray(result.items)?result.items:[];
+ if(cursor){const existing=new Set((view.history||[]).map(row=>row.id));view.history=[...(view.history||[]),...items.filter(row=>!existing.has(row.id))];}
+ else view.history=items;
+ view.nextCursor=result.nextCursor||null;return true;
+}
 export async function renderMerchant(ctx){
  const view=merchantView(ctx);clearCouponMotion(view);captureQr(view);stop(view);
  const sessionKey=getMerchantSessionKey(ctx);
- if(!sessionKey){view.preview=null;view.result=null;view.sessionKey='';return loginHtml(view);}
- if(view.sessionKey&&view.sessionKey!==sessionKey){view.token='';view.preview=null;view.result=null;view.stampAngles=[];view.error='';}
+ if(!sessionKey){view.preview=null;view.result=null;view.sessionKey='';clearMerchantHistory(view);return loginHtml(view);}
+ if(view.sessionKey&&view.sessionKey!==sessionKey){view.token='';view.preview=null;view.result=null;view.stampAngles=[];view.error='';clearMerchantHistory(view);}
  view.sessionKey=sessionKey;const request=Symbol();view.request=request;
  try{
   await ctx.api('merchantSession',{sessionKey});
@@ -136,22 +155,27 @@ export async function renderMerchant(ctx){
    if(!merchantCurrent(ctx,view,sessionKey,request)||view.token!==token)return '';
    view.preview=preview;view.error='';
   }
+  if(!view.token&&!view.result&&!view.pending&&view.history===null){if(!await loadMerchantHistory(ctx,view,sessionKey,request))return '';}
+  if(document.hidden)return '';
   return merchantHtml(ctx,view);
  }catch(error){
   if(!merchantCurrent(ctx,view,sessionKey,request))return '';
-  if(isMerchantAccessError(error)){clearMerchantSession(ctx);view.sessionKey='';view.token='';view.preview=null;view.result=null;view.error='매장 로그인이 만료되었거나 해제되었습니다. 다시 로그인해 주세요.';return loginHtml(view);}
+  if(isMerchantAccessError(error)){clearMerchantSession(ctx);clearMerchantHistory(view);view.sessionKey='';view.token='';view.preview=null;view.result=null;view.error='매장 로그인이 만료되었거나 해제되었습니다. 다시 로그인해 주세요.';return loginHtml(view);}
   clearMerchantQr(view,error.message||'QR을 확인하지 못했습니다. 부원에게 새 QR을 요청해 주세요.');return merchantHtml(ctx,view);
  }
 }
 export async function merchantSubmit(ctx,form,data,node){
- if(form!=='merchant-login'||!isMerchantRoute())return;
+ if(!isMerchantRoute())return;
+ if(form==='merchant-stamp')return stampMerchantCoupon(ctx,data.get('amount'));
+ if(form==='merchant-adjust')return adjustMerchantBalance(ctx,data.get('stampCount'));
+ if(form!=='merchant-login')return;
  const view=merchantView(ctx),request=Symbol(),before=getMerchantSessionKey(ctx);view.request=request;
  const code=String(data.get('code')||'').trim();if(!code)throw new Error('매장 코드를 입력해 주세요.');
  const result=await ctx.api('merchantLogin',{code});
  if(!isMerchantRoute()||ctx.state.feelingfineMerchant!==view||view.request!==request||getMerchantSessionKey(ctx)!==before)return;
  setMerchantSession(ctx,result);view.sessionKey=result.sessionKey;view.error='';node?.reset?.();await ctx.render();
 }
-export async function merchantAction(ctx,action){
+export async function merchantAction(ctx,action,id){
  if(!isMerchantRoute())return;
  const view=merchantView(ctx),sessionKey=getMerchantSessionKey(ctx);
  if(action==='merchant-logout'){
@@ -160,38 +184,82 @@ export async function merchantAction(ctx,action){
   const logout=sessionKey?ctx.api('merchantLogout',{sessionKey}).catch(()=>false):Promise.resolve(true);
   await ctx.render();if(await logout===false)ctx.toast('이 기기에서 로그아웃했습니다. 연결을 확인하지 못해 서버 로그아웃 여부는 확인할 수 없습니다.');return;
  }
- if(action!=='merchant-stamp'||view.pending||!view.preview||!view.token||!sessionKey||view.sessionKey!==sessionKey||count(view.preview.stampCount)>=CAPACITY)return;
+ if(view.pending||!sessionKey||view.sessionKey!==sessionKey)return;
+ if(document.hidden){clearMerchantQr(view);clearMerchantHistory(view);return ctx.render();}
+ if(action==='merchant-stamp')return stampMerchantCoupon(ctx,1);
+ if(action==='merchant-main'){clearMerchantQr(view,'');clearMerchantHistory(view);return ctx.render();}
+ if(view.token||view.preview||view.result)return;
+ if(action==='merchant-history-refresh'){clearMerchantHistory(view);view.error='';return ctx.render();}
+ if(action==='merchant-edit-cancel'){view.edit=null;view.error='';return ctx.render();}
+ if(action==='merchant-edit'){
+  const row=view.history?.find(item=>item.id===id);if(!row?.adjustable)return;
+  view.edit={id:row.id,stampCount:row.currentStampCount,revision:row.revision};view.error='';view.notice='';await ctx.render();
+  const input=document.querySelector('#merchant-adjust-count');input?.focus({preventScroll:true});input?.scrollIntoView({block:'nearest',behavior:'auto'});return;
+ }
+ if(action!=='merchant-history-more'||!view.nextCursor)return;
+ const request=Symbol();view.request=request;view.pending=true;view.error='';
+ try{await loadMerchantHistory(ctx,view,sessionKey,request,view.nextCursor);}
+ catch(error){
+  if(!merchantCurrent(ctx,view,sessionKey,request))return;
+  if(isMerchantAccessError(error)){clearMerchantSession(ctx);clearMerchantQr(view,'다시 로그인해 주세요.');clearMerchantHistory(view);view.sessionKey='';}
+  else view.error=error.message||'이전 내역을 불러오지 못했습니다.';
+ }
+ if(!merchantCurrent(ctx,view,sessionKey,request)&&view.sessionKey)return;
+ view.pending=false;await ctx.render();
+}
+function integerInput(value,min,max){const raw=String(value??'').trim(),number=Number(raw);if(!raw||!Number.isInteger(number)||number<min||number>max)throw new Error('스탬프 개수는 '+min+'~'+max+' 사이의 정수로 입력해 주세요.');return number;}
+async function stampMerchantCoupon(ctx,rawAmount){
+ const view=merchantView(ctx),sessionKey=getMerchantSessionKey(ctx);
+ if(view.pending||!view.preview||!view.token||!sessionKey||view.sessionKey!==sessionKey||count(view.preview.stampCount)>=CAPACITY)return;
  if(document.hidden){clearMerchantQr(view);return ctx.render();}
+ const amount=integerInput(rawAmount,1,CAPACITY-count(view.preview.stampCount));
  const token=view.token,request=Symbol();view.request=request;view.pending=true;view.error='';stop(view);
  try{
-  const result=await ctx.api('stampCoupon',{sessionKey,token});
+  const result=await ctx.api('stampCoupon',{sessionKey,token,amount});
   if(!merchantCurrent(ctx,view,sessionKey,request)||view.token!==token)return;
-  view.result={...result,memberName:result.memberName||view.preview.memberName};view.token='';view.preview=null;view.pending=false;await ctx.render();
+  view.result={...result,amount:result.amount??amount,memberName:result.memberName||view.preview.memberName};view.token='';view.preview=null;view.pending=false;clearMerchantHistory(view);await ctx.render();
  }catch(error){
   if(!merchantCurrent(ctx,view,sessionKey,request)||view.token!==token)return;
   view.pending=false;
-  if(isMerchantAccessError(error)){clearMerchantSession(ctx);view.token='';view.preview=null;view.result=null;view.sessionKey='';view.error='다시 로그인해 주세요.';}
-  else clearMerchantQr(view,'적립 결과를 확인하지 못했습니다. 부원 화면을 새로고침하여 스탬프 개수를 확인한 뒤 다시 시도해 주세요.');
+  if(isMerchantAccessError(error)){clearMerchantSession(ctx);clearMerchantHistory(view);view.token='';view.preview=null;view.result=null;view.sessionKey='';view.error='다시 로그인해 주세요.';}
+  else clearMerchantQr(view,'적립 결과를 확인하지 못했습니다. 적립 내역에서 현재 개수를 확인한 뒤 다시 시도해 주세요.');
+  await ctx.render();
+ }
+}
+async function adjustMerchantBalance(ctx,rawCount){
+ const view=merchantView(ctx),sessionKey=getMerchantSessionKey(ctx),edit=view.edit;
+ if(view.pending||!edit||!sessionKey||view.sessionKey!==sessionKey||view.token||view.result)return;
+ if(document.hidden){clearMerchantQr(view);clearMerchantHistory(view);return ctx.render();}
+ const stampCount=integerInput(rawCount,0,CAPACITY),request=Symbol();view.request=request;view.pending=true;view.error='';
+ try{
+  const result=await ctx.api('adjustMerchantCoupon',{sessionKey,receiptId:edit.id,stampCount,expectedRevision:edit.revision});
+  if(!merchantCurrent(ctx,view,sessionKey,request)||view.edit!==edit)return;
+  clearMerchantHistory(view);view.notice=String(result.memberName||'부원')+' 님의 스탬프를 '+result.stampCount+'개로 수정했습니다.';view.pending=false;await ctx.render();
+ }catch(error){
+  if(!merchantCurrent(ctx,view,sessionKey,request)||view.edit!==edit)return;
+  view.pending=false;
+  if(isMerchantAccessError(error)){clearMerchantSession(ctx);clearMerchantHistory(view);view.sessionKey='';view.error='다시 로그인해 주세요.';}
+  else {clearMerchantHistory(view);view.error=error.message||'수정 결과를 확인하지 못했습니다. 현재 개수를 확인한 뒤 다시 시도해 주세요.';}
   await ctx.render();
  }
 }
 export function clearPartnerViews(ctx){
- disposeMember(ctx);const view=ctx.state.feelingfineMerchant;if(view){stop(view);clearCouponMotion(view);view.cleanup?.();view.request=null;view.token='';view.preview=null;view.result=null;const panel=document.querySelector('.merchant-panel');if(panel)panel.innerHTML='<p>QR을 다시 스캔해 주세요.</p>';delete ctx.state.feelingfineMerchant;}
+ disposeMember(ctx);const view=ctx.state.feelingfineMerchant;if(view){stop(view);clearCouponMotion(view);clearMerchantHistory(view);view.cleanup?.();view.request=null;view.token='';view.preview=null;view.result=null;const panel=document.querySelector('.merchant-panel');if(panel)panel.innerHTML='<p>QR을 다시 스캔해 주세요.</p>';delete ctx.state.feelingfineMerchant;}
 }
 export function mountPartnerViews(ctx){
  if(!isMemberRoute())disposeMember(ctx);
  const view=ctx.state.feelingfineMerchant;
  if(view)clearCouponMotion(view);
- if(!isMerchantRoute()){if(view){stop(view);view.cleanup?.();view.token='';view.preview=null;view.result=null;delete ctx.state.feelingfineMerchant;}return;}
+ if(!isMerchantRoute()){if(view){stop(view);view.cleanup?.();clearMerchantHistory(view);view.token='';view.preview=null;view.result=null;delete ctx.state.feelingfineMerchant;}return;}
  if(!view)return;stop(view);view.cleanup?.();view.cleanup=null;
  if(!view.sessionKey)return;
  view.couponCleanup=bindCouponMotion(document.querySelector('.merchant-page'));
  const erasePanel=()=>{const panel=document.querySelector('.merchant-panel');if(panel)panel.innerHTML='<p>QR을 다시 스캔해 주세요.</p>';};
  const check=()=>{
   if(ctx.state.feelingfineMerchant!==view||!isMerchantRoute()){stop(view);clearCouponMotion(view);view.cleanup?.();return;}
-  if(getMerchantSessionKey(ctx)!==view.sessionKey){clearMerchantQr(view,'로그인 상태가 변경되었습니다. QR을 다시 스캔해 주세요.');view.result=null;view.request=null;erasePanel();view.cleanup?.();void ctx.render();return;}
+  if(getMerchantSessionKey(ctx)!==view.sessionKey){clearMerchantQr(view,'로그인 상태가 변경되었습니다. QR을 다시 스캔해 주세요.');clearMerchantHistory(view);view.result=null;view.request=null;erasePanel();view.cleanup?.();void ctx.render();return;}
  };
- const hide=()=>{clearMerchantQr(view);view.result=null;view.request=null;view.pending=false;erasePanel();};
+ const hide=()=>{clearMerchantQr(view);clearMerchantHistory(view);view.result=null;view.request=null;view.pending=false;erasePanel();};
  const visibility=()=>{if(document.hidden)hide();else{check();if(ctx.state.feelingfineMerchant===view)void ctx.render();}};
  const focus=()=>{if(!document.hidden)check();};
  document.addEventListener('visibilitychange',visibility);window.addEventListener('focus',focus);window.addEventListener('pagehide',hide);

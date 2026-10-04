@@ -1,19 +1,22 @@
 dialog.partner-dialog{width:min(740px,calc(100% - 32px));max-width:calc(100% - 32px);border-radius:18px}
 .partner-dialog>.dialog-frame{position:relative;display:flex;flex-direction:column;max-height:inherit;min-height:0}
 .partner-dialog.member-dialog>.dialog-frame>header{position:absolute;inset:8px 12px auto auto;z-index:1;justify-content:flex-end;padding:0;border:0;background:transparent}
-.partner-dialog>.dialog-frame>header>.icon-button{width:48px;height:48px;border:0;background:transparent;box-shadow:none;color:var(--muted)}
-.partner-dialog>.dialog-frame>header>.icon-button:hover{color:var(--text)}
-.partner-dialog .dialog-content{width:100%;min-width:0;padding:28px 26px}
+.partner-dialog>.dialog-frame>header>.icon-button{width:48px;height:48px;border:0;background:transparent;box-shadow:none;color:#fff;filter:drop-shadow(0 1px 4px #000)}
+.partner-dialog>.dialog-frame>header>.icon-button:hover{color:var(--gold)}
+dialog.partner-dialog.member-dialog .dialog-content{width:100%;min-width:0;padding:0 0 24px}
 .partner-dialog [data-partner-body]{width:100%;min-width:0}
 .partner-feelingfine{min-width:0}
-.partner-intro{position:relative;isolation:isolate;padding:10px 24px 32px;text-align:center}
-.partner-intro::before{content:'';position:absolute;inset:-28px 0 0;z-index:-1;background:radial-gradient(ellipse at 50% 20%,rgba(221,189,132,.1),transparent 65%);pointer-events:none}
-.partner-intro-mark{display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;border:1px solid #ddbd8433;border-radius:50%;background:#ddbd840a;color:var(--gold)}
-.partner-intro-mark svg{width:22px;height:22px}
-.partner-intro>h2{margin:14px 0 10px;font-size:28px;line-height:1.4;letter-spacing:-.04em}
+.partner-intro{text-align:center}
+.partner-hero{position:relative;isolation:isolate;min-height:270px;aspect-ratio:2.35/1;overflow:hidden;background:#171412}
+.partner-hero>img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 47%;z-index:-2}
+.partner-hero::after{content:'';position:absolute;inset:0;z-index:-1;background:linear-gradient(180deg,#0003 0%,transparent 25%,#15151538 50%,var(--surface) 100%);pointer-events:none}
+.partner-hero-title{position:absolute;inset:auto 56px 18px;color:#fff;text-shadow:0 2px 12px #0008}
+.partner-hero-title>p{margin:0 0 6px;font-size:11px;letter-spacing:.12em;color:#e1c79f}
+.partner-hero-title>h2{margin:0;font-size:34px;line-height:1.4;letter-spacing:-.04em}
+.partner-intro-copy{padding:2px 20px 26px}
 .partner-intro-tagline{margin:0;font-size:16px;line-height:1.7;color:var(--text);word-break:keep-all}
-.partner-intro-description{margin:12px 0 0;font-size:13px;line-height:1.9;color:var(--muted);word-break:keep-all}
-.partner-coupon-section{min-width:0;padding:22px 0 20px;border:1px solid #ddbd8426;border-radius:16px;background:linear-gradient(145deg,#ddbd8408,#ffffff03)}
+.partner-intro-description{margin:7px 0 0;font-size:13px;line-height:1.9;color:var(--muted);word-break:keep-all}
+.partner-coupon-section{min-width:0;margin:0 24px;padding:22px 0 20px;border:1px solid #ddbd8433;border-radius:16px;background:radial-gradient(ellipse at 50% 15%,#ddbd8410,transparent 75%),linear-gradient(145deg,#ddbd8405,#00000012)}
 .partner-benefit-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 24px 2px}
 .partner-benefit-eyebrow{margin:0 0 6px;color:var(--gold);font-size:11px;font-weight:600;letter-spacing:.06em}
 .partner-benefit-heading h3{margin:0;font-size:18px;line-height:1.5;letter-spacing:-.03em}
@@ -96,12 +99,14 @@ dialog.partner-dialog{width:min(740px,calc(100% - 32px));max-width:calc(100% - 3
 @keyframes partner-live-ring{to{transform:rotate(360deg)}}
 @keyframes partner-live-pulse{50%{opacity:.35}}
 @media(max-width:600px){
- .partner-dialog.member-dialog .dialog-content{padding-top:24px;padding-bottom:max(24px,calc(env(safe-area-inset-bottom) + 16px))}
- .partner-intro{padding:8px 16px 28px}
- .partner-intro>h2{font-size:26px}
+ dialog.partner-dialog.member-dialog .dialog-content{padding-bottom:max(18px,calc(env(safe-area-inset-bottom) + 12px))}
+ .partner-hero{min-height:220px;aspect-ratio:1.6/1}
+ .partner-hero-title{bottom:16px}
+ .partner-hero-title>h2{font-size:29px}
+ .partner-intro-copy{padding:0 18px 22px}
  .partner-intro-tagline{font-size:15px}
  .partner-intro-description{font-size:13px}
- .partner-coupon-section{padding:18px 0;border-radius:14px}
+ .partner-coupon-section{margin-inline:14px;padding:18px 0;border-radius:14px}
  .partner-benefit-heading{padding-inline:18px}
  .partner-benefit-heading h3{font-size:17px}
  .partner-coupon-stage{padding:18px 8px 36px}
