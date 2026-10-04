@@ -22,7 +22,7 @@ export async function renderInventory(ctx){
  ctx.state.inventoryCategories=categories;
  const known=new Set(categories.map(c=>c.id));
  const group=item=>known.has(itemCategory(item))?itemCategory(item):'';
- const card=item=>'<article class="inventory-card" draggable="true" data-inventory-drag="'+esc(item.id)+'" data-inventory-card="'+esc(item.id)+'" data-inventory-name="'+esc(item.name+' '+(item.location||''))+'">'+
+ const card=item=>'<article class="inventory-card" draggable="true" data-inventory-drag="'+esc(item.id)+'" data-inventory-card="'+esc(item.id)+'" data-inventory-name="'+esc(item.name)+'">'+
   '<button type="button" class="inventory-card-open" data-action="item-view" data-id="'+esc(item.id)+'" aria-label="'+esc(item.name)+' 상세 보기"><span class="inventory-card-name">'+esc(item.name)+'</span></button>'+
   '<div class="inventory-card-meta"><span>'+esc(quantity(item))+'</span>'+(total(item)<item.minimum?'<span class="inventory-low">재고 부족</span>':'')+'</div>'+
   '<div class="inventory-card-actions">'+button('수량 기록','stock-record',{id:item.id,class:'button small ghost'})+'<button type="button" class="button small secondary inventory-drag" draggable="true" data-inventory-drag="'+esc(item.id)+'" data-action="inventory-move" data-id="'+esc(item.id)+'" aria-label="'+esc(item.name)+' 카테고리 이동">이동</button></div></article>';

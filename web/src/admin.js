@@ -64,7 +64,7 @@ export async function readAll(ctx,kind,params={}){
 }
 function heading(eyebrow,title,description,action=''){return '<div class="page-heading"><div><h1 id="page-title" tabindex="-1">'+title+'</h1><p>'+description+'</p></div>'+action+'</div>';}
 function toolbar(kind,choices=[],extra=''){
- const inventory=kind==='inventory',config={events:['행사 이름 · 장소','행사'],members:['이름 · 학번 · 연락처 · 학과','부원'],inventory:['품목 이름 · 보관 위치','품목'],admins:['이름 · 역할','임원'],audit:['작업 · 처리자','변경 이력'],applications:['신청자 이름','신청자']}[kind]||['이름 · 내용','목록'];
+ const inventory=kind==='inventory',config={events:['행사 이름 · 장소','행사'],members:['이름 · 학번 · 연락처 · 학과','부원'],inventory:['품목 이름','품목'],admins:['이름 · 역할','임원'],audit:['작업 · 처리자','변경 이력'],applications:['신청자 이름','신청자']}[kind]||['이름 · 내용','목록'];
  return '<div class="toolbar"><label class="search-box">'+icon('search')+'<input type="search" data-search placeholder="'+config[0]+' 검색" aria-label="'+config[1]+' 검색" autocomplete="off" spellcheck="false" aria-describedby="filtered-count"></label>'+(choices.length?'<select data-filter aria-label="'+(inventory?'분류':'상태')+' 필터"><option value="all">전체 '+(inventory?'분류':'상태')+'</option>'+choices.map(c=>'<option value="'+c+'">'+esc(label(c))+'</option>').join('')+'</select>':'')+extra+'<span id="filtered-count" class="muted" role="status" aria-live="polite" aria-atomic="true"></span></div>';
 }
 function deleteButton(kind,id,title='기록'){

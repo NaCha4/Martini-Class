@@ -19,7 +19,7 @@ let renderInventory,inventoryCategories,itemCategory,inventoryAction,bindInvento
 try{({renderInventory,inventoryCategories,itemCategory,inventoryAction,bindInventoryBoard,moveInventoryItem}=await import('../web/src/inventory.js'));}
 finally{hook.deregister();}
 
-const item=(id,name,extra={})=>({id,name,revision:3,categoryId:'',photo:'',unit:'each',quantity:0,minimum:0,location:'',bottles:{},...extra});
+const item=(id,name,extra={})=>({id,name,revision:3,categoryId:'',photo:'',unit:'each',quantity:0,minimum:0,bottles:{},...extra});
 const category=(id,name,extra={})=>({id,name,revision:1,...extra});
 function context({pages=[[]],categories=[]}={}){
  const calls=[],notifications=[];
@@ -128,7 +128,7 @@ test('blank board shows item and category creation without photos or onboarding 
 test('existing photos never render and unknown categories retain their text cards and actions',async()=>{
  const photos=['javascript:alert(1)','https://images.example/private-photo.jpg','data:image/svg+xml;base64,PHN2Zz4='];
  const rows=photos.map((photo,i)=>item('unsafe-'+i,'안전 확인 '+i,{photo,categoryId:'missing-category'}));
- rows.push(item('safe','진',{photo:'data:image/jpeg;base64,/9j/2Q==',quantity:2,unit:'bottle',size:700,bottles:{open:60}}));
+ rows.push(item('safe','진',{photo:'data:image/jpeg;base64,/9j/2Q==',quantity:2,unit:'bottle',size:700,bottles:{open:60},location:'옛 보관장소'}));
  const {ctx}=context({pages:[rows]});
  const html=await renderInventory(ctx);
  assert.equal((html.match(/data-inventory-card=/g)||[]).length,4);
@@ -139,7 +139,7 @@ test('existing photos never render and unknown categories retain their text card
  assert.match(html,/미분류/);
  assert.match(html,/2병 · 개봉 1병/);
  for(const row of rows)assert.ok(html.includes(row.name));
- assert.doesNotMatch(html,/<img\b|data:image|javascript:|images\.example|사진을 추가/);
+ assert.doesNotMatch(html,/<img\b|data:image|javascript:|images\.example|사진을 추가|옛 보관장소/);
  assert.equal(ctx.state.data.inventory.safe.photo,rows[3].photo,'Rendering must preserve stored records');
 });
 
@@ -224,7 +224,7 @@ function boardDOM(){
   return {dataset,hidden:false,listeners:new Map(),attributes:new Map(),classList:{add:(...values)=>values.forEach(value=>classes.add(value)),remove:(...values)=>values.forEach(value=>classes.delete(value)),contains:value=>classes.has(value)},
    addEventListener(name,handler){this.listeners.set(name,handler);},setAttribute(name,value){this.attributes.set(name,value);},removeAttribute(name){this.attributes.delete(name);}};
  };
- const first=node({inventoryCard:'gin',inventoryName:'진 선반 A'}),second=node({inventoryCard:'lemon',inventoryName:'레몬 냉장고'});
+ const first=node({inventoryCard:'gin',inventoryName:'런던 드라이 진'}),second=node({inventoryCard:'lemon',inventoryName:'레몬'});
  const lanes=[node({inventoryCategory:''}),node({inventoryCategory:'party'})];
  for(const [index,lane] of lanes.entries()){
   lane.cards=index===0?[first,second]:[];
@@ -249,16 +249,16 @@ function boardDOM(){
  return {root,board,search,results,status,first,second,lanes,nestedHandle,nestedLane,transfer,event};
 }
 
-test('board search filters names and locations while keeping category counters accurate',async()=>{
+test('board search filters item names while keeping category counters accurate',async()=>{
  const {ctx}=context();
  const dom=boardDOM();
  bindInventoryBoard(ctx,dom.root);
- dom.search.value='진 선반';dom.search.listeners.get('input')();
+ dom.search.value='드라이 진';dom.search.listeners.get('input')();
  assert.equal(dom.first.hidden,false);assert.equal(dom.second.hidden,true);
  assert.equal(dom.lanes[0].count.textContent,'1 / 2');
  assert.equal(dom.lanes[1].empty.textContent,'검색 결과 없음');
  assert.equal(dom.results.textContent,'1개 품목 검색됨');
- assert.equal(ctx.state.inventorySearch,'진 선반');
+ assert.equal(ctx.state.inventorySearch,'드라이 진');
  dom.search.value='';dom.search.listeners.get('input')();
  assert.equal(dom.second.hidden,false);assert.equal(dom.lanes[0].count.textContent,'2');
  assert.equal(dom.lanes[1].empty.textContent,'품목 없음');

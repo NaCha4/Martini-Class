@@ -65,25 +65,26 @@ function form(overrides={}){
  return data;
 }
 
-test('new form needs only a name, keeps stock settings collapsed and omits photo/category/stock fields',async()=>{
+test('new form needs only a name, keeps stock settings collapsed and omits photo/location/category/stock fields',async()=>{
  const {ctx,calls,toasts,renders}=context();await itemEdit(ctx);
  assert.match(harness.body,/<details class="editor-options wide inventory-options">/);
- assert.doesNotMatch(harness.body,/<img|type="file"|name="(?:photo|category|categoryId|quantity|bottles)"/);
+ assert.match(harness.body,/<summary>수량 설정<\/summary>/);
+ assert.doesNotMatch(harness.body,/<img|type="file"|보관|name="(?:photo|location|category|categoryId|quantity|bottles)"/);
  assert.equal(harness.fields.get('name').options.required,true);
  assert.equal(harness.fields.get('unit').value,'each');
  assert.equal(get('[name=size]').disabled,true);assert.equal(get('[name=size]').label.hidden,true);
  await harness.onSubmit(form({name:'  셰이커  '}));
- assert.deepEqual(calls,[{op:'saveItem',data:{revision:0,name:'셰이커',unit:'each',size:0,minimum:0,location:'동아리방',note:''}}]);
+ assert.deepEqual(calls,[{op:'saveItem',data:{revision:0,name:'셰이커',unit:'each',size:0,minimum:0,note:''}}]);
  assert.equal(toasts.length,1);assert.equal(renders(),1);
 });
 
-test('name edits retain management values and omit changes to stored photos, categories and stock',async()=>{
+test('name edits omit location and preserve management values without mutating cached inventory',async()=>{
  const {ctx,calls}=context(legacy);const before=structuredClone(ctx.state.data.inventory.gin);
  await itemEdit(ctx,'gin','different-category');
- assert.doesNotMatch(harness.body,/<img|type="file"|name="photo"/);
+ assert.doesNotMatch(harness.body,/<img|type="file"|보관|선반 A|name="(?:photo|location)"/);
  await harness.onSubmit(form({name:'이름만 변경'}));
- assert.deepEqual(calls[0],{op:'saveItem',data:{id:'gin',revision:4,name:'이름만 변경',unit:'bottle',size:700,minimum:1400,location:'선반 A',note:'기존 메모'}});
- for(const name of ['photo','quantity','bottles','category','categoryId'])assert.equal(Object.hasOwn(calls[0].data,name),false);
+ assert.deepEqual(calls[0],{op:'saveItem',data:{id:'gin',revision:4,name:'이름만 변경',unit:'bottle',size:700,minimum:1400,note:'기존 메모'}});
+ for(const name of ['photo','location','quantity','bottles','category','categoryId'])assert.equal(Object.hasOwn(calls[0].data,name),false);
  assert.deepEqual(ctx.state.data.inventory.gin,before);
 });
 
@@ -108,7 +109,7 @@ test('advanced unit switching supplies a bottle size and preserves hidden legacy
  assert.equal(get('[name=size]').value,'700');assert.equal(get('[name=size]').disabled,false);assert.equal(get('[name=size]').required,true);
  await harness.onSubmit(form({name:'병으로 관리',size:750,minimum:1500,location:'새 선반',note:'새 메모'}));
  assert.equal(calls[0].data.unit,'bottle');assert.equal(calls[0].data.size,750);assert.equal(calls[0].data.minimum,1500);
- assert.equal(calls[0].data.location,'새 선반');assert.equal(calls[0].data.note,'새 메모');
+ assert.equal(Object.hasOwn(calls[0].data,'location'),false);assert.equal(calls[0].data.note,'새 메모');
  const second=context({...legacy,unit:'each',size:700});await itemEdit(second.ctx,'gin');
  assert.equal(get('[name=size]').disabled,true);await harness.onSubmit(form({name:'규격 유지'}));assert.equal(second.calls[0].data.size,700);
 });

@@ -7,11 +7,10 @@ export async function itemEdit(ctx,id,categoryId){
  const unit=r?.unit||'each';
  const dialog=modal(r?'품목 수정':'품목 추가',
   field('name','이름',r?.name,{required:true,wide:true,maxLength:100,autocomplete:'off'})+
-  '<details class="editor-options wide inventory-options"><summary>수량 · 보관 설정</summary><div class="editor-fields">'+
+  '<details class="editor-options wide inventory-options"><summary>수량 설정</summary><div class="editor-fields">'+
   field('unit','관리 단위',unit,{choices:[['each','개'],['bottle','병'],['g','g'],['ml','mL'],['pack','팩']]})+
   field('size','한 병 용량 (mL)',r?.size??(unit==='bottle'?700:0),{type:'number',min:1,max:100000})+
   field('minimum','최소 보유량 (병 품목은 mL)',r?.minimum??0,{type:'number',min:0,max:100000})+
-  field('location','보관 위치',r?.location??ctx.state.settings.location??'동아리방',{wide:true,maxLength:100})+
   field('note','메모',r?.note,{type:'textarea',wide:true,rows:2,maxLength:1000})+
   '</div></details>',
   async f=>{
@@ -21,7 +20,7 @@ export async function itemEdit(ctx,id,categoryId){
     ...(r?{id:r.id,revision:r.revision}:{revision:0,...(categoryId?{categoryId}:{})}),
     name:val('name'),unit:selectedUnit,
     size:selectedUnit==='bottle'?Number(f.get('size')||700):(r?.size??0),
-    minimum:Number(f.get('minimum')||0),location:val('location'),note:val('note')
+    minimum:Number(f.get('minimum')||0),note:val('note')
    });
    ctx.toast('저장했습니다.');await ctx.render();
   },{wide:true,submit:r?'저장':'추가'});
