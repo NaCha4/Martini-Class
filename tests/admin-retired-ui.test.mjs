@@ -33,6 +33,7 @@ function context({operator=profile(),rows={},roles=[]}={}){
    calls.push({op,data});
    if(op==='profile')return operator;
    if(op==='listRoles')return {rows:roles};
+   if(op==='listInventoryCategories')return {rows:rows.inventoryCategories||[]};
    if(op==='read'){
     assert.ok(!retired.includes(data.kind),'Retired records must not be read: '+data.kind);
     assert.ok(['settings','events','members','inventory','applications'].includes(data.kind),'Unexpected read: '+data.kind);

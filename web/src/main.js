@@ -3,6 +3,7 @@ import { api, auth, onAuthStateChanged } from './firebase.js';
 import { esc, icon, refreshIcons, toast, modal, closeModal, formSignature, captureFocus, restoreFocus, busyControl, showFormError } from './ui.js';
 import { renderScreen, screenAction, screenSubmit, isAdminScreen } from './screen-router.js';
 import { sortMemberRows } from './admin.js';
+import { bindInventoryBoard } from './inventory.js';
 import { filterListRows } from './list-filters.js';
 import { isMemberRoute, getMemberSessionKey, memberStorage } from './member-session.js';
 export const state={profile:null,user:null,authReady:false,data:{},settings:{},search:'',filter:'all',eventType:'all'};
@@ -174,7 +175,7 @@ export async function render({focus=false,scroll}={}) {
     let html=await renderScreen(ctx);
     if(current===renderNumber&&!html&&isMemberRoute()&&!getMemberSessionKey(ctx))html=await renderScreen(ctx);
     if(current!==renderNumber)return;
-    app.innerHTML=html;refreshIcons();
+    app.innerHTML=html;refreshIcons();bindInventoryBoard(ctx,app);
     const search=app.querySelector('[data-search]'),filter=app.querySelector('[data-filter]');
     if(search)search.value=state.search;if(filter)filter.value=state.filter;const type=app.querySelector('[data-event-type]');if(type)type.value=state.eventType;filterRows();
     document.title=location.pathname==='/'?'Martini · 마티니':(app.querySelector('h1')?.textContent||'마티니')+' · Martini';
