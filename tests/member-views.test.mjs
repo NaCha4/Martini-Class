@@ -31,12 +31,19 @@ function memberPanels(html,active='activity'){
  const nav=html.match(/<nav\b[^>]*class="member-bottom-nav"[^>]*>([\s\S]*?)<\/nav>/)?.[1];assert.ok(nav);
  assert.deepEqual([...nav.matchAll(/data-action="member-tab" data-id="([^"]+)"/g)].map(match=>match[1]),Object.keys(panels));
  assert.equal((nav.match(/aria-current="page"/g)||[]).length,1);assert.match(nav,new RegExp('data-id="'+active+'"[^>]*aria-current="page"'));
- assert.doesNotMatch(html,/data-member-visit-actions|data-action="member-visit"|member-visit-create/);
+ assert.doesNotMatch(html,/data-member-visit-actions|member-visit-create/);
+ assert.equal((panels.visits.match(/data-action="member-visit"/g)||[]).length,1);
+ assert.match(panels.visits,/data-action="member-request-back"/);
  assert.equal((html.match(/data-form="member-visit"/g)||[]).length,1);
  assert.match(panels.visits,/<form\b[^>]*data-form="member-visit"/);
  assert.doesNotMatch(panels.visits,/data-action="member-request"|member-request-row/);
  for(const id of ['activity','events','benefits'])assert.doesNotMatch(panels[id],/data-form="member-visit"/);
  return panels;
+}
+function requestViews(html,active='menu'){
+ const entries=[...html.matchAll(/<div\b[^>]*data-member-request-view="([^"]+)"[^>]*>/g)];
+ assert.deepEqual(entries.map(entry=>entry[1]),['menu','visit']);
+ for(const entry of entries){assert.equal(/\shidden(?:\s|=|>)/.test(entry[0]),entry[1]!==active,entry[1]);assert.match(entry[0],/tabindex="-1"/);}
 }
 function route(path){const url=new URL(path,'https://martini.test');Object.assign(location,{pathname:url.pathname,search:url.search,hash:url.hash,href:url.href,origin:url.origin});}
 function assertLoginGate(html){
@@ -48,9 +55,11 @@ function sectionDocument(){
  const sections=Object.fromEntries(['home','events','applications','coupons','more','detail'].map(id=>['member-'+id,{scrollIntoView:options=>scrolls.push({id,options}),focus:()=>focuses.push(id),setAttribute:()=>{},getAttribute:()=>'-1'}]));
  const panels=['activity','events','visits','benefits'].map(id=>({dataset:{memberPanel:id},hidden:id!=='activity',focus:()=>focuses.push(id)}));
  const buttons=panels.map(panel=>({dataset:{id:panel.dataset.memberPanel},classList:{toggle:()=>{}},setAttribute:()=>{},removeAttribute:()=>{}}));
- const app={querySelector:()=>null,querySelectorAll:selector=>selector==='[data-member-panel]'?panels:buttons};
- globalThis.document={getElementById:id=>sections[id]||null,querySelector:selector=>selector==='[data-member-app]'?app:selector.startsWith('#')?sections[selector.slice(1)]||null:null,querySelectorAll:()=>buttons};
- return {scrolls,focuses,panels,restore:()=>{if(previous)Object.defineProperty(globalThis,'document',previous);else delete globalThis.document;}};
+ const draft={purpose:'작성 중인 방문 사유',date:'2026-10-07',time:'18:00',guests:2,consent:true};
+ const requestPanels=['menu','visit'].map(view=>({dataset:{memberRequestView:view},hidden:view!=='menu',draft,focus:()=>focuses.push(view)}));
+ const app={querySelector:selector=>requestPanels.find(view=>selector==='[data-member-request-view="'+view.dataset.memberRequestView+'"]')||null,querySelectorAll:selector=>selector==='[data-member-panel]'?panels:buttons};
+ globalThis.document={getElementById:id=>sections[id]||null,querySelector:selector=>selector==='[data-member-app]'?app:selector.startsWith('#')?sections[selector.slice(1)]||null:null,querySelectorAll:()=>buttons,defaultView:{scrollY:0,scrollTo:options=>scrolls.push(options)}};
+ return {scrolls,focuses,panels,requestPanels,draft,restore:()=>{if(previous)Object.defineProperty(globalThis,'document',previous);else delete globalThis.document;}};
 }
 // Exercise the actual dialog listeners without a browser. This host models form
 // values and close events; browser focus/layout and native dialog behavior are not tested.
@@ -131,7 +140,8 @@ test('the member app mounts four management panels without a separate welcome or
  const requests=[{id:'visit-one',kind:'visit',purpose:'private visit purpose',guestNames:'private guest',status:'pending'}];
  const {html,ctx,calls}=await view('home',{events,requests,applications:[application('needs-payment'),application('offer','offered','none'),application('paid','registered','paid'),application('wait','waiting','none')]});
  const panels=memberPanels(html);assert.match(html,/<header\b[^>]*>[\s\S]*?테스트 부원[\s\S]*?data-action="member-forget"[\s\S]*?<\/header>/);
- for(const panel of Object.values(panels))assert.equal((panel.match(/<h1\b/g)||[]).length,1);
+ for(const [id,panel] of Object.entries(panels))assert.equal((panel.match(/<h1\b/g)||[]).length,id==='visits'?2:1);
+ requestViews(panels.visits);
  assert.equal((panels.events.match(/data-action="member-event-open"/g)||[]).length,4);
  assert.equal((panels.activity.match(/data-action="member-application-open"/g)||[]).length,4);
  const choices=panels.events;
@@ -147,9 +157,11 @@ test('the member app mounts four management panels without a separate welcome or
  assert.doesNotMatch(html,/data-member-panel="home"|member-home-welcome|member-profile-card|member-home-hero|member-app-eyebrow|반가워요|마티니 홈페이지/);
  assert.deepEqual(calls.map(call=>call.op),['memberPortal','memberApplications']);
 });
-test('the visits tab contains the complete request form without an extra launch action or repeated history',async()=>{
+test('the request tab starts with a menu button and opens the complete visit form without repeated history',async()=>{
  const {ctx}=context({requests:[{id:'existing-visit',kind:'visit',purpose:'기존 방문',status:'pending'}]});ctx.state.memberAppTab='visits';
  const html=await renderMemberPortal(ctx),panels=memberPanels(html,'visits'),form=panels.visits.match(/<form\b[^>]*data-form="member-visit"[^>]*>[\s\S]*?<\/form>/)?.[0];
+ requestViews(panels.visits);assert.match(panels.visits,/<h1\b[^>]*>신청<\/h1>/);
+ assert.match(panels.visits,/<button\b[^>]*data-action="member-visit"[^>]*>[\s\S]*?출입 신청[\s\S]*?<\/button>/);
  assert.ok(form);assert.equal((panels.visits.match(/<form\b/g)||[]).length,1);
  assert.match(form,/<input\b[^>]*type="hidden"[^>]*name="visitDate"/);assert.match(form,/data-visit-calendar/);
  for(const name of ['startTime','guestCount','guestNames','purpose','consent']){
@@ -163,6 +175,7 @@ test('the visits tab contains the complete request form without an extra launch 
  assert.doesNotMatch(form,/name="(?:name|studentId|phone|endsAt|endTime)"/);
  assert.match(panels.activity,/data-action="member-request" data-id="existing-visit"/);
  assert.doesNotMatch(panels.visits,/기존 방문|신청 현황|member-receipt-banner/);
+ ctx.state.memberRequestView='visit';requestViews(memberPanels(await renderMemberPortal(ctx),'visits').visits,'visit');
 });
 test('private events stay out of the event popup and application history while legacy public events remain visible',async()=>{
  const privateApplication=application('private-request');privateApplication.event.memberVisible=false;
@@ -216,7 +229,7 @@ test('event and partner service buttons open dialogs without navigation or histo
 test('service popup switching respects an unsaved form and does not clear its selection when leaving is declined',async()=>{
  const {ctx,calls}=context(),selection={kind:'event',id:'one'};ctx.state.memberInlineDetail=selection;ctx.mayLeave=async()=>false;
  await withDialogs(async({dialogs})=>{
-  for(const action of ['member-events','member-partners','member-visit'])await publicAction(ctx,action);
+  for(const action of ['member-events','member-partners','member-visit','member-request-back'])await publicAction(ctx,action);
   assert.deepEqual(dialogs,[]);assert.equal(ctx.state.memberInlineDetail,selection);assert.deepEqual(calls,[]);
  });
 });
@@ -236,7 +249,7 @@ test('a popup containing an application form preserves dirty input and cannot cl
 
 test('inline visit submission uses the existing payload and displays its result in activity',async()=>{
  const requests=[],{ctx,navigations}=context({requests}),response=deferred(),base=ctx.api,form=visitForm(),renders=[];let payload,rendered;
- ctx.state.memberAppTab='visits';
+ ctx.state.memberAppTab='visits';ctx.state.memberRequestView='visit';
  ctx.api=async(op,data)=>{if(op==='submitClubRequest'){payload=data;return response.promise;}return base(op,data);};
  ctx.render=async options=>{renders.push(options);rendered=await renderMemberPortal(ctx);};
  const submission=publicSubmit(ctx,'member-visit',form);
@@ -249,20 +262,22 @@ test('inline visit submission uses the existing payload and displays its result 
  const request={id:payload.requestId,kind:'visit',purpose:payload.purpose,status:'pending',startsAt:payload.startsAt,guestCount:payload.guestCount};requests.push(request);
  response.resolve({id:request.id,request});await submission;
  assert.equal(memberState(ctx).lastReceiptId,request.id);assert.equal(memberStorage(ctx).receipts[0].id,request.id);assert.equal(memberStorage(ctx).pending.visit,undefined);
- assert.equal(ctx.state.memberAppTab,'activity');assert.deepEqual(renders,[{focus:true,scroll:0}]);assert.deepEqual(navigations,[]);
+ assert.equal(ctx.state.memberAppTab,'activity');assert.equal(ctx.state.memberRequestView,undefined);assert.deepEqual(renders,[{focus:true,scroll:0}]);assert.deepEqual(navigations,[]);
  const panels=memberPanels(rendered,'activity');assert.match(panels.activity,/신청 완료/);assert.match(panels.activity,new RegExp('data-action="member-request" data-id="'+request.id+'"'));
+ requestViews(panels.visits);
 });
 
 test('a failed inline visit request retains the form and reuses its request identity on retry',async()=>{
  const {ctx}=context(),form=visitForm(),original=[...form],calls=[],renders=[];let fail=true;
- ctx.state.memberAppTab='visits';ctx.render=async options=>{renders.push(options);};
+ ctx.state.memberAppTab='visits';ctx.state.memberRequestView='visit';ctx.render=async options=>{renders.push(options);};
  ctx.api=async(op,data)=>{assert.equal(op,'submitClubRequest');calls.push(data);if(fail)throw Object.assign(new Error('Temporary failure'),{code:'functions/unavailable'});return {id:data.requestId};};
  await assert.rejects(publicSubmit(ctx,'member-visit',form),/Temporary failure/);
  assert.deepEqual([...form],original);assert.deepEqual(renders,[]);assert.equal(ctx.state.memberAppTab,'visits');assert.equal(getMemberSessionKey(ctx),sessionKey);
+ assert.equal(ctx.state.memberRequestView,'visit');
  assert.equal(memberStorage(ctx).pending.visit.requestId,calls[0].requestId);
  fail=false;await publicSubmit(ctx,'member-visit',form);
  assert.equal(calls.length,2);assert.deepEqual(calls[1],calls[0]);assert.equal(memberStorage(ctx).pending.visit,undefined);
- assert.equal(ctx.state.memberAppTab,'activity');assert.deepEqual(renders,[{focus:true,scroll:0}]);
+ assert.equal(ctx.state.memberAppTab,'activity');assert.equal(ctx.state.memberRequestView,undefined);assert.deepEqual(renders,[{focus:true,scroll:0}]);
 });
 
 test('popup template mounting consumes the template and clears only the explicitly closed selection',async()=>{
@@ -370,9 +385,10 @@ test('dashboard separates action, current and past records without duplicate row
 
 test('route initialization keeps the chosen tab during refresh and resets only on a real path change',async()=>{
  const {ctx}=context();route('/members/events');memberPanels(await renderPublic(ctx),'events');
- ctx.state.memberAppTab='visits';ctx.state.memberAppScroll={visits:60};
- memberPanels(await renderPublic(ctx),'visits');assert.deepEqual(ctx.state.memberAppScroll,{visits:60});
+ ctx.state.memberAppTab='visits';ctx.state.memberAppScroll={visits:60};ctx.state.memberRequestView='visit';
+ requestViews(memberPanels(await renderPublic(ctx),'visits').visits,'visit');assert.deepEqual(ctx.state.memberAppScroll,{visits:60});
  route('/members/coupons');memberPanels(await renderPublic(ctx),'benefits');assert.equal(ctx.state.memberAppScroll,undefined);
+ assert.equal(ctx.state.memberRequestView,undefined);
  assert.equal(ctx.state.memberRouteSource,'/members/coupons');
 });
 
@@ -385,10 +401,30 @@ test('public tab actions preserve visit drafts while honoring modal and saving g
   assert.deepEqual(dom.panels.filter(panel=>!panel.hidden).map(panel=>panel.dataset.memberPanel),['events']);
   assert.equal(location.href,'https://martini.test/members#saved-position');assert.deepEqual(calls,[]);assert.deepEqual(navigations,[]);assert.equal(renders,0);
   assert.equal(await publicAction(ctx,'member-tab','unknown'),false);assert.equal(ctx.state.memberAppTab,'events');
-  assert.equal(await publicAction(ctx,'member-visit'),true);assert.equal(ctx.state.memberAppTab,'visits');
+  assert.equal(await publicAction(ctx,'member-tab','visits'),true);assert.equal(ctx.state.memberRequestView,'menu');
+  assert.deepEqual(dom.requestPanels.filter(panel=>!panel.hidden).map(panel=>panel.dataset.memberRequestView),['menu']);
+  assert.equal(await publicAction(ctx,'member-visit'),true);assert.equal(ctx.state.memberAppTab,'visits');assert.equal(ctx.state.memberRequestView,'visit');
   assert.deepEqual(dom.panels.filter(panel=>!panel.hidden).map(panel=>panel.dataset.memberPanel),['visits']);
-  assert.deepEqual(leaveOptions,[{preserveVisitDraft:true},{preserveVisitDraft:true},{preserveVisitDraft:true}]);
+  assert.deepEqual(dom.requestPanels.filter(panel=>!panel.hidden).map(panel=>panel.dataset.memberRequestView),['visit']);
+  assert.equal(await publicAction(ctx,'member-request-back'),true);assert.equal(ctx.state.memberRequestView,'menu');
+  assert.equal(await publicAction(ctx,'member-visit'),true);assert.equal(ctx.state.memberRequestView,'visit');
+  assert.equal(dom.requestPanels[1].draft,dom.draft);assert.deepEqual(dom.draft,{purpose:'작성 중인 방문 사유',date:'2026-10-07',time:'18:00',guests:2,consent:true});
+  assert.equal(await publicAction(ctx,'member-tab','activity'),true);
+  assert.equal(await publicAction(ctx,'member-tab','visits'),true);assert.equal(ctx.state.memberRequestView,'menu');
+  assert.deepEqual(leaveOptions,Array.from({length:8},()=>({preserveVisitDraft:true})));
   assert.deepEqual(calls,[]);assert.deepEqual(navigations,[]);assert.equal(renders,0);
+ }finally{dom.restore();}
+});
+
+test('request subview actions leave the current view intact when saving or the route changes while closing a modal',async()=>{
+ const {ctx,calls}=context(),dom=sectionDocument();let renders=0;ctx.render=async()=>{renders++;};
+ try{
+  ctx.mayLeave=async()=>true;await publicAction(ctx,'member-visit');
+  ctx.mayLeave=async()=>false;assert.equal(await publicAction(ctx,'member-request-back'),false);
+  assert.equal(ctx.state.memberRequestView,'visit');assert.equal(dom.requestPanels[1].hidden,false);
+  ctx.mayLeave=async()=>{route('/notices');return true;};assert.equal(await publicAction(ctx,'member-request-back'),false);
+  assert.equal(ctx.state.memberRequestView,'visit');assert.equal(dom.requestPanels[1].hidden,false);
+  assert.deepEqual(calls,[]);assert.equal(renders,0);
  }finally{dom.restore();}
 });
 

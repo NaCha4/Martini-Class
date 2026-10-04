@@ -3,7 +3,7 @@ import { linkKey } from './share-links.js';
 import { renderEventPage, renderApplicationPage, renderLinkError, eventSubmit, eventAction } from './event-pages.js';
 import { renderMemberPortal, renderMemberVerificationGate, memberPortalAction, memberPortalSubmit } from './member-portal.js';
 import { getMemberSessionKey, isMemberRoute } from './member-session.js';
-import { MEMBER_TABS, memberTabForPath, activateMemberTab } from './member-navigation.js';
+import { MEMBER_TABS, memberTabForPath, activateMemberTab, activateMemberRequestView } from './member-navigation.js';
 import { partnerAction } from './partner-stamps.js';
 import privacyContent from './content/privacy.html?raw';
 import { openChatUrl } from '../../functions/src/public-links.js';
@@ -27,6 +27,7 @@ export async function renderPublic(ctx){
    ctx.state.memberRouteSource=path;
    ctx.state.memberAppTab=memberTabForPath(path);
    delete ctx.state.memberAppScroll;
+   delete ctx.state.memberRequestView;
    ctx.state.memberInlineDetail=memberDetail?{kind:parts[1]==='events'?'event':'application',id:parts[2]}:null;
    delete ctx.state.memberScrollTarget;
   }
@@ -77,15 +78,16 @@ export async function publicSubmit(ctx,form,data,node){
 }
 export async function publicAction(ctx,action,id,target){
  if(isMemberRoute()&&!getMemberSessionKey(ctx)&&!['member-verify','member-refresh','public-refresh'].includes(action))return ctx.render();
- if(action==='member-visit'){action='member-tab';id='visits';}
- if(action==='member-tab'){
+ if(['member-tab','member-visit','member-request-back'].includes(action)){
+  if(action!=='member-tab')id='visits';
   if(!isMemberRoute()||!MEMBER_TABS.some(tab=>tab.id===id))return false;
   const sessionKey=getMemberSessionKey(ctx),path=location.pathname;
   if(!sessionKey)return ctx.render();
   if(ctx.mayLeave&&!await ctx.mayLeave({preserveVisitDraft:true}))return false;
   if(location.pathname!==path)return false;
   if(getMemberSessionKey(ctx)!==sessionKey)return ctx.render();
-  if(!activateMemberTab(ctx,id))return false;
+  const activated=id==='visits'?activateMemberRequestView(ctx,action==='member-visit'?'visit':'menu'):activateMemberTab(ctx,id);
+  if(!activated)return false;
   delete ctx.state.memberInlineDetail;delete ctx.state.currentEvent;delete ctx.state.currentReceipt;delete ctx.state.memberScrollTarget;
   return true;
  }

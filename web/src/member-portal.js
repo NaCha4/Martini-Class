@@ -3,7 +3,7 @@ import './member-app.css';
 import { visitCalendar, visitSchedule } from './visit-calendar.js';
 import { esc, icon, field, button, date, label, money, textBlock, modal } from './ui.js';
 import { memberState as state, memberStorage as storage, persistMemberStorage as persist, clearMemberIdentity as clearIdentity, validMemberReceipt as validReceipt, getMemberSessionKey, getVerifiedMember, setMemberSession, refreshMemberSession, isMemberAccessError, safeMemberReturnTarget, forgetMemberDevice } from './member-session.js';
-import { memberShell, currentMemberTab, activateMemberTab } from './member-navigation.js';
+import { memberShell, currentMemberTab, activateMemberRequestView } from './member-navigation.js';
 import { openMemberPartner } from './partner-stamps.js';
 export { getMemberSessionKey } from './member-session.js';
 
@@ -34,8 +34,8 @@ function visitBody(ctx){
  return '<p class="member-form-intro wide">날짜를 고르고, 인원과 방문 사유를 알려 주세요.</p><div class="visit-layout wide">'+visitCalendar()+'<section class="visit-details" aria-labelledby="visit-details-title"><h3 id="visit-details-title">방문 내용</h3>'+verifiedNote(ctx)+'<div class="visit-time-fields">'+input('startTime','시작 시간','',{required:true,type:'time'})+'</div>'+guestCountChoices()+input('purpose','방문 사유','',{required:true,type:'textarea',rows:3,maxLength:1000,placeholder:'예: 친구와 함께 칵테일 연습을 하려고 합니다.'})+input('guestNames','외부인 이름','',{required:true,type:'textarea',rows:2,maxLength:300,placeholder:'방문자 전원의 이름을 쉼표로 구분해 주세요.'})+'</section></div>'+consent('visit');
 }
 function openVisitTab(ctx){
- if(activateMemberTab(ctx,'visits'))return true;
- ctx.state.memberAppTab='visits';return ctx.render();
+ if(activateMemberRequestView(ctx,'visit'))return true;
+ ctx.state.memberAppTab='visits';ctx.state.memberRequestView='visit';return ctx.render();
 }
 export function renderMemberVerificationGate(ctx,{returnTo,title='부원 로그인',description='부원 명단에 등록된 이름과 학번으로 로그인해 주세요.',message=''}={}){
  const path=safeMemberReturnTarget(returnTo||location.pathname);ctx.state.memberVerificationReturnTo=path;
@@ -150,7 +150,9 @@ function appIntro(title){return '<h1 class="sr-only" tabindex="-1">'+title+'</h1
 function appPanel(id,title,content,activeTab){return '<section class="member-app-panel" id="member-panel-'+id+'" data-member-panel="'+id+'" aria-label="'+title+'" tabindex="-1"'+(activeTab===id?'':' hidden')+'>'+content+'</section>';}
 function appEmpty(symbol,message){return '<div class="member-app-empty">'+icon(symbol)+'<p>'+message+'</p></div>';}
 function visitsPanel(ctx){
- return '<div class="member-app-intro"><h1 id="member-visit-title">출입 신청</h1><p>방문 일정과 외부인 정보를 입력해 주세요.</p></div><form class="member-visit-form" data-form="member-visit" aria-labelledby="member-visit-title">'+visitBody(ctx)+'<p class="form-error" role="alert"></p><button type="submit" class="button full">출입 승인 요청</button></form>';
+ const visiting=ctx.state.memberRequestView==='visit';
+ return '<div id="member-request-menu" data-member-request-view="menu" tabindex="-1" aria-labelledby="member-request-title"'+(visiting?' hidden':'')+'><div class="member-app-intro"><h1 id="member-request-title">신청</h1></div><button type="button" class="member-request-option" data-action="member-visit" aria-controls="member-visit-view"><span class="member-request-option-icon" aria-hidden="true">'+icon('door-open')+'</span><span class="member-request-option-copy"><strong>출입 신청</strong><small>외부인과 함께 동아리방을 방문할 때</small></span>'+icon('arrow-right')+'</button></div>'
+  +'<div id="member-visit-view" data-member-request-view="visit" tabindex="-1" aria-labelledby="member-visit-title"'+(visiting?'':' hidden')+'><button type="button" class="member-app-link member-request-back" data-action="member-request-back" aria-controls="member-request-menu">'+icon('arrow-left')+' 신청 목록</button><div class="member-app-intro"><h1 id="member-visit-title">출입 신청</h1><p>방문 일정과 외부인 정보를 입력해 주세요.</p></div><form class="member-visit-form" data-form="member-visit" aria-labelledby="member-visit-title">'+visitBody(ctx)+'<p class="form-error" role="alert"></p><button type="submit" class="button full">출입 승인 요청</button></form></div>';
 }
 function benefitsPanel(){
  return appIntro('혜택')+'<button type="button" class="member-benefit-feature" data-action="member-partners" aria-haspopup="dialog" aria-label="필링파인 열기"><span class="member-benefit-photo"><img src="/assets/feelingfine-bar-hero.jpg" alt="" loading="lazy"></span><span class="member-benefit-copy"><strong class="member-benefit-title">필링파인</strong><span class="member-benefit-cta" aria-hidden="true">'+icon('arrow-up-right')+'</span></span></button>';
@@ -198,7 +200,7 @@ export async function renderMemberPortal(ctx){
  const activeTab=currentMemberTab(ctx);
  let content=appPanel('activity','내 현황',activityPanel(ctx),activeTab)
   +appPanel('events','행사',appIntro('행사')+renderMemberEventChoices(ctx),activeTab)
-  +appPanel('visits','외부인 출입',visitsPanel(ctx),activeTab)
+  +appPanel('visits','신청',visitsPanel(ctx),activeTab)
   +appPanel('benefits','혜택',benefitsPanel(),activeTab)
   +'<!--member-inline-detail-->';
  if(view.storageUnavailable&&allRequests(ctx).length)content+='<p class="member-history-warning" role="status">브라우저 저장 공간을 사용할 수 없습니다. 새로고침하거나 창을 닫으면 현재 접수 내역의 조회 권한이 사라질 수 있습니다.</p>';
@@ -318,6 +320,7 @@ export async function memberPortalSubmit(ctx,form,data,node){
  saved.receipts=saved.receipts.filter(item=>item.id!==result.id).concat({id:result.id,receiptKey:pending.receiptKey}).slice(-20);delete saved.pending[kind];persist(ctx);
  state(ctx).lastReceiptId=result.id;
  ctx.state.memberAppTab='activity';
+ delete ctx.state.memberRequestView;
  ctx.state.memberAppScroll={...ctx.state.memberAppScroll,activity:0,visits:0};
  if(result.request)state(ctx).receiptRows.push(result.request);
  await ctx.render({focus:true,scroll:0});ctx.toast(recovered?'이전에 접수된 신청을 확인했습니다. 내 현황에서 확인해 주세요.':'출입 승인 요청을 보냈습니다. 내 현황에서 승인 결과를 확인해 주세요.');
