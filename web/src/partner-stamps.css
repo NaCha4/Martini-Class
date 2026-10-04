@@ -39,6 +39,19 @@ dialog.partner-dialog{width:min(740px,calc(100% - 32px));max-width:calc(100% - 3
 .partner-message{padding:22px 0;font-size:14px;color:var(--muted);line-height:1.8}
 .partner-message .button{margin-top:18px}
 
+.partner-history-dialog>.dialog-frame{display:flex;flex-direction:column;max-height:inherit;min-height:0}
+.partner-history-dialog .dialog-content{padding:22px 26px;min-width:0}
+.partner-history-toolbar{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:20px}
+.partner-history-toolbar>span{font-size:13px;color:var(--muted)}
+.partner-history-toolbar .button{min-height:42px}
+.partner-history-dialog td{line-height:1.6}
+.partner-history-dialog td:first-child{overflow-wrap:anywhere}
+.partner-history-dialog time{font-size:13px}
+.partner-history-message{padding:28px 0;color:var(--muted);font-size:14px}
+.partner-history-error{padding:14px 16px;margin-top:16px;border:1px solid #b66859;border-radius:8px;color:#f5c4b9;font-size:14px;line-height:1.7}
+.partner-history-more{display:flex;justify-content:center;margin-top:22px}
+.partner-history-more .button{min-width:140px;min-height:44px}
+
 .merchant-page{max-width:540px;margin:0 auto;min-height:100svh;padding:44px 22px 28px}
 .merchant-page>header{margin-bottom:30px}
 .merchant-brand{font-size:11px;letter-spacing:.16em;color:var(--gold);font-weight:700}
@@ -63,6 +76,7 @@ dialog.partner-dialog{width:min(740px,calc(100% - 32px));max-width:calc(100% - 3
 @keyframes partner-live-ring{to{transform:rotate(360deg)}}
 @keyframes partner-live-pulse{50%{opacity:.35}}
 @media(max-width:540px){
+ .partner-history-dialog .dialog-content{padding:18px 16px}
  dialog.partner-dialog{width:calc(100% - 24px);max-width:calc(100% - 24px)}
  .partner-dialog header{padding:20px}
  .partner-dialog .dialog-content{padding:4px 16px 24px}

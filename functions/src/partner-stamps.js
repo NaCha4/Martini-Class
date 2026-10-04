@@ -2,8 +2,9 @@ import { randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
 import { Timestamp } from 'firebase-admin/firestore';
 import { z } from 'zod';
-import { ensureScope, fail, hash, parse } from './domain.js';
+import { ensureScope, fail, hash, idSchema, parse } from './domain.js';
 import { COUPON_CAPACITY } from './coupons.js';
+import { semesterSchema } from './roster.js';
 
 const derive=promisify(scrypt),PARTNER='feelingfine',PARTNER_NAME='필링파인';
 const QR_LIFETIME=10000,MERCHANT_LIFETIME=365*86400000;
@@ -12,6 +13,10 @@ const sessionSchema=z.object({sessionKey:token}).strict();
 const qrSchema=z.object({sessionKey:token,token}).strict();
 const codeSchema=z.string().trim().min(12).max(128);
 const settingsSchema=z.object({revision:z.number().int().min(0).max(Number.MAX_SAFE_INTEGER-1),enabled:z.boolean(),code:codeSchema.optional()}).strict();
+const historySchema=z.object({cursor:z.string().min(1).max(200).regex(/^[A-Za-z0-9_-]+$/).optional()}).strict();
+const historyPosition=z.object({at:z.string().datetime({precision:3}),id:token}).strict();
+const historyEntry=z.object({partner:z.literal(PARTNER),consumedAt:z.string().datetime({precision:3}),stampCount:z.number().int().min(1).max(COUPON_CAPACITY)});
+const HISTORY_PAGE_SIZE=30;
 const configured=config=>!!config&&typeof config.codeSalt==='string'&&/^[a-f0-9]{64}$/.test(config.codeSalt)&&typeof config.codeHash==='string'&&/^[a-f0-9]{128}$/.test(config.codeHash);
 const settingsView=config=>({revision:config?.revision||0,configured:configured(config),enabled:!!config?.enabled,...(config?.updatedAt?{updatedAt:config.updatedAt}:{})});
 const couponId=member=>hash(PARTNER+':student:'+member.studentId.trim().toLowerCase());
@@ -22,7 +27,7 @@ const asIso=value=>new Date(value).toISOString();
 const newToken=()=>randomBytes(32).toString('hex');
 const hashCode=(code,salt)=>derive(code,salt,64,{N:16384,r:8,p:1,maxmem:64*1024*1024});
 
-export function createPartnerStamps({db,col,clock,now,throttle,audit,authenticate,authenticateSessionHash,identityFingerprint}){
+export function createPartnerStamps({db,col,clock,now,roster,throttle,audit,authenticate,authenticateSessionHash,identityFingerprint}){
  const configRef=()=>col('partnerStampSettings').doc(PARTNER);
  const merchantRef=key=>col('partnerMerchantSessions').doc(hash(key));
  const couponRef=member=>col('partnerCoupons').doc(couponId(member));
@@ -43,6 +48,38 @@ export function createPartnerStamps({db,col,clock,now,throttle,audit,authenticat
  async function couponSettings(data,who){
   ensureScope(who,'settings',clock());parse(z.object({}).strict(),data);
   return settingsView((await configRef().get()).data());
+ }
+ async function couponHistory(data,who){
+  ensureScope(who,'settings',clock());const input=parse(historySchema,data);
+  let position;
+  if(input.cursor){
+   try{
+    const decoded=Buffer.from(input.cursor,'base64url');
+    if(decoded.toString('base64url')!==input.cursor)throw new Error('Noncanonical cursor');
+    position=historyPosition.parse(JSON.parse(decoded.toString('utf8')));
+   }catch{fail('invalid-argument','적립 기록을 새로고침해 주세요.');}
+  }
+  // The existing consumed QR is the atomic accrual receipt. Ordering by the
+  // single field and its default document-ID tie-break needs no new index.
+  return db.runTransaction(async tx=>{
+   let query=col('partnerCouponQrs').orderBy('consumedAt','desc').orderBy('__name__','desc').limit(HISTORY_PAGE_SIZE+1);
+   if(position)query=query.startAfter(position.at,position.id);
+   const result=await tx.get(query),docs=result.docs.slice(0,HISTORY_PAGE_SIZE),members=new Map(),items=[];
+   for(const doc of docs){
+    const receipt=doc.data();if(!historyEntry.safeParse(receipt).success||receipt.deletedAt||receipt.anonymizedAt)continue;
+    let memberName='삭제된 부원';
+    if(idSchema.safeParse(receipt.memberId).success&&semesterSchema.safeParse(receipt.semester).success){
+     const key=receipt.semester+'/'+receipt.memberId;
+     if(!members.has(key))members.set(key,await roster.get(receipt.memberId,receipt.semester,tx));
+     const member=members.get(key);
+     if(member&&!member.deletedAt&&!member.anonymizedAt&&!member.removedAt&&typeof member.name==='string'&&member.name.trim())memberName=member.name.trim().slice(0,40);
+    }
+    // Never spread a receipt or roster record into this administrator response.
+    items.push({memberName,at:receipt.consumedAt,stampCount:receipt.stampCount});
+   }
+   const last=docs.at(-1),next=last&&historyPosition.safeParse({at:last.data().consumedAt,id:last.id});
+   return {items,nextCursor:result.size>HISTORY_PAGE_SIZE&&next?.success?Buffer.from(JSON.stringify(next.data)).toString('base64url'):null};
+  },{readOnly:true});
  }
  async function saveCouponSettings(data,who){
   ensureScope(who,'settings',clock());const input=parse(settingsSchema,data);
@@ -160,5 +197,5 @@ export function createPartnerStamps({db,col,clock,now,throttle,audit,authenticat
    return {stampCount:next.stampCount,capacity:COUPON_CAPACITY,memberName:member.name};
   });
  }
- return {couponSettings,saveCouponSettings,memberCoupons,issueCouponQr,merchantLogin,merchantSession,merchantLogout,merchantCouponPreview,stampCoupon};
+ return {couponSettings,couponHistory,saveCouponSettings,memberCoupons,issueCouponQr,merchantLogin,merchantSession,merchantLogout,merchantCouponPreview,stampCoupon};
 }

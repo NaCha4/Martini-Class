@@ -116,7 +116,7 @@ test('partner management requires settings permission and reads only safe dedica
   const {ctx,calls}=context({operator:profile({permissions:permitted?['settings']:['events']})}),api=ctx.api;
   ctx.api=async(op,data)=>{if(op==='couponSettings'){calls.push({op,data});return {revision:1,configured:true,enabled:true};}return api(op,data);};
   const html=await at('/admin/partners',()=>renderAdmin(ctx));
-  if(permitted){assert.match(html,/필링파인/);assert.match(html,/사장님 화면 열기/);assert.match(html,/설정됨/);assert.match(html,/data-action="partneradmin-edit"/);assert.deepEqual(calls.map(call=>call.op),['profile','couponSettings']);}
+  if(permitted){assert.match(html,/필링파인/);assert.doesNotMatch(html,/사장님 화면 열기|href="\/partners\/feelingfine/);assert.match(html,/설정됨/);assert.match(html,/data-action="partneradmin-edit"/);assert.match(html,/data-action="partneradmin-history"/);assert.deepEqual(calls.map(call=>call.op),['profile','couponSettings']);}
   else{assert.match(html,/접근 권한이 없습니다/);assert.doesNotMatch(html,/필링파인|설정됨/);assert.deepEqual(calls.map(call=>call.op),['profile']);}
  }
 });

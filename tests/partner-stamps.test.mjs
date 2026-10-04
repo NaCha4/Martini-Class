@@ -25,15 +25,23 @@ function clone(value){
 // connects to an emulator or production database. Serial transactions model
 // optimistic retries: each concurrent caller observes the committed predecessor.
 function fixture(){
- const records=new Map(),reads=[],writes=[];let instant=START,nextId=0,tail=Promise.resolve(),rejectWrite=null;
+ const records=new Map(),reads=[],writes=[],queries=[];let instant=START,nextId=0,tail=Promise.resolve(),rejectWrite=null;
  const snapshot=path=>({id:path.split('/').at(-1),ref:reference(path),exists:records.has(path),data:()=>clone(records.get(path))});
  const reference=path=>({path,id:path.split('/').at(-1),get:async()=>{reads.push(path);return snapshot(path);},collection:name=>collection(path+'/'+name)});
  const querySnapshot=query=>{
+  queries.push(clone(query));
   let docs=[...records.keys()].filter(path=>path.startsWith(query.path+'/')&&!path.slice(query.path.length+1).includes('/')).map(snapshot)
-   .filter(doc=>query.filters.every(([key,value])=>doc.data()[key]===value));
+   .filter(doc=>query.filters.every(([key,value])=>doc.data()[key]===value)&&query.orders.every(([key])=>key==='__name__'||doc.data()[key]!==undefined));
   for(const [key,direction] of [...query.orders].reverse())docs.sort((a,b)=>{
    const first=key==='__name__'?a.id:a.data()[key],second=key==='__name__'?b.id:b.data()[key];
    return (first<second?-1:first>second?1:0)*(direction==='desc'?-1:1);
+  });
+  if(query.after)docs=docs.filter(doc=>{
+   for(let index=0;index<query.orders.length;index++){
+    const [key,direction]=query.orders[index],value=key==='__name__'?doc.id:doc.data()[key],cursor=query.after[index];
+    if(value!==cursor)return direction==='desc'?value<cursor:value>cursor;
+   }
+   return false;
   });
   if(query.maximum!==undefined)docs=docs.slice(0,query.maximum);
   return {docs,size:docs.length,empty:docs.length===0};
@@ -42,7 +50,8 @@ function fixture(){
   const query={path,isQuery:true,filters:[],orders:[],...options};
   return {...query,doc:id=>reference(path+'/'+(id||'generated-'+ ++nextId)),get:async()=>{reads.push(path);return querySnapshot(query);},
    where:(key,operator,value)=>{assert.equal(operator,'==');return collection(path,{...query,filters:[...query.filters,[key,value]]});},
-   orderBy:(key,direction='asc')=>collection(path,{...query,orders:[...query.orders,[key,direction]]}),limit:maximum=>collection(path,{...query,maximum})};
+   orderBy:(key,direction='asc')=>collection(path,{...query,orders:[...query.orders,[key,direction]]}),limit:maximum=>collection(path,{...query,maximum}),
+   startAfter:(...after)=>collection(path,{...query,after})};
  };
  const db={collection,runTransaction(run){
   const task=tail.then(async()=>{
@@ -72,7 +81,7 @@ function fixture(){
  records.set('martini_v2_semesters/'+member.semester+'/members/'+member.id,{...member});
  for(const key of [memberSession,otherMemberSession])records.set('martini_v2_memberSessions/'+hash(key),{memberId:member.id,semester:member.semester,identityHash:fingerprint,expiresAt:Timestamp.fromMillis(START+7*DAY)});
  const service=createService(db,()=>instant);
- return {records,reads,writes,handle:(payload,context=guest)=>service.handle(payload,context),now:()=>instant,advance:milliseconds=>{instant+=milliseconds;},
+ return {records,reads,writes,queries,handle:(payload,context=guest)=>service.handle(payload,context),now:()=>instant,advance:milliseconds=>{instant+=milliseconds;},
   businessWrites:()=>writes.filter(write=>!write.path.startsWith('martini_v2_rateLimits/')),
   failWrites:predicate=>{rejectWrite=predicate;},
   memberChange:patch=>{const path='martini_v2_semesters/'+member.semester+'/members/'+member.id;if(patch===null)records.delete(path);else records.set(path,{...records.get(path),...patch});},
@@ -368,4 +377,116 @@ test('successful stamp retries still require the originating member session to b
  await f.handle({op:'memberLogout',sessionKey:memberSession});
  await assert.rejects(stamp(f,qr.token),errorCode('failed-precondition'));
  assert.equal(f.records.get(couponPath).stampCount,1);
+});
+
+const history=(f,cursor)=>f.handle({op:'couponHistory',...(cursor?{cursor}:{})},owner);
+const historyCursor=value=>Buffer.from(JSON.stringify(value)).toString('base64url');
+function receipt(f,index,overrides={}){
+ const id=index.toString(16).padStart(64,'0');
+ const value={partner:'feelingfine',memberId:member.id,semester:member.semester,consumedAt:new Date(START).toISOString(),stampCount:index%10+1,
+  memberSessionHash:hash(memberSession),consumedBy:hash('synthetic-merchant-session'),identityHash:fingerprint,couponId:couponPath.split('/').at(-1),...overrides};
+ f.records.set('martini_v2_partnerCouponQrs/'+id,value);return {id,...value};
+}
+
+test('accrual history requires settings authority and cannot be read with member or merchant sessions',async()=>{
+ const f=await ready();receipt(f,1);
+ const wrongRole={uid:'history-reader',ip:'unit-reader'};
+ f.records.set('martini_v2_admins/history-reader',{role:'history-reader',active:true,expiresAt:new Date(START+DAY).toISOString()});
+ f.records.set('martini_v2_roles/history-reader',{permissions:['membersRead','audit']});
+ for(const context of [finance,wrongRole])await assert.rejects(f.handle({op:'couponHistory'},context),errorCode('permission-denied'));
+ for(const sessionKey of [memberSession,f.merchant.sessionKey])await assert.rejects(f.handle({op:'couponHistory',sessionKey},guest),errorCode('unauthenticated'));
+ const expired={uid:'expired-admin',ip:'unit-expired'};
+ f.records.set('martini_v2_admins/expired-admin',{role:'owner',active:true,expiresAt:new Date(START).toISOString()});
+ await assert.rejects(f.handle({op:'couponHistory'},expired),errorCode('permission-denied'));
+ assert.equal((await history(f)).items.length,1);
+ f.records.set('martini_v2_roles/history-reader',{permissions:['settings']});
+ assert.equal((await f.handle({op:'couponHistory'},wrongRole)).items.length,1,'An explicit settings grant permits the same admin operation');
+});
+
+test('history rejects malformed cursors, unknown fields, and client-selected limits before receipt reads',async()=>{
+ const f=fixture();
+ const invalid=[{cursor:''},{cursor:null},{cursor:[]},{cursor:'x'.repeat(201)},{cursor:'not+base64'},
+  {cursor:historyCursor({at:'invalid',id:'f'.repeat(64)})},{cursor:historyCursor({at:new Date(START).toISOString(),id:'../settings'})},
+  {cursor:historyCursor({at:new Date(START).toISOString(),id:'f'.repeat(64),sessionKey:memberSession})},
+  {limit:10000},{memberId:member.id},{semester:member.semester},{partner:'another-store'},{sessionKey:memberSession}];
+ for(const data of invalid)await assert.rejects(f.handle({op:'couponHistory',...data},owner),errorCode('invalid-argument'));
+ assert.equal(f.reads.some(path=>path.startsWith('martini_v2_partnerCouponQrs')),false);
+ assert.equal(f.writes.length,0);
+ assert.deepEqual(await history(f),{items:[],nextCursor:null});
+});
+
+test('history pages newest first with a stable ID tie-break and excludes unconsumed QR documents',async()=>{
+ const f=fixture(),expected=[];
+ for(let index=1;index<=65;index++){
+  const memberId='history-member-'+index,name='가상 부원 '+index;
+  f.records.set('martini_v2_semesters/'+member.semester+'/members/'+memberId,{name});
+  expected.push(receipt(f,index,{memberId,consumedAt:new Date(START+(index>40?1000:0)).toISOString(),name}));
+ }
+ receipt(f,66,{consumedAt:undefined});
+ expected.sort((a,b)=>b.consumedAt.localeCompare(a.consumedAt)||b.id.localeCompare(a.id));
+ const first=await history(f),second=await history(f,first.nextCursor),third=await history(f,second.nextCursor);
+ assert.equal(first.items.length,30);assert.equal(second.items.length,30);assert.equal(third.items.length,5);assert.equal(third.nextCursor,null);
+ assert.deepEqual([...first.items,...second.items,...third.items],expected.map(row=>({memberName:row.name,at:row.consumedAt,stampCount:row.stampCount})));
+ assert.ok(first.nextCursor.length<=200);assert.ok(second.nextCursor.length<=200);
+ assert.deepEqual(f.queries.filter(query=>query.path==='martini_v2_partnerCouponQrs').map(query=>({orders:query.orders,maximum:query.maximum})),
+  Array.from({length:3},()=>({orders:[['consumedAt','desc'],['__name__','desc']],maximum:31})));
+ assert.equal(f.writes.length,0,'Reading any history page must not write records or audit entries');
+});
+
+test('history cursors remain valid if their previous receipt disappears and new receipts do not repeat earlier rows',async()=>{
+ const f=fixture();for(let index=1;index<=32;index++)receipt(f,index);
+ const first=await history(f),position=JSON.parse(Buffer.from(first.nextCursor,'base64url').toString('utf8'));
+ f.records.delete('martini_v2_partnerCouponQrs/'+position.id);
+ receipt(f,40,{consumedAt:new Date(START+1000).toISOString()});
+ const next=await history(f,first.nextCursor);
+ assert.deepEqual(next.items.map(row=>row.stampCount),[3,2]);assert.equal(next.nextCursor,null);
+});
+
+test('history resolves legacy names but preserves deletion and anonymization without copying private fields',async()=>{
+ const f=fixture(),path='martini_v2_semesters/'+member.semester+'/members/'+member.id;
+ receipt(f,1);receipt(f,2);
+ const before=clone([...f.records]);
+ const visible=await history(f);
+ for(const item of visible.items){assert.deepEqual(Object.keys(item).sort(),['at','memberName','stampCount']);assert.equal(item.memberName,member.name);}
+ assert.equal(f.reads.filter(value=>value===path).length,1,'Repeated member names require only one roster read per page');
+ for(const privateValue of [member.id,member.studentId,member.phone,memberSession,fingerprint,hash(memberSession),couponPath.split('/').at(-1)])assert.ok(!JSON.stringify(visible).includes(privateValue));
+ assert.deepEqual([...f.records],before);assert.equal(f.writes.length,0);
+ f.records.delete(path);
+ f.records.set('martini_v2_members/'+member.id,{...member,name:'이전 명부 부원'});
+ assert.ok((await history(f)).items.every(item=>item.memberName==='이전 명부 부원'));
+ for(const patch of [{deletedAt:new Date(START).toISOString()},{anonymizedAt:new Date(START).toISOString()},{removedAt:new Date(START).toISOString()}]){
+  f.records.set(path,{...member,...patch});
+  assert.ok((await history(f)).items.every(item=>item.memberName==='삭제된 부원'),'A private current record must not fall back to a legacy name');
+ }
+ f.records.delete(path);f.records.delete('martini_v2_members/'+member.id);
+ assert.ok((await history(f)).items.every(item=>item.memberName==='삭제된 부원'));
+});
+
+test('history excludes malformed or other-partner receipts and never follows malformed roster paths',async()=>{
+ const f=fixture();receipt(f,1);receipt(f,2,{partner:'other-store'});receipt(f,3,{stampCount:11});receipt(f,4,{consumedAt:'invalid'});
+ receipt(f,5,{deletedAt:new Date(START).toISOString()});receipt(f,6,{anonymizedAt:new Date(START).toISOString()});
+ receipt(f,7,{memberId:'../settings',semester:'not-a-semester'});
+ const result=await history(f);
+ assert.deepEqual(result.items.map(item=>item.memberName),['삭제된 부원',member.name]);
+ assert.ok(f.reads.every(path=>!path.includes('../')&&!path.includes('not-a-semester')));
+ assert.equal(f.writes.length,0);
+});
+
+test('history contains only committed single accruals, including existing receipts after QR expiry or disabled settings',async()=>{
+ const f=await ready(),first=await f.qr();
+ assert.deepEqual(await history(f),{items:[],nextCursor:null});
+ f.failWrites(write=>write.path===couponPath);
+ await assert.rejects(stamp(f,first.token),/Synthetic transaction write failure/);
+ assert.deepEqual(await history(f),{items:[],nextCursor:null});
+ f.failWrites(null);
+ await Promise.all([stamp(f,first.token),stamp(f,first.token),stamp(f,first.token)]);
+ assert.deepEqual((await history(f)).items,[{memberName:member.name,at:new Date(START).toISOString(),stampCount:1}]);
+ f.advance(10001);
+ await assert.rejects(stamp(f,first.token),errorCode('failed-precondition'));
+ const unused=await f.qr();f.advance(10000);
+ await assert.rejects(stamp(f,unused.token),errorCode('failed-precondition'));
+ await f.handle({op:'saveCouponSettings',revision:1,enabled:false},owner);
+ const before=clone([...f.records]),writes=f.writes.length;
+ assert.deepEqual((await history(f)).items,[{memberName:member.name,at:new Date(START).toISOString(),stampCount:1}]);
+ assert.deepEqual([...f.records],before);assert.equal(f.writes.length,writes);
 });

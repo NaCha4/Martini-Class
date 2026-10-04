@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { registerHooks } from 'node:module';
 import { getMerchantSessionKey,setMerchantSession,clearMerchantSession,merchantCookieUnavailable,MERCHANT_SESSION_COOKIE } from '../web/src/merchant-session.js';
 import { setMemberSession } from '../web/src/member-session.js';
+import { renderPartnerAdmin,partnerAdminAction } from '../web/src/partner-admin.js';
 const hook=registerHooks({load(url,context,next){if(url.endsWith('.css'))return {format:'module',source:'export {};',shortCircuit:true};return next(url,context);}});
 let openMemberPartner,partnerAction,renderMerchant,merchantSubmit,merchantAction,mountPartnerViews,clearPartnerViews,qrLifetime;
 try{({openMemberPartner,partnerAction,renderMerchant,merchantSubmit,merchantAction,mountPartnerViews,clearPartnerViews,qrLifetime}=await import('../web/src/partner-stamps.js'));}finally{hook.deregister();}
@@ -134,3 +135,70 @@ test('a QR issuance that returns after the member dialog closes cannot restore a
  const {ctx}=context();memberSignIn(ctx);const dialog=await openMemberPartner(ctx),pending=deferred();ctx.api=()=>pending.promise;
  const issuing=partnerAction(ctx,'partner-qr');dialog.close();pending.resolve({token:qrToken,expiresAt:future(10000),serverNow:future(0)});await issuing;assert.equal(ctx.state.memberPartner,undefined);
 },{path:'/members'}));
+
+function adminContext(history=async()=>({items:[],nextCursor:null})){
+ const base=context(),{ctx,calls}=base;ctx.state.profile={permissions:['settings']};ctx.state.user={uid:'admin-test'};
+ ctx.api=async(op,data)=>{calls.push({op,data});if(op==='couponSettings')return {enabled:true,configured:true,revision:1};if(op==='couponHistory')return history(data);throw Error('Unexpected op '+op);};
+ return base;
+}
+const historyHtml=dialog=>dialog.querySelector('[data-partner-history-body]').innerHTML;
+const historyRow=(memberName,stampCount,at='2026-10-05T10:00:00.000Z')=>({memberName,stampCount,at});
+
+test('partner admin replaces merchant-page navigation and repeated explanations with a history action',async()=>host(async()=>{
+ const {ctx,calls}=adminContext();const html=await renderPartnerAdmin(ctx);
+ assert.match(html,/data-action="partneradmin-history"/);assert.match(html,/적립 기록/);assert.match(html,/data-action="partneradmin-edit"/);
+ assert.doesNotMatch(html,/필링파인 스탬프와 사장님 로그인을 설정합니다|부원라운지의 제휴 카드에서|로그인 코드는 저장 후 다시 표시하지 않습니다|사장님 화면 열기|href="\/partners\/feelingfine/);
+ assert.deepEqual(calls.map(call=>call.op),['couponSettings']);
+},{path:'/admin/partners'}));
+
+test('partner history opens while loading and shows an escaped member name and stamp transaction columns',async()=>host(async({dialogs})=>{
+ const pending=deferred(),{ctx,calls}=adminContext(()=>pending.promise);await renderPartnerAdmin(ctx);
+ const opening=partnerAdminAction(ctx,'partneradmin-history'),dialog=dialogs.at(-1);
+ assert.ok(dialog?.open);assert.doesNotMatch(dialog.innerHTML,/<form/);assert.match(historyHtml(dialog),/불러오|조회 중/);
+ pending.resolve({items:[historyRow('<script>member</script>',4)],nextCursor:null});await opening;
+ const html=historyHtml(dialog);assert.match(html,/&lt;script&gt;member&lt;\/script&gt;/);assert.doesNotMatch(html,/<script>/);
+ for(const heading of ['부원','적립 일시','적립','누적'])assert.ok(html.includes(heading));
+ assert.match(html,/\+1/);assert.match(html,/4/);assert.equal(calls.filter(call=>call.op==='couponHistory').length,1);
+},{path:'/admin/partners'}));
+
+test('partner history has an empty state that can refresh into new records',async()=>host(async({dialogs})=>{
+ let count=0;const {ctx,calls}=adminContext(async()=>++count===1?{items:[],nextCursor:null}:{items:[historyRow('새 부원',1)],nextCursor:null});await renderPartnerAdmin(ctx);
+ await partnerAdminAction(ctx,'partneradmin-history');const dialog=dialogs.at(-1);assert.match(historyHtml(dialog),/적립 기록이 없습니다|아직.*적립|적립 내역이 없습니다/);
+ await dialog.querySelector('[data-partner-history-refresh]').onclick();assert.match(historyHtml(dialog),/새 부원/);assert.equal(calls.filter(call=>call.op==='couponHistory').length,2);
+},{path:'/admin/partners'}));
+
+test('partner history appends older pages in order and refresh replaces the current rows',async()=>host(async({dialogs})=>{
+ const replies=[{items:[historyRow('최신 부원',4)],nextCursor:'older-page'},{items:[historyRow('이전 부원',3,'2026-10-04T10:00:00.000Z')],nextCursor:null},{items:[historyRow('새로 적립',5)],nextCursor:null}];
+ const {ctx,calls}=adminContext(async()=>replies.shift());await renderPartnerAdmin(ctx);await partnerAdminAction(ctx,'partneradmin-history');const dialog=dialogs.at(-1);
+ assert.match(historyHtml(dialog),/data-partner-history-more/);await dialog.querySelector('[data-partner-history-more]').onclick();let html=historyHtml(dialog);
+ assert.ok(html.indexOf('최신 부원')>=0&&html.indexOf('이전 부원')>html.indexOf('최신 부원'));assert.doesNotMatch(html,/data-partner-history-more/);
+ assert.deepEqual(calls.filter(call=>call.op==='couponHistory').map(call=>call.data.cursor),[undefined,'older-page']);
+ await dialog.querySelector('[data-partner-history-refresh]').onclick();html=historyHtml(dialog);assert.match(html,/새로 적립/);assert.doesNotMatch(html,/최신 부원|이전 부원/);
+ assert.equal(calls.filter(call=>call.op==='couponHistory').at(-1).data.cursor,undefined);
+},{path:'/admin/partners'}));
+
+test('partner history errors allow retry and a failed next page keeps the rows already read',async()=>host(async({dialogs})=>{
+ let request=0;const {ctx,calls}=adminContext(async()=>{request++;if(request===1||request===3)throw Error('일시적인 조회 오류');return request===2?{items:[historyRow('기존 부원',2)],nextCursor:'retry-page'}:{items:[historyRow('이전 적립',1)],nextCursor:null};});
+ await renderPartnerAdmin(ctx);await partnerAdminAction(ctx,'partneradmin-history');const dialog=dialogs.at(-1);assert.match(historyHtml(dialog),/일시적인 조회 오류|불러오지 못|조회하지 못/);
+ await dialog.querySelector('[data-partner-history-refresh]').onclick();assert.match(historyHtml(dialog),/기존 부원/);
+ await dialog.querySelector('[data-partner-history-more]').onclick();assert.match(historyHtml(dialog),/기존 부원/);assert.match(historyHtml(dialog),/일시적인 조회 오류|불러오지 못|조회하지 못/);
+ await dialog.querySelector('[data-partner-history-more]').onclick();assert.match(historyHtml(dialog),/기존 부원/);assert.match(historyHtml(dialog),/이전 적립/);
+ assert.deepEqual(calls.filter(call=>call.op==='couponHistory').slice(-2).map(call=>call.data.cursor),['retry-page','retry-page']);
+},{path:'/admin/partners'}));
+
+test('closed, replaced, navigated, or changed-identity history requests never show the late private result',async()=>host(async({dialogs})=>{
+ const changes=[async(_ctx,dialog)=>dialog.close(),async ctx=>{await renderPartnerAdmin(ctx);await partnerAdminAction(ctx,'partneradmin-history');},async()=>{location.pathname='/admin';},async ctx=>{ctx.state.user={uid:'other-admin'};},async ctx=>{ctx.state.profile={permissions:['settings']};}];
+ for(const change of changes){
+  location.pathname='/admin/partners';const pending=deferred();let requests=0;const {ctx}=adminContext(()=>++requests===1?pending.promise:Promise.resolve({items:[],nextCursor:null}));await renderPartnerAdmin(ctx);
+  const opening=partnerAdminAction(ctx,'partneradmin-history'),dialog=dialogs.at(-1);await change(ctx,dialog);pending.resolve({items:[historyRow('PRIVATE LATE MEMBER',7)],nextCursor:null});await opening;
+  assert.doesNotMatch(historyHtml(dialog),/PRIVATE LATE MEMBER/);assert.doesNotMatch(historyHtml(dialogs.at(-1)),/PRIVATE LATE MEMBER/);
+ }
+},{path:'/admin/partners'}));
+
+test('permission failures close partner history and authorization is checked before reading any history',async()=>host(async({dialogs})=>{
+ const {ctx,calls}=adminContext(async()=>{throw Object.assign(Error('권한이 해제되었습니다'),{code:'functions/permission-denied'});});await renderPartnerAdmin(ctx);
+ await partnerAdminAction(ctx,'partneradmin-history');assert.equal(dialogs.at(-1).open,false);assert.equal(ctx.state.partnerAdminView,undefined);
+ const denied=adminContext();denied.ctx.state.profile={permissions:['members']};assert.match(await renderPartnerAdmin(denied.ctx),/권한/);
+ await partnerAdminAction(denied.ctx,'partneradmin-history').catch(()=>{});assert.deepEqual(denied.calls,[]);
+ assert.equal(calls.filter(call=>call.op==='couponHistory').length,1);
+},{path:'/admin/partners'}));

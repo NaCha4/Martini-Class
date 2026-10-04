@@ -66,7 +66,7 @@ export function createService(db,clock=Date.now){
  }
  async function settings(){return (await col('settings').doc('club').get()).data()||null;}
  const memberPortal=createMemberPortal({db,col,clock,now,roster,throttle,audit});
- const partnerStamps=createPartnerStamps({db,col,clock,now,throttle,audit,authenticate:memberPortal.authenticate,authenticateSessionHash:memberPortal.authenticateSessionHash,identityFingerprint:memberPortal.identityFingerprint});
+ const partnerStamps=createPartnerStamps({db,col,clock,now,roster,throttle,audit,authenticate:memberPortal.authenticate,authenticateSessionHash:memberPortal.authenticateSessionHash,identityFingerprint:memberPortal.identityFingerprint});
  async function verifyEvent(eventId,key,tx){
   const ref=col('events').doc(eventId),s=tx?await tx.get(ref):await ref.get(),e=snapshot(s);
   if(!e||e.memberVisible===false||!matches(key,e.linkHash)||e.status==='draft')fail('not-found','유효한 행사 링크를 확인해 주세요.');
@@ -396,7 +396,7 @@ export function createService(db,clock=Date.now){
   if(op==='clubRequestReceipt')return memberPortal.getReceipt(data,ctx);
   if(op==='cancelClubRequest')return memberPortal.cancel(data,ctx);
   const who=await admin(ctx);
-  if(op==='couponSettings'||op==='saveCouponSettings')return partnerStamps[op](data,who);
+  if(['couponSettings','couponHistory','saveCouponSettings'].includes(op))return partnerStamps[op](data,who);
   if(op==='budgetPlanner')return budgetPlanner.read(data,who);
   if(op==='saveBudgetPlanner')return budgetPlanner.save(data,who);
   if(['onTheRockBoard','saveOnTheRockGroup','recordOnTheRockMission','updateOnTheRockRecord','voidOnTheRockRecord'].includes(op))return onTheRock(op,data,who);
