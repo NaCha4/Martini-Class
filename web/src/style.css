@@ -63,6 +63,7 @@ button:disabled{cursor:not-allowed}
 button[aria-busy=true]{cursor:progress}
 .button,.icon-button,.password-toggle{scroll-margin-block:20px}
 .icon-button{width:44px;height:44px}
+.icon-button.x-button{border:0}
 .text-button,.side-footer a,.side-footer button,.panel-title a,.back-link{min-height:44px}
 .text-button{padding:8px 4px}
 .public-header a,.public-footer a{min-height:44px;display:inline-flex;align-items:center}

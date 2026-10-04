@@ -24,7 +24,7 @@ function title(value,label){
 }
 function planCard(plan){
  const totals=calculatePlan(plan);
- return '<article class="budget-plan"><header><h3>'+esc(plan.name)+'</h3><div>'+button('수정','budgetplanner-edit',{id:plan.id,class:'button small secondary',icon:'pencil'})+'<button type="button" class="icon-button" data-action="budgetplanner-delete" data-id="'+esc(plan.id)+'" aria-label="'+esc(plan.name)+' 예산 삭제">'+icon('x')+'</button></div></header><dl class="budget-plan-totals"><div><dt>편성 예산</dt><dd>'+money(plan.allocated)+'</dd></div><div><dt>예상 지출</dt><dd>'+money(totals.expected)+'</dd></div><div><dt>'+(totals.remaining<0?'예산 초과':'예산 잔액')+'</dt><dd>'+balance(totals.remaining,'','초과')+'</dd></div></dl><div class="budget-items"><h4>예상 소비 내역 <span>'+plan.items.length+'건</span></h4>'+(plan.items.length?'<ul>'+plan.items.map(item=>'<li><span>'+esc(item.title)+'</span><strong>'+money(item.amount)+'</strong></li>').join('')+'</ul>':'<p class="budget-no-items">아직 작성한 소비 내역이 없습니다.</p>')+'</div></article>';
+ return '<article class="budget-plan"><header><h3>'+esc(plan.name)+'</h3><div>'+button('수정','budgetplanner-edit',{id:plan.id,class:'button small secondary',icon:'pencil'})+'<button type="button" class="icon-button x-button" data-action="budgetplanner-delete" data-id="'+esc(plan.id)+'" aria-label="'+esc(plan.name)+' 예산 삭제">'+icon('x')+'</button></div></header><dl class="budget-plan-totals"><div><dt>편성 예산</dt><dd>'+money(plan.allocated)+'</dd></div><div><dt>예상 지출</dt><dd>'+money(totals.expected)+'</dd></div><div><dt>'+(totals.remaining<0?'예산 초과':'예산 잔액')+'</dt><dd>'+balance(totals.remaining,'','초과')+'</dd></div></dl><div class="budget-items"><h4>예상 소비 내역 <span>'+plan.items.length+'건</span></h4>'+(plan.items.length?'<ul>'+plan.items.map(item=>'<li><span>'+esc(item.title)+'</span><strong>'+money(item.amount)+'</strong></li>').join('')+'</ul>':'<p class="budget-no-items">아직 작성한 소비 내역이 없습니다.</p>')+'</div></article>';
 }
 function boardHtml(board){
  const totals=calculateBudget(board);
@@ -67,7 +67,7 @@ function fundsDialog(ctx,view){
  });
 }
 function expenseRow(item={id:crypto.randomUUID(),title:'',amount:''}){
- return '<div class="budget-expense-row" data-budget-item="'+esc(item.id)+'">'+field('item-title-'+item.id,'소비 내역',item.title,{maxLength:120,placeholder:'예: 장소 대여'})+field('item-amount-'+item.id,'예상 금액 (원)',item.amount,{...amountOptions,required:false})+'<button type="button" class="icon-button" data-budget-remove aria-label="소비 내역 삭제">'+icon('x')+'</button></div>';
+ return '<div class="budget-expense-row" data-budget-item="'+esc(item.id)+'">'+field('item-title-'+item.id,'소비 내역',item.title,{maxLength:120,placeholder:'예: 장소 대여'})+field('item-amount-'+item.id,'예상 금액 (원)',item.amount,{...amountOptions,required:false})+'<button type="button" class="icon-button x-button" data-budget-remove aria-label="소비 내역 삭제">'+icon('x')+'</button></div>';
 }
 function planFromForm(form,planId){
  const data=new FormData(form),items=[];
