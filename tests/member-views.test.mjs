@@ -74,6 +74,7 @@ async function withDialogs(run){
   after(node){this.parent.notice=node;node.parent=this.parent;}
   remove(){this.isConnected=false;if(this===template)template=null;if(this.parent?.notice===this)this.parent.notice=null;}
   showModal(){this.open=true;}
+  show(){this.open=true;}
   close(){if(!this.open)return;this.open=false;this.fire('close');}
   querySelector(selector){
    if(selector==='form'&&!/<form\b/.test(this.innerHTML))return null;

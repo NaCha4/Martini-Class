@@ -78,7 +78,7 @@ function paintMember(ctx,view){
 }
 function expireMemberQr(view){stop(view);view.qr=null;view.issuing=false;view.expired=true;view.generation++;if(!view.disposed)syncMemberQr(view);}
 function disposeMember(ctx){
- const view=ctx.state.memberPartner;if(!view)return;stop(view);clearCouponMotion(view);view.revealCleanup?.();view.cleanup?.();view.disposed=true;view.generation++;view.qr=null;view.expansion?.cancel();view.expansion=null;
+ const view=ctx.state.memberPartner;if(!view)return;stop(view);clearCouponMotion(view);view.revealCleanup?.();view.cleanup?.();view.frameCleanup?.();view.disposed=true;view.generation++;view.qr=null;view.expansion?.cancel();view.expansion=null;
  for(const selector of ['.partner-qr-slot','[data-partner-qr-face]']){const element=view.dialog?.querySelector(selector);if(element)element.innerHTML='';}
  delete ctx.state.memberPartner;
 }
@@ -107,13 +107,28 @@ async function loadCoupons(ctx,view){
   view.error=error.message||'스탬프를 불러오지 못했습니다.';paintMember(ctx,view);
  }
 }
+function bindMemberFrame(view){
+ const app=document.querySelector('[data-member-app]'),header=app?.querySelector('.member-app-header'),nav=app?.querySelector('.member-bottom-nav'),content=app?.querySelector('.member-shell-content');
+ if(!header||!nav)return;
+ const wasInert=content?.inert;if(content)content.inert=true;
+ const update=()=>{
+  const frame=app.getBoundingClientRect(),top=Math.max(0,header.getBoundingClientRect().bottom),bottom=Math.min(window.innerHeight,nav.getBoundingClientRect().top);
+  for(const [name,value] of Object.entries({top,left:frame.left,width:frame.width,height:Math.max(0,bottom-top)}))view.dialog.style.setProperty('--partner-frame-'+name,value+'px');
+ };
+ const escape=event=>{if(event.key==='Escape'&&view.dialog.open){event.preventDefault();void view.dialog.requestClose();}};
+ const observer=typeof ResizeObserver==='function'?new ResizeObserver(update):null;
+ for(const element of [app,header,nav])observer?.observe(element);
+ window.addEventListener('resize',update);window.visualViewport?.addEventListener('resize',update);document.addEventListener('keydown',escape);
+ update();
+ return ()=>{observer?.disconnect();window.removeEventListener('resize',update);window.visualViewport?.removeEventListener('resize',update);document.removeEventListener('keydown',escape);if(content)content.inert=wasInert;};
+}
 function animateMemberExpansion(view,opening){
  const dialog=view.dialog,origin=view.origin?.getBoundingClientRect?.(),frame=dialog?.getBoundingClientRect?.();
  if(!dialog?.animate||window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches||!origin?.width||!origin?.height||!frame?.width||!frame?.height||document.hidden)return Promise.resolve();
  const top=Math.max(0,origin.top-frame.top),left=Math.max(0,origin.left-frame.left);
  const bottom=Math.max(0,frame.bottom-origin.bottom),right=Math.max(0,frame.right-origin.right);
  if(![top,left,bottom,right].every(Number.isFinite))return Promise.resolve();
- const cardClip='inset('+top+'px '+right+'px '+bottom+'px '+left+'px round 16px)',fullClip='inset(0px 0px 0px 0px round 0px)';
+ const cardClip='inset('+top+'px '+right+'px '+bottom+'px '+left+'px round 0px)',fullClip='inset(0px 0px 0px 0px round 0px)';
  const currentClip=globalThis.getComputedStyle?.(dialog)?.clipPath;
  view.expansion?.cancel();
  const motion=dialog.animate([{clipPath:opening?cardClip:currentClip&&currentClip!=='none'?currentClip:fullClip},{clipPath:opening?fullClip:cardClip}],{duration:opening?360:240,easing:'cubic-bezier(.22,.8,.25,1)'});
@@ -127,7 +142,7 @@ export async function openMemberPartner(ctx){
   '<div class="partner-intro"><div class="partner-hero"><img src="/assets/feelingfine-bar-hero.jpg" width="1672" height="941" alt="분위기를 표현한 가상의 바 테이블 이미지" decoding="async" draggable="false"><div class="partner-hero-title"><p class="partner-brand" aria-hidden="true">Feeling Fine</p><h2 id="modal-title" tabindex="-1">필링파인</h2><div class="partner-intro-copy"><p class="partner-intro-description">다양한 칵테일과 안주를 즐기는 공간.</p></div></div></div></div>'+
   '<div class="partner-benefits-copy"><p class="partner-benefits-eyebrow">MARTINI MEMBERS</p><h3>함께하는 시간에, 작은 혜택을.</h3><p class="partner-benefits-description">부원 전용 스탬프 적립</p></div>'+
   '<div class="partner-coupon-area"><div data-partner-body>'+memberBody(view)+'</div></div></section>';
- const dialog=modal('필링파인',content,null,{contentOnly:true,bodyTitle:true,footer:false,onClose:()=>{if(ctx.state.memberPartner===view)disposeMember(ctx);}});
+ const dialog=modal('필링파인',content,null,{contentOnly:true,bodyTitle:true,footer:false,nonModal:true,onClose:()=>{if(ctx.state.memberPartner===view)disposeMember(ctx);}});
  dialog.classList.add('member-dialog','member-partners-dialog','partner-dialog','partner-expanded');view.dialog=dialog;ctx.state.memberPartner=view;
  const back=dialog.querySelector('[data-close]');
  if(back){back.innerHTML=icon('arrow-left');back.setAttribute('aria-label','혜택으로 돌아가기');back.setAttribute('title','뒤로');}
@@ -140,6 +155,7 @@ export async function openMemberPartner(ctx){
   view.closePromise=animateMemberExpansion(view,false).then(()=>close());
   return view.closePromise;
  };
+ view.frameCleanup=bindMemberFrame(view);
  refreshIcons();void animateMemberExpansion(view,true);
  const hidden=()=>{if(document.hidden&&(view.qr||view.issuing))expireMemberQr(view);};
  const leave=()=>{if(view.qr||view.issuing)expireMemberQr(view);};

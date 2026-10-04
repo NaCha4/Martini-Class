@@ -18,7 +18,7 @@ async function host(run,{path='/partners/feelingfine',blocked=false,motion=false
  class Element{
   constructor(tag='div'){this.tag=tag;this.innerHTML='';this.textContent='';const styles=new Map();this.style={setProperty:(n,v)=>styles.set(n,v),getPropertyValue:n=>styles.get(n)||''};this.attrs=new Map();this.listeners=new Map();this.parts=new Map();this.dataset={};this.isConnected=true;const classes=new Set();this.classList={add:(...names)=>names.forEach(name=>classes.add(name)),remove:(...names)=>names.forEach(name=>classes.delete(name)),contains:name=>classes.has(name)};}
   set innerHTML(value){this.html=value;this.parts?.clear();}get innerHTML(){return this.html;}
-  setAttribute(n,v){this.attrs.set(n,String(v));}getAttribute(n){return this.attrs.get(n)||null;}removeAttribute(n){this.attrs.delete(n);}addEventListener(n,fn){listen(this.listeners,n,fn);}removeEventListener(n,fn){unlisten(this.listeners,n,fn);}focus(){document.activeElement=this;}matches(){return false;}getClientRects(){return [1];}getBoundingClientRect(){return {width:320,height:200};}closest(selector){return this.selector===selector?this:this.parent?.closest(selector)||null;}remove(){this.isConnected=false;}showModal(){this.open=true;}close(){if(!this.open)return;this.open=false;for(const fn of this.listeners.get('close')||[])fn();}
+  setAttribute(n,v){this.attrs.set(n,String(v));}getAttribute(n){return this.attrs.get(n)||null;}removeAttribute(n){this.attrs.delete(n);}addEventListener(n,fn){listen(this.listeners,n,fn);}removeEventListener(n,fn){unlisten(this.listeners,n,fn);}focus(){document.activeElement=this;}matches(){return false;}getClientRects(){return [1];}getBoundingClientRect(){return {width:320,height:200};}closest(selector){return this.selector===selector?this:this.parent?.closest(selector)||null;}remove(){this.isConnected=false;}showModal(){this.open=true;this.modalMode=true;}show(){this.open=true;this.modalMode=false;}close(){if(!this.open)return;this.open=false;for(const fn of this.listeners.get('close')||[])fn();}
   querySelector(selector){
    if(selector==='form'||selector==='form[aria-busy=true]'||selector==='#discard-changes')return null;
    if(this.tag==='dialog'&&['.dialog-actions','.dialog-status'].includes(selector)&&!this.innerHTML.includes('class="'+selector.slice(1)+'"'))return null;
@@ -433,8 +433,14 @@ test('full or disabled member coupons retain their stamps and cannot issue a QR 
  }
 },{path:'/members',motion:true}));
 
-test('expanded member partner places the introduction above the coupon with an accessible back control and no footer',async()=>host(async({hidden,timers})=>{
+test('expanded member partner preserves header and navigation while isolating and restoring the covered content',async()=>host(async({hidden,timers,windowListenerCount})=>{
+ const content={inert:false},appHeader={inert:false,getBoundingClientRect:()=>({bottom:64})},nav={inert:false,getBoundingClientRect:()=>({top:773})};
+ const app={getBoundingClientRect:()=>({left:0,width:390}),querySelector:selector=>({'.member-app-header':appHeader,'.member-bottom-nav':nav,'.member-shell-content':content})[selector]||null};
+ const query=document.querySelector;document.querySelector=selector=>selector==='[data-member-app]'?app:query(selector);window.innerHeight=844;
  const {ctx}=context();memberSignIn(ctx);const dialog=await openRevealedPartner(ctx),html=dialog.innerHTML,body=()=>dialog.querySelector('[data-partner-body]').innerHTML,face=dialog.querySelector('[data-partner-qr-face]'),stage=dialog.querySelector('[data-coupon-interactive]');
+ assert.equal(dialog.modalMode,false);assert.equal(dialog.getAttribute('aria-modal'),'false');assert.equal(content.inert,true);assert.equal(appHeader.inert,false);assert.equal(nav.inert,false);
+ for(const [key,value] of Object.entries({top:'64px',left:'0px',width:'390px',height:'709px'}))assert.equal(dialog.style.getPropertyValue('--partner-frame-'+key),value);
+ assert.equal(windowListenerCount('resize'),1);
  assert.match(html,/<section class="partner-feelingfine" aria-labelledby="modal-title">[\s\S]*?<div class="partner-intro">/);
  const introIndex=html.indexOf('class="partner-intro"'),benefitIndex=html.indexOf('class="partner-coupon-area"');assert.ok(introIndex>=0&&benefitIndex>introIndex);
  assert.match(html.slice(introIndex,benefitIndex),/<h2 id="modal-title" tabindex="-1">필링파인<\/h2>/);
@@ -453,6 +459,7 @@ test('expanded member partner places the introduction above the coupon with an a
  assert.equal(face.innerHTML,'');assert.equal(face.hidden,true);assert.equal(stage.classList.contains('is-qr-visible'),false);assert.equal(timers.size,0);await hidden(false);await partnerAction(ctx,'partner-qr');assert.equal(timers.size,1);assert.match(face.innerHTML,/data:image/);
  dialog.pendingRequest=true;assert.equal(await dialog.requestClose(),false);assert.equal(dialog.open,true);assert.equal(ctx.state.memberPartner.closing,false);dialog.pendingRequest=false;
  assert.equal(await dialog.requestClose(true),true);assert.equal(dialog.open,false);assert.equal(timers.size,0);assert.equal(ctx.state.memberPartner,undefined);assert.equal(dialog.querySelector('.partner-qr-slot').innerHTML,'');assert.equal(face.innerHTML,'');
+ assert.equal(content.inert,false);assert.equal(windowListenerCount('resize'),0);
 },{path:'/members'}));
 
 test('a QR issuance that returns after the member dialog closes cannot restore a QR',async()=>host(async()=>{

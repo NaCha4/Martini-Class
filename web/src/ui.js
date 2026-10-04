@@ -66,13 +66,13 @@ export async function closeModal({discard=false}={}) {
   const dialog=document.querySelector('#modal[open]');
   return dialog?dialog.requestClose(discard):true;
 }
-export function modal(title, body, onSubmit, {wide=false,submit='저장',submitClass='button',busyText='저장 중…',contentOnly=false,bodyTitle=false,footer=true,onClose}={}) {
+export function modal(title, body, onSubmit, {wide=false,submit='저장',submitClass='button',busyText='저장 중…',contentOnly=false,bodyTitle=false,footer=true,nonModal=false,onClose}={}) {
   const previous=document.querySelector('#modal');
   if(previous){previous.replaced=true;previous.close();previous.remove();}
   const opener=previous?.modalOpener||captureFocus(),openedPath=location.pathname;
   const dialog=document.createElement('dialog');
   dialog.modalOpener=opener;
-  dialog.id='modal';dialog.setAttribute('aria-labelledby','modal-title');dialog.setAttribute('aria-modal','true');dialog.className=wide?'wide-dialog':'';
+  dialog.id='modal';dialog.setAttribute('aria-labelledby','modal-title');dialog.setAttribute('aria-modal',String(!nonModal));dialog.className=wide?'wide-dialog':'';
   // A content-only dialog may provide its own focusable #modal-title in the body.
   const heading=contentOnly&&bodyTitle?'':'<div><h2 id="modal-title" tabindex="-1">'+esc(title)+'</h2></div>';
   dialog.innerHTML=(contentOnly?'<div class="dialog-frame">':'<form id="modal-form">')+'<header>'+heading+'<button type="button" class="icon-button x-button" data-close aria-label="닫기">'+icon('x')+'</button></header><div class="dialog-scroll"><div class="'+(contentOnly?'dialog-content':'form-grid')+'">'+body+'</div>'+(contentOnly?'':'<p class="form-error" role="alert"></p>')+'</div>'+(!contentOnly||footer?'<footer><p class="dialog-status" role="status"></p><div class="dialog-actions"><button type="button" class="button secondary" data-close>닫기</button>'+(!contentOnly&&onSubmit?'<button class="'+esc(submitClass)+'" type="submit">'+esc(submit)+'</button>':'')+'</div></footer>':'')+(contentOnly?'</div>':'</form>');
@@ -116,7 +116,7 @@ export function modal(title, body, onSubmit, {wide=false,submit='저장',submitC
     finally{saving=false;scroll.inert=false;restore();form.removeAttribute('aria-busy');dialog.querySelector('.dialog-status').textContent='';}
   });
   if(!CSS.supports('scrollbar-gutter:stable'))document.documentElement.style.setProperty('--scrollbar-compensation',(innerWidth-document.documentElement.clientWidth)+'px');
-  document.documentElement.classList.add('dialog-open');dialog.showModal();refreshIcons();
+  document.documentElement.classList.add('dialog-open');if(nonModal)dialog.show();else dialog.showModal();refreshIcons();
   dialog.querySelector('#modal-title').focus({preventScroll:true});
   queueMicrotask(()=>{baseline=form?formSignature(form):null;});
   return dialog;

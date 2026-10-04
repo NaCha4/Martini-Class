@@ -120,12 +120,17 @@ main.member-public-page.member-app-page{width:100%;max-width:680px;min-height:10
 .member-app-shell .member-benefit-title{display:block;margin:0;color:#f2ece0;font-size:20px;font-weight:600;line-height:1.5;letter-spacing:-.025em}
 .member-app-shell .member-benefit-cta{display:flex;align-items:center;justify-content:center;flex-shrink:0;width:44px;height:44px;color:#e2c58f}
 .member-app-shell .member-benefit-cta>svg{width:18px;height:18px;flex-shrink:0}
+.member-app-shell [data-member-panel=benefits]{--benefit-edge-left:max(20px,env(safe-area-inset-left));--benefit-edge-right:max(20px,env(safe-area-inset-right))}
+.member-app-shell [data-member-panel=benefits] .member-benefit-feature{width:calc(100% + var(--benefit-edge-left) + var(--benefit-edge-right));margin-left:calc(-1 * var(--benefit-edge-left));margin-right:calc(-1 * var(--benefit-edge-right));border-inline:0;border-radius:0}
+.member-app-shell [data-member-panel=benefits] .member-benefit-feature:focus-visible{outline-offset:-3px}
+.member-app-shell [data-member-panel=benefits] .member-benefit-copy{padding-inline:var(--benefit-edge-left) var(--benefit-edge-right)}
 
 @media(min-width:700px){
  .member-shell.member-app-shell{border-inline:1px solid #ffffff07;box-shadow:0 0 80px #00000014}
  .member-app-shell .member-shell-content{padding:24px 28px calc(100px + env(safe-area-inset-bottom))}
  .member-app-shell .member-app-header{padding-inline:28px}
  .member-app-shell .member-benefit-photo{height:180px}
+ .member-app-shell [data-member-panel=benefits]{--benefit-edge-left:28px;--benefit-edge-right:28px}
 }
 @media(max-width:360px){
  .member-app-shell .member-shell-content{padding-inline:max(16px,env(safe-area-inset-left)) max(16px,env(safe-area-inset-right))}
@@ -138,6 +143,7 @@ main.member-public-page.member-app-page{width:100%;max-width:680px;min-height:10
  .member-app-shell :is(.member-request-row,.member-application-row){padding:14px}
  .member-app-shell .member-benefit-photo{height:140px}
  .member-app-shell .member-benefit-copy{padding-inline:15px}
+ .member-app-shell [data-member-panel=benefits]{--benefit-edge-left:max(16px,env(safe-area-inset-left));--benefit-edge-right:max(16px,env(safe-area-inset-right))}
 }
 @media(hover:hover) and (pointer:fine){
  .member-app-shell .member-app-logout:hover{background:#ffffff07;color:#e1d3bc}
