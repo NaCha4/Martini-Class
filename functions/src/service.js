@@ -78,6 +78,7 @@ export function createService(db,clock=Date.now){
  async function save(kind,schema,data,who,scope){
   ensureScope(who,scope,clock());const input=parse(schema,data),id=input.id||(kind==='settings'?'club':col(kind).doc().id),ref=kind==='members'?roster.collection(input.semester).doc(id):col(kind).doc(id);
   const link=kind==='events'&&!input.id?secret():null;
+  const countRef=kind==='inventory'&&input.quantity!==undefined?col('stockMoves').doc():null;
   return db.runTransaction(async tx=>{
    const old=kind==='members'?await roster.get(id,input.semester,tx):snapshot(await tx.get(ref));if(input.id&&!old)fail('not-found','기록을 찾을 수 없습니다.');requireRevision(old,input.revision);
    if(kind==='settings'&&old===null&&input.revision!==0)fail('aborted','설정을 다시 불러와 주세요.');
@@ -122,7 +123,11 @@ export function createService(db,clock=Date.now){
     if(next.unit==='bottle'&&next.size<=0)fail('invalid-argument','병 규격은 0보다 커야 합니다.');
     if(old&&stockTotal(old)>0&&(old.unit!==next.unit||old.size!==next.size))fail('failed-precondition','재고가 있는 품목의 단위·규격은 변경할 수 없습니다. 다른 규격은 새 품목으로 등록해 주세요.');
     const category=await inventoryBoard.target(tx,next.categoryId);
-    next={...next,quantity:old?.quantity||0,bottles:old?.bottles||{}};
+    next={...next,quantity:old?.quantity??0,bottles:old?.bottles||{}};
+    if(countRef){
+     next=changeStock(next,{action:'count',amount:input.quantity});
+     if(next.quantity!==(old?.quantity??0))tx.create(countRef,{id,requestId:countRef.id,revision:input.revision,action:'count',amount:next.quantity,reason:old?'품목 수정':'품목 등록',itemId:id,itemName:next.name,before:old?stockTotal(old):0,after:stockTotal(next),beforeQuantity:old?.quantity??0,afterQuantity:next.quantity,actor:who.displayName,createdAt:now(),updatedAt:now()});
+    }
     inventoryBoard.touch(tx,category);
    }
    if(kind==='decisions'){

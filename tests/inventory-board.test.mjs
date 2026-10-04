@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { initializeApp,deleteApp } from '../functions/node_modules/firebase-admin/lib/app/index.js';
 import { getFirestore } from '../functions/node_modules/firebase-admin/lib/firestore/index.js';
 import { createService } from '../functions/src/service.js';
+import { stockTotal } from '../functions/src/domain.js';
 
 const host=process.env.FIRESTORE_EMULATOR_HOST||'127.0.0.1:8080';
 if(!/^127\.0\.0\.1:\d+$/.test(host))throw Error('Local emulator required');
@@ -40,6 +41,76 @@ test('name-only creation uses safe defaults and name/photo edits preserve every 
  await assert.rejects(save({id:'gin',revision:edited.revision,name:'단위 변경',unit:'each'}),e=>e.code==='failed-precondition');
  await assert.rejects(save({id:'gin',revision:4,name:'낡은 수정'}),e=>e.code==='aborted');
  await assert.rejects(save({name:'없는 기록',revision:2}),e=>e.code==='aborted');
+});
+
+test('item quantities save with metadata, read back as stock and stay separate from alert thresholds',async()=>{
+ let item=await save({name:'시럽',unit:'ml',quantity:750,minimum:1000,photo},inventoryOnly);
+ assert.equal(item.quantity,750);assert.equal(item.minimum,1000);assert.equal(stockTotal(item),750);
+ const read=await service.handle({op:'read',kind:'inventory',recordId:item.id},inventoryOnly);
+ assert.equal(read.rows[0].quantity,750);assert.equal(stockTotal(read.rows[0]),750);
+ let history=(await service.handle({op:'read',kind:'stockMoves',itemId:item.id},inventoryOnly)).rows;
+ assert.equal(history.length,1);
+ const first=history[0];
+ for(const [key,value] of Object.entries({itemId:item.id,itemName:'시럽',action:'count',amount:750,reason:'품목 등록',before:0,after:750,beforeQuantity:0,afterQuantity:750,actor:'재고 담당'}))assert.equal(first[key],value);
+ for(const key of ['eventId','location','photo'])assert.equal(Object.hasOwn(first,key),false);
+ item=await save({id:item.id,revision:item.revision,name:'기준만 변경',minimum:2000},inventoryOnly);
+ assert.equal(item.quantity,750);assert.equal(item.minimum,2000);assert.equal(item.photo,photo);
+ item=await save({id:item.id,revision:item.revision,name:'동일 수량',quantity:750},inventoryOnly);
+ assert.equal((await service.handle({op:'read',kind:'stockMoves',itemId:item.id},inventoryOnly)).rows.length,1);
+ item=await save({id:item.id,revision:item.revision,name:'소수 수량',quantity:250.5},inventoryOnly);
+ assert.equal(item.quantity,250.5);assert.equal(item.minimum,2000);
+ history=(await service.handle({op:'read',kind:'stockMoves',itemId:item.id},inventoryOnly)).rows;
+ assert.equal(history.length,2);
+ const edited=history.find(entry=>entry.reason==='품목 수정');
+ assert.equal(edited.before,750);assert.equal(edited.after,250.5);assert.equal(edited.beforeQuantity,750);assert.equal(edited.afterQuantity,250.5);
+ item=await save({id:item.id,revision:item.revision,name:'실사 0',quantity:0},inventoryOnly);
+ assert.equal(item.quantity,0);assert.equal(item.minimum,2000);
+ assert.equal((await service.handle({op:'read',kind:'stockMoves',itemId:item.id},inventoryOnly)).rows.length,3);
+ const empty=await save({name:'빈 재고',unit:'g',quantity:0,minimum:50},inventoryOnly);
+ assert.equal(empty.quantity,0);assert.equal((await service.handle({op:'read',kind:'stockMoves',itemId:empty.id},inventoryOnly)).rows.length,0);
+ const grams=await save({name:'가루',unit:'g',quantity:125.25},inventoryOnly);assert.equal(grams.quantity,125.25);
+});
+
+test('invalid quantities and units roll back item metadata, revisions and stock history',async()=>{
+ for(const unit of ['each','pack','bottle']){
+  const initial=await save({name:'기존 '+unit,unit,...(unit==='bottle'?{size:700}:{}),quantity:2});
+  const before=(await inventory(initial.id).get()).data(),historyBefore=(await db.collection('martini_v2_stockMoves').get()).size;
+  for(const quantity of [-1,100001,NaN,Infinity,.5])await assert.rejects(save({id:initial.id,revision:initial.revision,name:'변경되면 안 됨',quantity}),e=>e.code==='invalid-argument');
+  assert.deepEqual((await inventory(initial.id).get()).data(),before);
+  assert.equal((await db.collection('martini_v2_stockMoves').get()).size,historyBefore);
+ }
+ const countBefore=(await db.collection('martini_v2_inventory').get()).size,historyBefore=(await db.collection('martini_v2_stockMoves').get()).size;
+ for(const input of [{unit:'bottle',size:0,quantity:1},{unit:'bottle',size:700,quantity:1.5},{unit:'each',quantity:.1},{unit:'ml',quantity:750,categoryId:'missing'}])await assert.rejects(save({name:'등록 실패',...input}));
+ assert.equal((await db.collection('martini_v2_inventory').get()).size,countBefore);
+ assert.equal((await db.collection('martini_v2_stockMoves').get()).size,historyBefore);
+});
+
+test('bottle counts preserve opened bottles, measure total volume and retain stocked-unit restrictions',async()=>{
+ const created=await save({name:'새 병',unit:'bottle',size:750,quantity:2});assert.equal(stockTotal(created),1500);
+ let item=await save({id:legacy.id,revision:legacy.revision,name:'진 수정',quantity:3},inventoryOnly);
+ assert.deepEqual(item.bottles,legacy.bottles);assert.equal(item.quantity,3);assert.equal(stockTotal(item),2520);
+ let history=(await service.handle({op:'read',kind:'stockMoves',itemId:item.id},inventoryOnly)).rows;
+ assert.equal(history.length,1);assert.equal(history[0].before,1820);assert.equal(history[0].after,2520);
+ assert.equal(history[0].beforeQuantity,2);assert.equal(history[0].afterQuantity,3);
+ for(const changed of [{unit:'ml',quantity:750},{size:750,quantity:0}])await assert.rejects(save({id:item.id,revision:item.revision,name:'규격 변경 실패',...changed}),e=>e.code==='failed-precondition');
+ item=await save({id:item.id,revision:item.revision,name:'미개봉 없음',quantity:0},inventoryOnly);
+ assert.deepEqual(item.bottles,legacy.bottles);assert.equal(stockTotal(item),420);
+ await assert.rejects(save({id:item.id,revision:item.revision,name:'개봉 병 있음',unit:'each',quantity:0}),e=>e.code==='failed-precondition');
+ history=(await service.handle({op:'read',kind:'stockMoves',itemId:item.id},inventoryOnly)).rows;
+ assert.equal(history.length,2);assert.equal(history.find(entry=>entry.afterQuantity===0).after,420);
+});
+
+test('competing item counts commit one value and one history entry without overwriting a newer revision',async()=>{
+ const item=await save({name:'동시 실사',unit:'ml'});
+ const results=await Promise.allSettled([750,500].map(quantity=>save({id:item.id,revision:item.revision,name:'수정 '+quantity,quantity},inventoryOnly)));
+ assert.equal(results.filter(result=>result.status==='fulfilled').length,1);
+ assert.equal(results.find(result=>result.status==='rejected').reason.code,'aborted');
+ const saved=results.find(result=>result.status==='fulfilled').value,current=(await inventory(item.id).get()).data();
+ assert.equal(current.quantity,saved.quantity);assert.equal(current.name,saved.name);assert.equal(current.revision,item.revision+1);
+ const history=(await service.handle({op:'read',kind:'stockMoves',itemId:item.id},inventoryOnly)).rows;
+ assert.equal(history.length,1);assert.equal(history[0].before,0);assert.equal(history[0].after,current.quantity);
+ await assert.rejects(save({id:item.id,revision:item.revision,name:'낡은 수정',quantity:999}),e=>e.code==='aborted');
+ assert.equal((await service.handle({op:'read',kind:'stockMoves',itemId:item.id},inventoryOnly)).rows.length,1);
 });
 
 test('legacy reads do not migrate data, explicit board categories survive older-client edits',async()=>{
@@ -103,7 +174,7 @@ test('concurrent category naming and deletion/assignment preserve category membe
 
 test('all inventory endpoints require active inventory permission and never grant finance access',async()=>{
  const c=await category('권한 확인');
- const requests=[{op:'listInventoryCategories'},{op:'saveInventoryCategory',name:'실패'},{op:'deleteInventoryCategory',id:c.id,revision:1},{op:'moveInventoryItem',id:'gin',revision:4,categoryId:c.id},{op:'saveItem',name:'실패'},{op:'read',kind:'inventory'}];
+ const requests=[{op:'listInventoryCategories'},{op:'saveInventoryCategory',name:'실패'},{op:'deleteInventoryCategory',id:c.id,revision:1},{op:'moveInventoryItem',id:'gin',revision:4,categoryId:c.id},{op:'saveItem',name:'실패'},{op:'saveItem',name:'수량 권한 없음',unit:'ml',quantity:750},{op:'read',kind:'inventory'}];
  for(const request of requests){
   await assert.rejects(service.handle(request,finance),e=>e.code==='permission-denied');
   await assert.rejects(service.handle(request,{}),e=>e.code==='unauthenticated');
@@ -166,7 +237,7 @@ test('deleting stocked items retains quantity, open bottles and history, and blo
  assert.equal((await service.handle({op:'read',kind:'stockMoves',itemId:item.id},inventoryOnly)).rows.length,1);
  assert.equal((await service.handle({op:'read',kind:'inventory'},inventoryOnly)).rows.length,0);
  await assert.rejects(service.handle({op:'read',kind:'inventory',recordId:item.id},inventoryOnly),e=>e.code==='not-found');
- await assert.rejects(save({id:item.id,revision:deleted.revision,name:'복구 시도'},inventoryOnly),e=>e.code==='not-found');
+ await assert.rejects(save({id:item.id,revision:deleted.revision,name:'복구 시도',quantity:10},inventoryOnly),e=>e.code==='not-found');
  await assert.rejects(move({...item,revision:deleted.revision},''),e=>e.code==='not-found');
  await assert.rejects(service.handle({op:'stock',id:item.id,revision:deleted.revision,requestId:'after-delete',action:'receive',amount:1,reason:'삭제 뒤 입고'},inventoryOnly),e=>e.code==='not-found');
  const deletions=(await db.collection('martini_v2_audit').where('entityId','==',item.id).get()).docs.filter(doc=>doc.data().action==='삭제');

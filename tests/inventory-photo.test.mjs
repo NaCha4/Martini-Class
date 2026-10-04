@@ -11,7 +11,13 @@ test('simple inventory input needs only a name and preserves omitted optional fi
  assert.deepEqual(parse(schemas.item,{name:'  셰이커  '}),{name:'셰이커',revision:0});
  assert.equal(parse(schemas.item,{name:'셰이커',photo:png}).photo,png);
  for(const name of ['','  ','a'.repeat(101)])assert.throws(()=>parse(schemas.item,{name}),e=>e.code==='invalid-argument');
- for(const extra of [{quantity:10},{bottles:{}},{categoryId:'invalid/path'},{category:'custom'},{unit:'unknown'},{minimum:-1},{photo:null}])assert.throws(()=>parse(schemas.item,{name:'test',...extra}),e=>e.code==='invalid-argument');
+ for(const extra of [{bottles:{}},{categoryId:'invalid/path'},{category:'custom'},{unit:'unknown'},{minimum:-1},{photo:null}])assert.throws(()=>parse(schemas.item,{name:'test',...extra}),e=>e.code==='invalid-argument');
+});
+
+test('explicit inventory quantities accept bounded numbers and keep omission distinct from zero',()=>{
+ for(const quantity of [0,.5,750,100000])assert.equal(parse(schemas.item,{name:'수량',quantity}).quantity,quantity);
+ assert.equal(Object.hasOwn(parse(schemas.item,{name:'생략'}),'quantity'),false);
+ for(const quantity of [-1,100001,NaN,Infinity,-Infinity,'750',null])assert.throws(()=>parse(schemas.item,{name:'잘못된 수량',quantity}),e=>e.code==='invalid-argument');
 });
 
 test('photo validation allows bounded raster data URLs and rejects scripts, URLs and malformed data',()=>{
