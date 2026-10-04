@@ -1,31 +1,46 @@
-dialog.partner-dialog{width:min(740px,calc(100% - 32px));max-width:calc(100% - 32px);border-radius:18px}
+dialog.partner-dialog{--partner-surface:#202022;width:min(480px,calc(100% - 32px));max-width:calc(100% - 32px);border:1px solid #65584366;border-radius:20px;background:var(--partner-surface)}
+dialog.partner-dialog.member-dialog[open]{inset:0;margin:auto;width:min(480px,calc(100% - 24px));max-width:calc(100% - 24px);max-height:min(820px,85dvh);border-radius:20px}
 .partner-dialog>.dialog-frame{position:relative;display:flex;flex-direction:column;max-height:inherit;min-height:0}
-.partner-dialog.member-dialog>.dialog-frame>header{position:absolute;inset:8px 12px auto auto;z-index:1;justify-content:flex-end;padding:0;border:0;background:transparent}
+.partner-dialog.member-dialog>.dialog-frame>header{position:absolute;inset:6px 8px auto auto;z-index:5;justify-content:flex-end;padding:0;border:0;background:transparent}
 .partner-dialog>.dialog-frame>header>.icon-button{width:48px;height:48px;border:0;background:transparent;box-shadow:none;color:#fff;filter:drop-shadow(0 1px 4px #000)}
 .partner-dialog>.dialog-frame>header>.icon-button:hover{color:var(--gold)}
+dialog.partner-dialog .dialog-scroll{scrollbar-gutter:auto;scroll-padding-block:20px}
 dialog.partner-dialog.member-dialog .dialog-content{width:100%;min-width:0;padding:0 0 24px}
 .partner-dialog [data-partner-body]{width:100%;min-width:0}
-.partner-feelingfine{min-width:0}
-.partner-intro{text-align:center}
-.partner-hero{position:relative;isolation:isolate;min-height:270px;aspect-ratio:2.45/1;overflow:hidden;background:#171412}
-.partner-hero>img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 47%;z-index:-2}
-.partner-hero::after{content:'';position:absolute;inset:0;z-index:-1;background:linear-gradient(180deg,#101011d9 0%,#10101199 38%,#15151530 66%,var(--surface) 100%);pointer-events:none}
-.partner-hero-title{position:relative;padding:54px 26px 90px;color:#fff;text-shadow:0 2px 12px #000b}
-.partner-hero-title>h2{margin:0;font-size:34px;line-height:1.4;letter-spacing:-.04em}
-.partner-intro-copy{padding:10px 0 0}
-.partner-intro-tagline{margin:0;font-size:15px;line-height:1.7;color:#f1eee8;word-break:keep-all}
-.partner-intro-description{margin:6px 0 0;font-size:12px;line-height:1.9;color:#d1cac1;word-break:keep-all}
-.partner-benefits-copy{max-width:480px;margin:0 auto;padding:12px 28px 26px;text-align:center;word-break:keep-all}
-.partner-benefits-eyebrow{margin:0 0 12px;color:var(--gold);font-size:11px;font-weight:600;letter-spacing:.09em}
-.partner-benefits-copy>h3{margin:0;font-size:25px;line-height:1.55;letter-spacing:-.04em;font-weight:600}
-.partner-benefits-description{margin:16px 0 0;color:var(--muted);font-size:14px;line-height:1.9}
-.partner-benefits-note{margin:13px 0 0;color:var(--muted);font-size:11px;line-height:1.8}
-.partner-coupon-area{min-width:0;padding:0 24px}
-.partner-stamp-reveal{display:flex;align-items:center;justify-content:space-between;gap:24px;width:min(100%,330px);min-height:54px;margin:0 auto 8px;padding:14px 22px;border:1px solid #ddbd8460;border-radius:999px;background:transparent;color:var(--gold);font:inherit;font-size:14px;font-weight:600;cursor:pointer;touch-action:manipulation}
-.partner-stamp-reveal>svg{width:18px;height:18px;flex-shrink:0}
-.partner-stamp-reveal:hover{border-color:var(--gold);color:var(--text)}
-.partner-coupon-area .partner-message{padding:22px 12px}
-.partner-coupon-area .partner-qr-slot{padding-inline:16px}
+.partner-dialog .partner-feelingfine{min-width:0;background:var(--partner-surface)}
+.partner-dialog .partner-intro{text-align:center}
+.partner-dialog .partner-hero{position:relative;isolation:isolate;display:flex;align-items:flex-end;min-height:330px;overflow:hidden;background:#171412;transition:min-height .45s ease}
+.partner-dialog .partner-hero>img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 45%;z-index:-2}
+.partner-dialog .partner-hero::after{content:'';position:absolute;inset:0;z-index:-1;background:linear-gradient(180deg,#16141420 0%,#16141412 25%,#202022aa 64%,var(--partner-surface) 100%);pointer-events:none}
+.partner-dialog .partner-hero-title{position:relative;width:100%;padding:120px 24px 20px;color:#fff;text-shadow:0 2px 14px #0009}
+.partner-dialog .partner-brand{display:block;margin:0 0 6px;color:#f5ecdf;font-family:Georgia,'Times New Roman',serif;font-size:44px;font-weight:400;line-height:1.1;letter-spacing:-.035em}
+.partner-dialog .partner-hero-title>h2{margin:0;color:#e7dfd2;font-size:15px;font-weight:500;line-height:1.6;letter-spacing:.05em}
+.partner-dialog .partner-hero-title>h2::after{content:'';display:block;width:32px;height:1px;margin:14px auto 12px;background:#ddbd8477}
+.partner-dialog .partner-intro-copy{padding:0}
+.partner-dialog .partner-intro-description{margin:0;color:#d1cac1;font-size:13px;line-height:1.8;word-break:keep-all}
+.partner-dialog .partner-benefits-copy{max-width:440px;margin:0 auto;padding:18px 24px 24px;text-align:center;word-break:keep-all}
+.partner-dialog .partner-benefits-eyebrow{margin:0 0 12px;color:#ddbd84;font-size:10px;font-weight:500;line-height:1.5;letter-spacing:.18em}
+.partner-dialog .partner-benefits-copy>h3{margin:0;color:#f0ece5;font-size:23px;line-height:1.65;letter-spacing:-.05em;font-weight:500}
+.partner-dialog .partner-benefits-description{margin:12px 0 0;color:#c6bfb4;font-size:13px;line-height:1.85}
+.partner-dialog .partner-benefits-note{margin:5px 0 0;color:#a9a398;font-size:12px;line-height:1.8}
+.partner-dialog .partner-coupon-area{min-width:0;padding:0 12px}
+.partner-dialog .partner-coupon-area .partner-message{margin:0;padding:28px 20px;text-align:center;word-break:keep-all}
+.partner-dialog.is-coupon-revealed .partner-hero{min-height:220px}
+.partner-dialog.is-coupon-revealed .partner-hero-title{padding-top:70px;padding-bottom:8px}
+.partner-dialog.is-coupon-revealed .partner-brand{font-size:36px}
+.partner-dialog.is-coupon-revealed .partner-hero-title>h2::after{margin-block:10px}
+.partner-dialog.is-coupon-revealed .partner-benefits-copy{display:none}
+.partner-dialog.is-coupon-revealed .partner-intro-copy{display:none}
+
+/* The original paper back peeks above a raised pocket lip. Positive pull goes up. */
+.partner-dialog .partner-coupon-pocket{--pocket-lip:clamp(104px,29vw,138px);position:relative;isolation:isolate;height:calc(var(--pocket-lip) + 44px);margin:4px 4px 0}
+.partner-dialog .partner-coupon-pocket::before{content:'';position:absolute;z-index:0;inset:calc(var(--pocket-lip) - 8px) 10px auto;height:16px;border-radius:50%;background:#050505;box-shadow:0 0 16px 4px #0009;pointer-events:none}
+.partner-dialog .partner-coupon-pocket .partner-coupon-peek{position:absolute;z-index:1;top:10px;left:50%;display:block;width:min(86%,370px);min-height:48px;margin:0;padding:0;border:0;border-radius:2px;background:#f1f0ed;box-shadow:0 1px 0 #fffc,0 3px 0 #d5d3cc,0 6px 0 #f1f0ed,0 12px 26px #0008;transform:translate(-50%,calc(-1 * var(--coupon-pull,0px))) rotate(-2.5deg);transition:transform .3s cubic-bezier(.2,.8,.2,1);cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent}
+.partner-dialog .partner-coupon-peek>img{display:block;width:100%;height:auto;aspect-ratio:20/11;pointer-events:none}
+.partner-dialog .partner-coupon-peek.is-pulling{cursor:grabbing;transition:none}
+.partner-dialog .partner-coupon-peek:focus-visible{outline:2px solid #ddbd84;outline-offset:5px}
+.partner-dialog .partner-peek-brand{display:none}
+.partner-dialog .partner-coupon-pocket::after{content:'';position:absolute;z-index:2;inset:var(--pocket-lip) -16px -24px;border-top:1px solid #5b5448;border-radius:50% 50% 0 0 / 8px 8px 0 0;background:linear-gradient(180deg,#373532 0,#262628 8px,var(--partner-surface) 34px);box-shadow:0 -5px 8px #0006,inset 0 1px 0 #91857526;pointer-events:none}
 
 /* Preserve the original rectangular artwork and its 3000 × 1650 stamp positions. */
 .partner-coupon{margin:0;min-width:0}
@@ -61,6 +76,29 @@ dialog.partner-dialog.member-dialog .dialog-content{width:100%;min-width:0;paddi
 .partner-live-dot{width:7px;height:7px;background:#dcbc80;border-radius:50%;animation:partner-live-pulse 1s ease-in-out infinite}
 .partner-message{padding:22px 0;font-size:14px;color:var(--muted);line-height:1.8}
 .partner-message .button{margin-top:18px}
+
+/* Member-only presentation keeps the shared merchant coupon and stamp geometry intact. */
+.partner-dialog .partner-coupon-stage{padding:24px 12px 40px}
+.partner-dialog .partner-coupon-float{width:100%;transform:rotate(-2deg);transition:transform .45s ease}
+.partner-dialog .partner-card-face{border-radius:2px;background:#fff}
+.partner-dialog .partner-coupon-stage.is-qr-visible{cursor:default}
+.partner-dialog .partner-coupon-stage.is-qr-visible .partner-coupon-float{transform:none}
+.partner-dialog .partner-coupon-stage.is-qr-visible .partner-card{transform:rotateY(180deg);transition:transform .65s cubic-bezier(.2,.8,.2,1)}
+.partner-dialog .partner-coupon-stage.is-qr-visible .partner-card-back::after{display:none}
+.partner-dialog .partner-card-qr{position:absolute;inset:0;display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr);place-items:center;min-width:0;min-height:0;padding:5px;background:#fff}
+.partner-dialog .partner-card-qr[hidden]{display:none}
+.partner-dialog .partner-card-qr-loading{color:#705e3e;line-height:1}
+.partner-dialog .partner-card-qr-loading>svg{width:28px;height:28px;animation:partner-live-ring 1.4s linear infinite}
+.partner-dialog .partner-qr-error{margin:8px 0 0;color:var(--muted);font-size:13px;text-align:center;line-height:1.6}
+.partner-dialog .partner-qr-error:empty{display:none}
+.partner-dialog .partner-card-qr .partner-qr-paper{display:grid;place-items:center;width:auto;height:100%;min-width:0;min-height:0;max-width:100%;max-height:240px;aspect-ratio:1;margin:0;padding:0;border-radius:0;background:#fff}
+.partner-dialog .partner-card-qr .partner-qr-paper>img{display:block;width:100%;height:100%;max-width:100%;max-height:100%;object-fit:contain;image-rendering:pixelated}
+.partner-dialog .partner-qr-slot{display:flex;align-items:center;justify-content:center;min-height:56px;margin:4px 0 0;padding:0 16px}
+.partner-dialog .partner-qr-slot>.partner-qr-timer{position:relative;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;gap:2px;width:56px;height:56px;margin:0;color:#d7c6a9;font-size:11px;line-height:1;isolation:isolate}
+.partner-dialog .partner-qr-timer>strong{font-size:17px;font-weight:500;color:#eed6ad;font-variant-numeric:tabular-nums}
+.partner-dialog .partner-qr-timer::before,.partner-dialog .partner-qr-timer::after{content:'';position:absolute;inset:3px;z-index:-1;border-radius:50%;pointer-events:none}
+.partner-dialog .partner-qr-timer::before{border:2px solid #ddbd8426}
+.partner-dialog .partner-qr-timer::after{background:conic-gradient(#ddbd84 calc(var(--qr-progress,1) * 1turn),transparent 0);mask:radial-gradient(farthest-side,transparent calc(100% - 2px),#000 0);-webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 2px),#000 0)}
 
 .partner-admin-card{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:20px;padding:24px 28px}
 .partner-admin-summary{min-width:0}
@@ -112,17 +150,21 @@ dialog.partner-dialog.member-dialog .dialog-content{width:100%;min-width:0;paddi
 @keyframes partner-live-pulse{50%{opacity:.35}}
 @media(max-width:600px){
  dialog.partner-dialog.member-dialog .dialog-content{padding-bottom:max(18px,calc(env(safe-area-inset-bottom) + 12px))}
- .partner-hero{min-height:235px;aspect-ratio:auto}
- .partner-hero-title{padding:46px 22px 65px}
- .partner-hero-title>h2{font-size:29px}
- .partner-intro-copy{padding-top:8px}
- .partner-intro-tagline{font-size:14px}
- .partner-intro-description{font-size:12px}
- .partner-benefits-copy{padding:10px 22px 24px}
- .partner-benefits-copy>h3{font-size:22px}
- .partner-benefits-description{font-size:13px;margin-top:13px}
- .partner-benefits-note{margin-top:10px}
- .partner-coupon-area{padding-inline:14px}
+ .partner-dialog .partner-hero{min-height:280px}
+ .partner-dialog .partner-hero-title{padding:110px 20px 14px}
+ .partner-dialog .partner-brand{font-size:38px}
+ .partner-dialog .partner-hero-title>h2{font-size:14px}
+ .partner-dialog .partner-intro-description{font-size:12px}
+ .partner-dialog .partner-benefits-copy{padding:14px 20px 20px}
+ .partner-dialog .partner-benefits-copy>h3{font-size:21px}
+ .partner-dialog .partner-benefits-description{margin-top:10px;font-size:12px}
+ .partner-dialog .partner-benefits-note{font-size:11px}
+ .partner-dialog .partner-coupon-area{padding-inline:0}
+ .partner-dialog .partner-coupon-pocket{margin-inline:16px}
+ .partner-dialog.is-coupon-revealed .partner-hero{min-height:200px}
+ .partner-dialog.is-coupon-revealed .partner-hero-title{padding-top:60px;padding-bottom:8px}
+ .partner-dialog.is-coupon-revealed .partner-brand{font-size:32px}
+ .partner-dialog .partner-coupon-stage{padding:22px 8px 36px}
  .partner-coupon-stage{padding:18px 8px 36px}
  .partner-qr-frame{width:min(314px,100%)}
  .partner-qr-paper img{width:100%}
@@ -136,7 +178,20 @@ dialog.partner-dialog.member-dialog .dialog-content{width:100%;min-width:0;paddi
  .merchant-panel{padding:22px 18px}
 }
 @media(max-width:360px){
+ .partner-dialog .partner-hero{min-height:258px}
+ .partner-dialog .partner-hero-title{padding:96px 18px 12px}
+ .partner-dialog .partner-brand{font-size:34px}
+ .partner-dialog .partner-benefits-copy{padding:12px 18px 16px}
+ .partner-dialog .partner-benefits-copy>h3{font-size:19px}
+ .partner-dialog .partner-benefits-eyebrow{margin-bottom:9px;font-size:9px}
+ .partner-dialog .partner-coupon-pocket{--pocket-lip:104px;margin-top:0}
+ .partner-dialog.is-coupon-revealed .partner-hero{min-height:186px}
+ .partner-dialog.is-coupon-revealed .partner-brand{font-size:30px}
  .merchant-panel{padding:20px 12px}
 }
 @media(prefers-reduced-motion:reduce){.partner-qr-frame::before,.partner-live-dot{animation-duration:4s}}
 @media(prefers-reduced-motion:reduce){.partner-card{transition:none}}
+@media(prefers-reduced-motion:reduce){
+ .partner-dialog .partner-hero,.partner-dialog .partner-coupon-pocket .partner-coupon-peek,.partner-dialog .partner-coupon-float,.partner-dialog .partner-coupon-stage.is-qr-visible .partner-card{transition:none}
+ .partner-dialog .partner-qr-pending>svg,.partner-dialog .partner-card-qr-loading>svg{animation:none}
+}

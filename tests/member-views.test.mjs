@@ -43,11 +43,12 @@ async function withDialogs(run){
  const previous=new Map(['document','window','CSS','FormData'].map(key=>[key,Object.getOwnPropertyDescriptor(globalThis,key)])),NativeFormData=globalThis.FormData,dialogs=[];
  let template=null;
  class Element{
-  constructor(tag='div'){this.tag=tag;this.innerHTML='';this.textContent='';this.style={};this.attrs=new Map();this.listeners=new Map();this.parts=new Map();this.dataset={};this.isConnected=true;this.entries=[];const classes=new Set();this.classList={add:(...names)=>names.forEach(name=>classes.add(name)),remove:(...names)=>names.forEach(name=>classes.delete(name)),contains:name=>classes.has(name)};}
+  constructor(tag='div'){this.tag=tag;this.innerHTML='';this.textContent='';const styles=new Map();this.style={setProperty:(name,value)=>styles.set(name,value),getPropertyValue:name=>styles.get(name)||''};this.attrs=new Map();this.listeners=new Map();this.parts=new Map();this.dataset={};this.isConnected=true;this.entries=[];const classes=new Set();this.classList={add:(...names)=>names.forEach(name=>classes.add(name)),remove:(...names)=>names.forEach(name=>classes.delete(name)),contains:name=>classes.has(name)};}
   setAttribute(name,value){this.attrs.set(name,String(value));}
   getAttribute(name){return this.attrs.get(name)||null;}
   removeAttribute(name){this.attrs.delete(name);}
   addEventListener(name,handler){if(!this.listeners.has(name))this.listeners.set(name,[]);this.listeners.get(name).push(handler);}
+  removeEventListener(name,handler){this.listeners.set(name,(this.listeners.get(name)||[]).filter(listener=>listener!==handler));}
   fire(name,event={}){return Promise.all((this.listeners.get(name)||[]).map(handler=>handler({preventDefault(){},...event})));}
   focus(){document.activeElement=this;}
   matches(){return this.tag==='button';}
@@ -169,7 +170,7 @@ test('event and partner service buttons open dialogs without navigation or histo
   await events.requestClose();assert.equal(events.open,false);
   await publicAction(ctx,'member-partners');const partners=dialogs.at(-1);
   assert.ok(partners.open);assert.ok(partners.classList.contains('partner-dialog'));assert.match(partners.innerHTML,/<section class="partner-feelingfine" aria-labelledby="modal-title">[\s\S]*?class="partner-intro"[\s\S]*?<h2 id="modal-title" tabindex="-1">필링파인<\/h2>[\s\S]*?class="partner-benefits-copy"[\s\S]*?<div class="partner-coupon-area"><div data-partner-body/);
-  assert.match(partners.innerHTML,/data-action="partner-reveal"[^>]*>[\s\S]*내 스탬프 보기/);assert.doesNotMatch(partners.innerHTML,/FeelingFineCoupon|data-action="partner-qr"|partner-benefit-heading|partner-coupon-title|partner-information|안내 준비 중|member-application-row|member-request-row|data-action="member-event-open"/);
+  assert.match(partners.innerHTML,/data-coupon-reveal[^>]*aria-label="내 스탬프 쿠폰 열기"/);assert.match(partners.innerHTML,/FeelingFineCouponBack\.png/);assert.doesNotMatch(partners.innerHTML,/FeelingFineCoupon\.png|내 스탬프 보기|data-action="partner-qr"|partner-benefit-heading|partner-coupon-title|partner-information|안내 준비 중|member-application-row|member-request-row|data-action="member-event-open"/);
   assert.equal(calls.length,initialCalls);await publicAction(ctx,'partner-qr');assert.equal(calls.length,initialCalls);
   await publicAction(ctx,'partner-reveal');assert.match(partners.querySelector('[data-partner-body]').innerHTML,/data-action="partner-qr" aria-label="QR 표시"><i data-lucide="qr-code"/);
   assert.equal((partners.innerHTML.match(/<h2\b/g)||[]).length,1);const partnerHeader=partners.innerHTML.match(/<header\b[^>]*>[\s\S]*?<\/header>/)?.[0];assert.ok(partnerHeader);assert.doesNotMatch(partnerHeader,/<h2\b/);

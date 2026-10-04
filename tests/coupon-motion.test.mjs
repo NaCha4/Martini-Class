@@ -9,7 +9,7 @@ class Events{
  emit(type,properties={}){const event={type,target:this,currentTarget:this,cancelable:true,defaultPrevented:false,preventDefault(){this.defaultPrevented=true;},...properties};for(const {handler} of [...(this.listeners.get(type)||[])])handler(event);return event;}
  listenerCount(){return [...this.listeners.values()].reduce((count,listeners)=>count+listeners.length,0);}
 }
-function fixture(count=1){
+function fixture(count=1,options={}){
  const win=new Events(),doc=new Events(),frames=new Map();let frameId=0;
  doc.defaultView=win;doc.hidden=false;
  win.requestAnimationFrame=callback=>{const id=++frameId;frames.set(id,callback);return id;};
@@ -20,7 +20,7 @@ function fixture(count=1){
   return stage;
  });
  const root={querySelectorAll:selector=>{assert.equal(selector,'[data-coupon-interactive]');return stages;}};
- const cleanup=bindCouponMotion(root),stage=stages[0];
+ const cleanup=bindCouponMotion(root,options),stage=stages[0];
  return {win,doc,stage,stages,frames,cleanup,flush(){for(const [id,callback] of [...frames]){frames.delete(id);callback();}},down(extra={}){return stage.emit('pointerdown',{pointerId:1,pointerType:'mouse',button:0,isPrimary:true,clientX:100,clientY:100,...extra});},move(dx,dy=0,extra={}){return win.emit('pointermove',{pointerId:1,clientX:100+dx,clientY:100+dy,...extra});},up(extra={}){return win.emit('pointerup',{pointerId:1,...extra});}};
 }
 function rotation(stage){return [stage.properties.get('--coupon-rotate-x'),stage.properties.get('--coupon-rotate-y')];}
@@ -117,4 +117,76 @@ test('cleanup releases capture, cancels pending frames, removes every listener, 
 test('a root without interactive coupons is a no-op and requires no browser globals',()=>{
  const cleanup=bindCouponMotion({querySelectorAll:()=>[]});assert.equal(typeof cleanup,'function');cleanup();cleanup();
  bindCouponMotion(null)();
+});
+
+test('a member card tap activates once on click, including a small amount of touch movement',()=>{
+ const activations=[],f=fixture(1,{onActivate:(event,stage)=>activations.push({event,stage})});
+ f.down({pointerType:'touch'});f.move(3,2);f.up();
+ assert.equal(activations.length,0);
+ const click=f.stage.emit('click',{button:0,detail:1});
+ assert.equal(activations.length,1);assert.equal(activations[0].event,click);assert.equal(activations[0].stage,f.stage);front(f);
+ f.stage.emit('click',{button:2,detail:1});assert.equal(activations.length,1);
+ // Assistive technology can invoke the accessible card without pointer events.
+ f.stage.emit('click',{detail:0});assert.equal(activations.length,2);front(f);f.cleanup();
+});
+
+test('a member drag or page scroll suppresses its following click, while the next tap still works',()=>{
+ for(const [dx,dy,pointerType] of [[6,0,'mouse'],[0,12,'touch']]){
+  let activations=0;const f=fixture(1,{onActivate:()=>activations++});
+  f.down({pointerType});f.move(dx,dy);f.flush();f.up();
+  assert.equal(f.stage.emit('click',{button:0,detail:1}).defaultPrevented,true);assert.equal(activations,0);front(f);
+  f.down({pointerType});f.up();f.stage.emit('click',{button:0,detail:1});assert.equal(activations,1);front(f);f.cleanup();
+ }
+});
+
+test('member Enter and Space activate once per press without scrolling, while arrow keys tilt',()=>{
+ let activations=0;const f=fixture(1,{onActivate:()=>activations++});
+ f.stage.emit('keydown',{key:'ArrowRight'});f.flush();assert.deepEqual(rotation(f.stage),['0deg','22deg']);
+ for(const key of ['Enter',' ','Spacebar']){
+  const before=activations;
+  assert.equal(f.stage.emit('keydown',{key}).defaultPrevented,true);assert.equal(activations,before+1);front(f);
+  assert.equal(f.stage.emit('keydown',{key,repeat:true}).defaultPrevented,true);
+  f.stage.emit('keydown',{key});assert.equal(activations,before+1);
+  assert.equal(f.stage.emit('click',{detail:0}).defaultPrevented,true);assert.equal(activations,before+1);
+  assert.equal(f.win.emit('keyup',{key}).defaultPrevented,true);front(f);
+ }
+ assert.equal(f.stage.emit('keydown',{key:'Enter',ctrlKey:true}).defaultPrevented,false);assert.equal(activations,3);f.cleanup();
+});
+
+test('an assistive click still activates after a member drag that did not emit a pointer click',()=>{
+ let activations=0;const f=fixture(1,{onActivate:()=>activations++});
+ f.down();f.move(20);f.up();f.stage.emit('click',{detail:0});assert.equal(activations,1);front(f);
+ f.down();f.move(20);f.up();f.stage.emit('keydown',{key:'Enter'});assert.equal(activations,2);
+ assert.equal(f.stage.emit('click',{detail:0}).defaultPrevented,true);assert.equal(activations,2);
+ f.win.emit('keyup',{key:'Enter'});front(f);f.cleanup();
+});
+
+test('a locked member card cancels queued movement and ignores pointer, keyboard, and activation inputs',()=>{
+ let allowed=true,activations=0;const f=fixture(1,{canInteract:()=>allowed,onActivate:()=>activations++});
+ f.down();f.move(100);assert.equal(f.frames.size,1);
+ allowed=false;f.flush();front(f);assert.deepEqual(f.stage.releaseCalls,[1]);
+ f.up();f.stage.emit('click',{detail:1});
+ f.down();assert.equal(f.move(300).defaultPrevented,false);
+ for(const key of ['ArrowRight','Enter',' ']){
+  assert.equal(f.stage.emit('keydown',{key}).defaultPrevented,true);f.win.emit('keyup',{key});
+ }
+ f.flush();front(f);assert.equal(activations,0);
+ allowed=true;f.stage.emit('keydown',{key:'ArrowLeft'});f.flush();assert.deepEqual(rotation(f.stage),['0deg','-22deg']);
+ allowed=false;f.win.emit('keyup',{key:'ArrowLeft'});front(f);
+ allowed=true;f.down();f.up();f.stage.emit('click',{detail:1});assert.equal(activations,1);front(f);f.cleanup();
+});
+
+test('starting QR issuance resets a tilted member card before the callback locks it',()=>{
+ let pending=false,activations=0;const f=fixture(1,{canInteract:()=>!pending,onActivate:()=>{front(f);pending=true;activations++;}});
+ f.stage.emit('keydown',{key:'ArrowUp'});f.flush();assert.deepEqual(rotation(f.stage),['22deg','0deg']);
+ f.stage.emit('keydown',{key:'Enter'});assert.equal(activations,1);front(f);
+ f.stage.emit('click',{detail:1});f.stage.emit('keydown',{key:'Enter',repeat:true});f.flush();front(f);assert.equal(activations,1);
+ f.cleanup();
+});
+
+test('member motion cleanup removes activation handlers and makes a late drag frame harmless',()=>{
+ let activations=0;const f=fixture(1,{onActivate:()=>activations++});
+ f.down();f.move(100);const late=[...f.frames.values()][0];f.cleanup();late();front(f);
+ for(const target of [f.win,f.doc,f.stage])assert.equal(target.listenerCount(),0);
+ f.stage.emit('click',{detail:1});f.stage.emit('keydown',{key:'Enter'});assert.equal(activations,0);f.cleanup();
 });

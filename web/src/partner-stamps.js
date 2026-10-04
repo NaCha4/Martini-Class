@@ -3,6 +3,7 @@ import { esc, icon, button, field, modal, refreshIcons } from './ui.js';
 import { getMemberSessionKey, isMemberRoute, refreshMemberSession, clearMemberIdentity, isMemberAccessError } from './member-session.js';
 import { getMerchantSessionKey, setMerchantSession, clearMerchantSession, merchantCookieUnavailable, isMerchantAccessError, MERCHANT_SESSION_CHANNEL } from './merchant-session.js';
 import { bindCouponMotion } from './coupon-motion.js';
+import { bindCouponReveal } from './coupon-pocket.js';
 import './partner-stamps.css';
 import './merchant-stamps.css';
 
@@ -16,7 +17,7 @@ export function qrLifetime(response,started,now=monotonic()){
  return Math.max(0,Math.min(30000,expires-server)-Math.max(0,now-started));
 }
 const count=value=>Math.min(CAPACITY,Math.max(0,Math.floor(Number(value)||0)));
-function stampCard(total,view){
+function stampCard(total,view,{member=false}={}){
  const completed=count(total);
  const angles=view.stampAngles??=[];
  // Keep each impression steady when the same card is refreshed or gains a stamp.
@@ -24,31 +25,69 @@ function stampCard(total,view){
  // The supplied 3000 × 1650 artwork stays intact; marks use its glass centers.
  const columns=[439,969.5,1500.5,2031.5,2562.5],rows=[418,900.5];
  const marks=Array.from({length:completed},(_,index)=>'<g class="is-stamped" transform="translate('+columns[index%5]+' '+rows[Math.floor(index/5)]+') rotate('+angles[index]+')"><image href="/assets/stamp.png?v=aeb5a211" x="-225" y="-210" width="450" height="420"/></g>').join('');
- return '<figure class="partner-coupon"><div class="partner-coupon-stage" data-coupon-interactive tabindex="0" role="button" aria-label="쿠폰 돌려보기. 좌우로 끌거나 방향키를 누르면 돌아가고, 놓으면 앞면으로 돌아옵니다."><div class="partner-coupon-float"><div class="partner-card"><div class="partner-card-face partner-card-front" aria-hidden="true"><img class="partner-card-art" src="/assets/FeelingFineCoupon.png?v=07f0f639" width="3000" height="1650" alt="Feeling Fine × Martini 쿠폰 앞면" draggable="false"><svg class="partner-stamps" viewBox="0 0 3000 1650" aria-hidden="true" focusable="false">'+marks+'</svg></div><div class="partner-card-face partner-card-back" aria-hidden="true"><img class="partner-card-art" src="/assets/FeelingFineCouponBack.png?v=b71658ac" width="3000" height="1650" alt="Feeling Fine × Martini 쿠폰 뒷면" draggable="false"></div></div></div></div><ol class="sr-only" aria-label="스탬프 '+completed+'개 적립, 총 10개">'+Array.from({length:CAPACITY},(_,index)=>'<li>'+(index+1)+'번째 '+(index<completed?'적립 완료':'미적립')+'</li>').join('')+'</ol></figure>';
+ const label=member?'내 스탬프 쿠폰. 누르면 뒷면에 적립 QR이 표시됩니다. 좌우로 끌면 쿠폰을 돌려볼 수 있습니다.':'쿠폰 돌려보기. 좌우로 끌거나 방향키를 누르면 돌아가고, 놓으면 앞면으로 돌아옵니다.';
+ return '<figure class="partner-coupon"><div class="partner-coupon-stage" data-coupon-interactive tabindex="0" role="button" aria-label="'+label+'"><div class="partner-coupon-float"><div class="partner-card"><div class="partner-card-face partner-card-front" aria-hidden="true"><img class="partner-card-art" src="/assets/FeelingFineCoupon.png?v=07f0f639" width="3000" height="1650" alt="Feeling Fine × Martini 쿠폰 앞면" draggable="false"><svg class="partner-stamps" viewBox="0 0 3000 1650" aria-hidden="true" focusable="false">'+marks+'</svg></div><div class="partner-card-face partner-card-back" aria-hidden="true"><img class="partner-card-art" src="/assets/FeelingFineCouponBack.png?v=b71658ac" width="3000" height="1650" alt="Feeling Fine × Martini 쿠폰 뒷면" draggable="false">'+(member?'<div class="partner-card-qr" data-partner-qr-face hidden></div>':'')+'</div></div></div></div><ol class="sr-only" aria-label="스탬프 '+completed+'개 적립, 총 10개">'+Array.from({length:CAPACITY},(_,index)=>'<li>'+(index+1)+'번째 '+(index<completed?'적립 완료':'미적립')+'</li>').join('')+'</ol></figure>';
 }
 function memberCurrent(ctx,view){return ctx.state.memberPartner===view&&!view.disposed&&view.dialog?.open&&isMemberRoute()&&getMemberSessionKey(ctx)===view.sessionKey;}
 function stop(view){view.stop?.();view.stop=null;}
 function clearCouponMotion(view){view.couponCleanup?.();view.couponCleanup=null;}
+function canIssueQr(view){return view.coupons?.available&&count(view.coupons.stampCount)<CAPACITY;}
 function memberBody(view){
- if(!view.revealed)return '<button type="button" class="partner-stamp-reveal" data-action="partner-reveal">내 스탬프 보기'+icon('arrow-right')+'</button>';
+ if(!view.revealed)return '<div class="partner-coupon-pocket"><button type="button" class="partner-coupon-peek" data-coupon-reveal aria-label="내 스탬프 쿠폰 열기"><img src="/assets/FeelingFineCouponBack.png?v=b71658ac" width="3000" height="1650" alt="" draggable="false"></button></div>';
  if(view.error)return '<div class="partner-message"><p role="alert">'+esc(view.error)+'</p>'+button('다시 불러오기','partner-refresh',{class:'button secondary'})+'</div>';
  if(!view.coupons)return '<p class="partner-message" role="status">스탬프를 불러오고 있어요.</p>';
- if(!view.coupons.available)return stampCard(count(view.coupons.stampCount),view)+'<p class="partner-message">지금은 스탬프를 적립할 수 없습니다. 모은 스탬프는 유지됩니다.</p>';
- const full=count(view.coupons.stampCount)>=CAPACITY;
- return stampCard(count(view.coupons.stampCount),view)+(!full?'<div class="partner-qr-slot">'+(view.qr?'<div class="partner-qr-frame"><div class="partner-qr-paper"><img src="'+esc(view.qr.image)+'" width="280" height="280" alt="필링파인 매장에서 스캔할 일회용 적립 QR 코드"></div></div><p class="partner-qr-timer"><span class="partner-live-dot" aria-hidden="true"></span>남은 시간 <strong data-partner-countdown>'+Math.ceil(Math.max(0,view.qr.deadline-monotonic())/1000)+'</strong>초</p>':view.issuing?'<span class="partner-qr-pending" role="status">'+icon('loader-circle')+'<span class="sr-only">QR을 만들고 있어요.</span></span>':(view.expired?'<p class="sr-only" role="status">QR 표시가 종료되었습니다.</p>':'')+'<button type="button" class="partner-qr-trigger" data-action="partner-qr" aria-label="'+(view.expired?'새 QR 표시':'QR 표시')+'">'+icon('qr-code')+'</button>')+'</div>':'');
+ return stampCard(count(view.coupons.stampCount),view,{member:true})+'<div class="partner-qr-slot">'+qrControl(view)+'</div><p class="partner-qr-error" data-partner-qr-error role="alert"></p>'+(!view.coupons.available?'<p class="partner-message">지금은 스탬프를 적립할 수 없습니다. 모은 스탬프는 유지됩니다.</p>':'');
 }
-function paintMember(view){const body=view.dialog?.querySelector('[data-partner-body]');if(body){clearCouponMotion(view);body.innerHTML=memberBody(view);refreshIcons();view.couponCleanup=bindCouponMotion(body);}}
-function expireMemberQr(view){stop(view);view.qr=null;view.issuing=false;view.expired=true;view.generation++;if(!view.disposed)paintMember(view);}
+function qrControl(view){
+ if(!canIssueQr(view))return '';
+ if(view.qr)return '<div class="partner-qr-timer" role="timer" aria-live="off" aria-label="QR 남은 시간"><strong data-partner-countdown>'+Math.ceil(Math.max(0,view.qr.deadline-monotonic())/1000)+'</strong><span>초</span></div>';
+ if(view.issuing)return '<span class="partner-qr-pending" role="status">'+icon('loader-circle')+'<span class="sr-only">QR을 만들고 있어요.</span></span>';
+ return (view.expired?'<span class="sr-only" role="status">QR 표시가 종료되었습니다.</span>':'')+'<button type="button" class="partner-qr-trigger" data-action="partner-qr" aria-label="'+(view.expired?'새 QR 표시':'QR 표시')+'">'+icon('qr-code')+'</button>';
+}
+function updateCountdown(view){
+ if(!view.qr)return;
+ const left=Math.max(0,view.qr.deadline-monotonic()),label=view.dialog.querySelector('[data-partner-countdown]');
+ if(label)label.textContent=String(Math.ceil(left/1000));
+ view.dialog.querySelector('.partner-qr-slot')?.style.setProperty('--qr-progress',String(left/30000));
+}
+// Update only the back face and control so the mounted card can visibly rotate.
+function syncMemberQr(view){
+ const body=view.dialog?.querySelector('[data-partner-body]');if(!body||!view.coupons)return;
+ const stage=body.querySelector('[data-coupon-interactive]'),face=body.querySelector('[data-partner-qr-face]'),slot=body.querySelector('.partner-qr-slot');
+ const showing=Boolean(view.qr||view.issuing),active=document.activeElement;
+ const transferFocus=slot?.contains?.(active)&&active?.matches?.(':focus-visible');
+ if(stage){
+  stage.classList[showing?'add':'remove']('is-qr-visible');
+  stage.setAttribute('aria-busy',String(Boolean(view.issuing)));
+  stage.setAttribute('aria-disabled',String(showing||!canIssueQr(view)));
+  stage.setAttribute('aria-label',view.qr?'매장 적립용 QR 코드':view.issuing?'적립 QR을 만들고 있습니다.':canIssueQr(view)?'내 스탬프 쿠폰. 누르면 뒷면에 적립 QR이 표시됩니다. 좌우로 끌면 쿠폰을 돌려볼 수 있습니다.':'내 스탬프 쿠폰. 지금은 추가 적립을 할 수 없습니다.');
+  if(showing){stage.style.setProperty('--coupon-rotate-x','0deg');stage.style.setProperty('--coupon-rotate-y','0deg');}
+ }
+ if(face){face.hidden=!showing;face.innerHTML=view.qr?'<div class="partner-qr-paper"><img src="'+esc(view.qr.image)+'" width="280" height="280" alt="필링파인 매장에서 스캔할 일회용 적립 QR 코드" draggable="false"></div>':view.issuing?'<span class="partner-card-qr-loading" aria-hidden="true">'+icon('loader-circle')+'</span>':'';}
+ body.querySelector('.partner-card-back')?.setAttribute('aria-hidden',String(!view.qr));
+ if(slot)slot.innerHTML=qrControl(view);
+ const error=body.querySelector('[data-partner-qr-error]');if(error)error.textContent=view.qrError||'';
+ refreshIcons();updateCountdown(view);
+ if(transferFocus)stage?.focus?.({preventScroll:true});
+}
+function paintMember(ctx,view){
+ const body=view.dialog?.querySelector('[data-partner-body]');if(!body)return;
+ clearCouponMotion(view);body.innerHTML=memberBody(view);refreshIcons();
+ view.couponCleanup=bindCouponMotion(body,{onActivate:()=>partnerAction(ctx,'partner-qr'),canInteract:()=>memberCurrent(ctx,view)&&!view.qr&&!view.issuing});
+ syncMemberQr(view);
+}
+function expireMemberQr(view){stop(view);view.qr=null;view.issuing=false;view.expired=true;view.generation++;if(!view.disposed)syncMemberQr(view);}
 function disposeMember(ctx){
- const view=ctx.state.memberPartner;if(!view)return;stop(view);clearCouponMotion(view);view.cleanup?.();view.disposed=true;view.generation++;view.qr=null;
- const slot=view.dialog?.querySelector('.partner-qr-slot');if(slot)slot.innerHTML='';delete ctx.state.memberPartner;
+ const view=ctx.state.memberPartner;if(!view)return;stop(view);clearCouponMotion(view);view.revealCleanup?.();view.cleanup?.();view.disposed=true;view.generation++;view.qr=null;
+ for(const selector of ['.partner-qr-slot','[data-partner-qr-face]']){const element=view.dialog?.querySelector(selector);if(element)element.innerHTML='';}
+ delete ctx.state.memberPartner;
 }
 function watchMemberQr(ctx,view){
  stop(view);
  const check=()=>{
   if(!memberCurrent(ctx,view)){disposeMember(ctx);return;}
   if(document.hidden||!view.qr||view.qr.deadline<=monotonic()){expireMemberQr(view);return;}
-  const label=view.dialog.querySelector('[data-partner-countdown]');if(label)label.textContent=String(Math.ceil((view.qr.deadline-monotonic())/1000));
+  updateCountdown(view);
  };
  const timer=setInterval(check,100);timer.unref?.();
  const expiry=setTimeout(()=>{if(memberCurrent(ctx,view))expireMemberQr(view);else disposeMember(ctx);},Math.max(0,view.qr.deadline-monotonic()));expiry.unref?.();
@@ -61,41 +100,52 @@ async function loadCoupons(ctx,view){
  try{
   const coupons=await ctx.api('memberCoupons',{sessionKey:view.sessionKey});
   if(!memberCurrent(ctx,view)||generation!==view.generation)return;
-  refreshMemberSession(ctx,coupons.expiresAt);view.coupons=coupons;paintMember(view);
+  refreshMemberSession(ctx,coupons.expiresAt);view.coupons=coupons;paintMember(ctx,view);
  }catch(error){
   if(!memberCurrent(ctx,view)||generation!==view.generation)return;
   if(isMemberAccessError(error)){clearMemberIdentity(ctx);await view.dialog.requestClose(true);await ctx.render();return;}
-  view.error=error.message||'스탬프를 불러오지 못했습니다.';paintMember(view);
+  view.error=error.message||'스탬프를 불러오지 못했습니다.';paintMember(ctx,view);
  }
 }
 export async function openMemberPartner(ctx){
  const sessionKey=getMemberSessionKey(ctx);if(!sessionKey||!isMemberRoute())return ctx.render();
- disposeMember(ctx);const view={sessionKey,generation:0,coupons:null,qr:null,revealed:false,disposed:false,error:''};
+ disposeMember(ctx);const view={sessionKey,generation:0,coupons:null,qr:null,revealed:false,disposed:false,error:'',qrError:''};
  const content='<section class="partner-feelingfine" aria-labelledby="modal-title">'+
-  '<div class="partner-intro"><div class="partner-hero"><img src="/assets/feelingfine-bar-hero.jpg" width="1672" height="941" alt="분위기를 표현한 가상의 바 테이블 이미지" decoding="async" draggable="false"><div class="partner-hero-title"><h2 id="modal-title" tabindex="-1">필링파인</h2><div class="partner-intro-copy"><p class="partner-intro-tagline">좋은 사람들과, 기분 좋은 한 잔.</p><p class="partner-intro-description">다양한 칵테일과 안주를 함께 즐기는 공간.</p></div></div></div></div>'+
-  '<div class="partner-benefits-copy"><p class="partner-benefits-eyebrow">마티니 부원만의 즐거움</p><h3>함께한 한 잔을,<br>차곡차곡 모아보세요.</h3><p class="partner-benefits-description">필링파인에서의 즐거운 시간을<br>부원 전용 스탬프에 담아보세요.</p><p class="partner-benefits-note">간편하게 적립하고, 내 쿠폰에서 한눈에.</p></div>'+
+  '<div class="partner-intro"><div class="partner-hero"><img src="/assets/feelingfine-bar-hero.jpg" width="1672" height="941" alt="분위기를 표현한 가상의 바 테이블 이미지" decoding="async" draggable="false"><div class="partner-hero-title"><p class="partner-brand" aria-hidden="true">Feeling Fine</p><h2 id="modal-title" tabindex="-1">필링파인</h2><div class="partner-intro-copy"><p class="partner-intro-description">다양한 칵테일과 안주를 즐기는 공간.</p></div></div></div></div>'+
+  '<div class="partner-benefits-copy"><p class="partner-benefits-eyebrow">MARTINI MEMBERS</p><h3>함께하는 시간에, 작은 혜택을.</h3><p class="partner-benefits-description">부원 전용 스탬프 적립</p></div>'+
   '<div class="partner-coupon-area"><div data-partner-body>'+memberBody(view)+'</div></div></section>';
  const dialog=modal('필링파인',content,null,{contentOnly:true,bodyTitle:true,footer:false,onClose:()=>{if(ctx.state.memberPartner===view)disposeMember(ctx);}});
  dialog.classList.add('member-dialog','member-partners-dialog','partner-dialog');view.dialog=dialog;ctx.state.memberPartner=view;
  const hidden=()=>{if(document.hidden&&(view.qr||view.issuing))expireMemberQr(view);};
- document.addEventListener('visibilitychange',hidden);view.cleanup=()=>document.removeEventListener('visibilitychange',hidden);
+ const leave=()=>{if(view.qr||view.issuing)expireMemberQr(view);};
+ document.addEventListener('visibilitychange',hidden);window.addEventListener('pagehide',leave);
+ view.cleanup=()=>{document.removeEventListener('visibilitychange',hidden);window.removeEventListener('pagehide',leave);};
+ view.revealCleanup=bindCouponReveal(dialog.querySelector('[data-coupon-reveal]'),event=>{
+  view.pointerReveal=Boolean(event?.type?.startsWith('pointer')||event?.detail>0);
+  return partnerAction(ctx,'partner-reveal');
+ });
  return dialog;
 }
 export async function partnerAction(ctx,action){
  const view=ctx.state.memberPartner;if(!view||!memberCurrent(ctx,view))return;
  if(action==='partner-reveal'){
   if(view.revealed)return;
-  view.revealed=true;paintMember(view);await loadCoupons(ctx,view);
-  if(memberCurrent(ctx,view)){
+  view.revealed=true;view.revealCleanup?.();view.revealCleanup=null;
+  view.dialog.classList.add('is-coupon-revealed');
+  view.dialog.querySelector('.partner-benefits-copy')?.setAttribute('aria-hidden','true');
+  view.dialog.querySelector('.partner-intro-copy')?.setAttribute('aria-hidden','true');
+  paintMember(ctx,view);const loadingFocus=document.activeElement;await loadCoupons(ctx,view);
+  if(memberCurrent(ctx,view)&&(document.activeElement===loadingFocus||document.activeElement===document.body)){
    const card=view.dialog.querySelector('[data-coupon-interactive]');
-   card?.focus?.({preventScroll:true});card?.scrollIntoView?.({block:'nearest',inline:'nearest',behavior:'auto'});
+   if(!view.pointerReveal)card?.focus?.({preventScroll:true});
+   card?.scrollIntoView?.({block:'nearest',inline:'nearest',behavior:'auto'});
   }
   return;
  }
  if(!view.revealed)return;
- if(action==='partner-refresh'){expireMemberQr(view);view.expired=false;return loadCoupons(ctx,view);}
- if(action!=='partner-qr'||view.issuing||!view.coupons?.available||count(view.coupons.stampCount)>=CAPACITY)return;
- expireMemberQr(view);view.expired=false;view.issuing=true;paintMember(view);const generation=++view.generation,started=monotonic();
+ if(action==='partner-refresh'){expireMemberQr(view);view.expired=false;view.qrError='';return loadCoupons(ctx,view);}
+ if(action!=='partner-qr'||view.issuing||view.qr||!canIssueQr(view))return;
+ view.expired=false;view.issuing=true;view.qrError='';syncMemberQr(view);const generation=++view.generation,started=monotonic();
  try{
   const issued=await ctx.api('issueCouponQr',{sessionKey:view.sessionKey});
   if(!memberCurrent(ctx,view)||generation!==view.generation||document.hidden)return;
@@ -105,12 +155,12 @@ export async function partnerAction(ctx,action){
   const image=await QRCode.toDataURL(location.origin+'/partners/feelingfine#qr='+issued.token,{errorCorrectionLevel:'M',margin:4,width:280,color:{dark:'#111111',light:'#ffffff'}});
   if(!memberCurrent(ctx,view)||generation!==view.generation||document.hidden)return;
   if(deadline<=monotonic()){expireMemberQr(view);return;}
-  view.issuing=false;view.qr={image,deadline};paintMember(view);watchMemberQr(ctx,view);
-  if(view.qr&&memberCurrent(ctx,view))view.dialog.querySelector('.partner-qr-slot')?.scrollIntoView?.({block:'nearest',inline:'nearest',behavior:'auto'});
+  view.issuing=false;view.qr={image,deadline};syncMemberQr(view);watchMemberQr(ctx,view);
+  if(view.qr&&memberCurrent(ctx,view))view.dialog.querySelector('[data-coupon-interactive]')?.scrollIntoView?.({block:'nearest',inline:'nearest',behavior:'auto'});
  }catch(error){
   if(!memberCurrent(ctx,view)||generation!==view.generation)return;
   if(isMemberAccessError(error)){clearMemberIdentity(ctx);await view.dialog.requestClose(true);await ctx.render();return;}
-  view.issuing=false;view.error=error.message||'QR을 만들지 못했습니다.';paintMember(view);
+  view.issuing=false;view.qrError=error.message||'QR을 만들지 못했습니다.';syncMemberQr(view);
  }
 }
 
