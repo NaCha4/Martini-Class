@@ -7,7 +7,7 @@ import { COUPON_CAPACITY } from './coupons.js';
 import { semesterSchema } from './roster.js';
 
 const derive=promisify(scrypt),PARTNER='feelingfine',PARTNER_NAME='필링파인';
-const QR_LIFETIME=10000,MERCHANT_LIFETIME=365*86400000;
+const QR_LIFETIME=30000,MERCHANT_LIFETIME=365*86400000;
 const token=z.string().regex(/^[a-f0-9]{64}$/);
 const sessionSchema=z.object({sessionKey:token}).strict();
 const qrSchema=z.object({sessionKey:token,token}).strict();
@@ -169,7 +169,7 @@ export function createPartnerStamps({db,col,clock,now,roster,throttle,audit,auth
   const ledgerRef=couponRef(member),ledger=(await tx.get(ledgerRef)).data(),coupon=couponValue(ledger),at=clock();
   merchantLive(authorized.session,authorized.config,at);
   if(Date.parse(verified.expiresAt)<=at)fail('failed-precondition','부원 인증이 만료되거나 변경되었습니다. 새 QR을 요청해 주세요.');
-  if(!(millis(qr.expiresAt)>at))fail('failed-precondition','QR 유효시간 10초가 지났습니다. 새 QR을 요청해 주세요.');
+  // expiresAt controls the member's QR display; merchants may finish later.
   if(qr.credentialVersion!==authorized.config.credentialVersion||ledger?.activeQrHash!==hash(input.token))fail('failed-precondition','새 QR이 발급되었거나 제휴 설정이 변경되었습니다. 새 QR을 확인해 주세요.');
   return {...authorized,ref,qr,member,ledgerRef,ledger,coupon,at};
  }

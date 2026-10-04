@@ -58,8 +58,6 @@ dialog.partner-dialog{width:min(740px,calc(100% - 32px));max-width:calc(100% - 3
 .merchant-panel .partner-coupon{margin:18px 0}
 .merchant-note{font-size:12px!important;line-height:1.8;color:var(--muted);margin-top:20px}
 .merchant-panel .merchant-eyebrow{font-size:12px;color:var(--gold);margin-bottom:8px}
-.merchant-countdown{margin:18px 0}
-.merchant-countdown strong{color:var(--text);font-variant-numeric:tabular-nums}
 .merchant-page>footer{text-align:center;margin-top:24px}
 .merchant-result>svg,.merchant-scan>svg{width:32px;height:32px;color:var(--gold);margin-bottom:18px}
 .merchant-result,.merchant-scan{text-align:center}

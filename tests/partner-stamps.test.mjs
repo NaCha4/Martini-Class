@@ -240,6 +240,7 @@ test('merchant logout revokes only its session and replaying logout cannot resto
 
 test('rotating the merchant code revokes existing sessions and previously issued QR tokens',async()=>{
  const f=await ready(),qr=await f.qr();
+ f.advance(30001);
  const old=clone(f.records.get(settingsPath));
  await f.handle({op:'saveCouponSettings',revision:1,enabled:true,code:ROTATED_CODE},owner);
  assert.notDeepEqual(f.records.get(settingsPath),old);
@@ -252,24 +253,57 @@ test('rotating the merchant code revokes existing sessions and previously issued
  assert.equal((await stamp(f,next.token,fresh.sessionKey)).stampCount,1);
 });
 
-test('issued QR tokens are hash-only capabilities with an exact ten-second lifetime',async()=>{
+test('issued QR tokens are hash-only capabilities with an exact thirty-second display lifetime',async()=>{
  const f=await ready(),qr=await f.qr();
  assert.match(qr.token,/^[a-f0-9]{64}$/);
- assert.equal(milliseconds(qr.serverNow),START);assert.equal(milliseconds(qr.expiresAt),START+10000);
+ assert.equal(milliseconds(qr.serverNow),START);assert.equal(milliseconds(qr.expiresAt),START+30000);
  assert.ok(f.records.has(qrPath(qr.token)));
  assert.equal(storedContains(f,qr.token),false);assert.equal(storedContains(f,memberSession),false);
- f.advance(9999);
+ f.advance(29999);
  const result=await preview(f,qr.token);
  assert.equal(result.memberName,member.name);assert.equal(result.stampCount,0);assert.equal(result.capacity,10);
- assert.equal(milliseconds(result.expiresAt),START+10000);
+ assert.equal(milliseconds(result.expiresAt),START+30000);
  f.advance(1);
- await assert.rejects(preview(f,qr.token),errorCode('failed-precondition'));
- await assert.rejects(stamp(f,qr.token),errorCode('failed-precondition'));
- assert.equal((await f.coupons()).stampCount,0);
+ assert.equal((await preview(f,qr.token)).memberName,member.name);
+ assert.equal((await stamp(f,qr.token)).stampCount,1);
+ assert.equal((await f.coupons()).stampCount,1);
+});
+
+test('a merchant can log in after the QR display ends, then preview and stamp it once',async()=>{
+ const f=fixture();await f.config();const qr=await f.qr();
+ f.advance(60000);
+ await assert.rejects(preview(f,qr.token,unknownToken),errorCode('unauthenticated'));
+ await assert.rejects(stamp(f,qr.token,unknownToken),errorCode('unauthenticated'));
+ const merchant=await f.login(),result=await preview(f,qr.token,merchant.sessionKey);
+ assert.equal(result.memberName,member.name);assert.equal(result.stampCount,0);
+ assert.equal(milliseconds(result.expiresAt),START+30000);assert.equal(milliseconds(result.serverNow),START+60000);
+ const results=await Promise.all([stamp(f,qr.token,merchant.sessionKey),stamp(f,qr.token,merchant.sessionKey)]);
+ assert.equal(results.filter(value=>!value.duplicate).length,1);
+ assert.ok(results.every(value=>value.stampCount===1));
+ assert.equal((await f.coupons()).stampCount,1);
+});
+
+test('QR display expiry does not bypass actual member or merchant session expiry',async()=>{
+ const memberExpired=await ready(),memberQr=await memberExpired.qr();
+ memberExpired.advance(7*DAY);
+ const beforeMember=clone(memberExpired.records.get(couponPath));
+ await assert.rejects(preview(memberExpired,memberQr.token),errorCode('failed-precondition'));
+ await assert.rejects(stamp(memberExpired,memberQr.token),errorCode('failed-precondition'));
+ assert.deepEqual(memberExpired.records.get(couponPath),beforeMember);
+ assert.equal(milliseconds((await memberExpired.handle({op:'merchantSession',sessionKey:memberExpired.merchant.sessionKey})).expiresAt),START+365*DAY);
+
+ const merchantExpired=await ready(),merchantQr=await merchantExpired.qr();
+ const memberPath='martini_v2_memberSessions/'+hash(memberSession);
+ merchantExpired.records.set(memberPath,{...merchantExpired.records.get(memberPath),expiresAt:Timestamp.fromMillis(START+366*DAY)});
+ merchantExpired.advance(365*DAY);
+ const beforeMerchant=clone(merchantExpired.records.get(couponPath));
+ await assert.rejects(preview(merchantExpired,merchantQr.token),errorCode('unauthenticated'));
+ await assert.rejects(stamp(merchantExpired,merchantQr.token),errorCode('unauthenticated'));
+ assert.deepEqual(merchantExpired.records.get(couponPath),beforeMerchant);
 });
 
 test('issuing a new QR replaces the previous token and forged QR tokens have no authority',async()=>{
- const f=await ready(),previous=await f.qr();f.advance(1);const current=await f.qr();
+ const f=await ready(),previous=await f.qr();f.advance(30001);const current=await f.qr();
  assert.notEqual(previous.token,current.token);
  await assert.rejects(preview(f,previous.token),errorCode('failed-precondition'));
  await assert.rejects(stamp(f,previous.token),errorCode('failed-precondition'));
@@ -282,7 +316,7 @@ test('preview is read-only for coupon, QR, and merchant records and does not ext
  const f=await ready(),qr=await f.qr(),before=clone([...f.records].filter(([path])=>!path.startsWith('martini_v2_rateLimits/'))),count=f.businessWrites().length;
  for(let attempt=0;attempt<3;attempt++){
   const result=await preview(f,qr.token);safeResponse(result);
-  assert.equal(result.stampCount,0);assert.equal(milliseconds(result.expiresAt),START+10000);f.advance(1000);
+  assert.equal(result.stampCount,0);assert.equal(milliseconds(result.expiresAt),START+30000);f.advance(30000);
  }
  assert.deepEqual([...f.records].filter(([path])=>!path.startsWith('martini_v2_rateLimits/')),before);
  assert.equal(f.businessWrites().length,count);
@@ -310,6 +344,7 @@ test('redeeming a QR revalidates the live member identity, eligibility, semester
  ];
  for(const mutate of mutations){
   const f=await ready(),qr=await f.qr(),before=clone(f.records.get(couponPath));
+  f.advance(30001);
   await mutate(f);
   await assert.rejects(preview(f,qr.token),errorCode('failed-precondition'));
   await assert.rejects(stamp(f,qr.token),errorCode('failed-precondition'));
@@ -346,6 +381,7 @@ test('a QR cannot select a different member, merchant, reward, or stamp amount',
 
 test('two merchant sessions racing the final available stamp cannot exceed ten',async()=>{
  const f=await ready(),other=await f.login(),qr=await f.qr();
+ f.advance(30001);
  f.records.set(couponPath,{...f.records.get(couponPath),stampCount:9,revision:9});
  const results=await Promise.allSettled([stamp(f,qr.token),stamp(f,qr.token,other.sessionKey)]);
  assert.equal(results.filter(result=>result.status==='fulfilled').length,1);
@@ -363,13 +399,15 @@ test('a card that fills after QR issuance cannot accept another stamp or consume
  assert.deepEqual(f.records.get(couponPath),before);assert.deepEqual(f.records.get(qrPath(qr.token)),beforeQr);
 });
 
-test('a consumed QR cannot be credited by another merchant session or retried past its original expiry',async()=>{
+test('a consumed QR remains idempotent only for its original merchant session after display expiry',async()=>{
  const f=await ready(),second=await f.login(),qr=await f.qr();
  await stamp(f,qr.token);
  await assert.rejects(stamp(f,qr.token,second.sessionKey),errorCode('already-exists'));
  assert.equal((await stamp(f,qr.token)).duplicate,true);
- f.advance(10000);
- await assert.rejects(stamp(f,qr.token),errorCode('failed-precondition'));
+ f.advance(30001);
+ assert.equal((await stamp(f,qr.token)).duplicate,true);
+ await assert.rejects(preview(f,qr.token),errorCode('already-exists'));
+ await assert.rejects(stamp(f,qr.token,second.sessionKey),errorCode('already-exists'));
  assert.equal((await f.coupons()).stampCount,1);
 });
 
@@ -518,7 +556,7 @@ test('history excludes malformed or other-partner receipts and never follows mal
  assert.equal(f.writes.length,0);
 });
 
-test('history contains only committed single accruals, including existing receipts after QR expiry or disabled settings',async()=>{
+test('history contains only committed single accruals, including existing receipts after QR display expiry or disabled settings',async()=>{
  const f=await ready(),first=await f.qr();
  assert.deepEqual(await history(f),{items:[],nextCursor:null});
  f.failWrites(write=>write.path===couponPath);
@@ -527,11 +565,12 @@ test('history contains only committed single accruals, including existing receip
  f.failWrites(null);
  await Promise.all([stamp(f,first.token),stamp(f,first.token),stamp(f,first.token)]);
  assert.deepEqual((await history(f)).items,[{memberName:member.name,at:new Date(START).toISOString(),stampCount:1}]);
- f.advance(10001);
- await assert.rejects(stamp(f,first.token),errorCode('failed-precondition'));
- const unused=await f.qr();f.advance(10000);
- await assert.rejects(stamp(f,unused.token),errorCode('failed-precondition'));
+ f.advance(30001);
+ assert.equal((await stamp(f,first.token)).duplicate,true);
+ const unused=await f.qr();f.advance(30000);
+ assert.equal((await history(f)).items.length,1,'Ending QR display must not create an accrual receipt');
  await f.handle({op:'saveCouponSettings',revision:1,enabled:false},owner);
+ await assert.rejects(stamp(f,unused.token),errorCode('unauthenticated'));
  const before=clone([...f.records]),writes=f.writes.length;
  assert.deepEqual((await history(f)).items,[{memberName:member.name,at:new Date(START).toISOString(),stampCount:1}]);
  assert.deepEqual([...f.records],before);assert.equal(f.writes.length,writes);

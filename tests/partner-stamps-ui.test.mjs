@@ -10,7 +10,7 @@ try{({openMemberPartner,partnerAction,renderMerchant,merchantSubmit,merchantActi
 const merchantKey='a'.repeat(64),memberKey='b'.repeat(64),qrToken='c'.repeat(64),otherKey='d'.repeat(64);
 const future=offset=>new Date(Date.now()+offset).toISOString();
 const deferred=()=>{let resolve;const promise=new Promise(yes=>{resolve=yes;});return {promise,resolve};};
-function context(){const calls=[],toasts=[],ctx={state:{},renders:0,render:async()=>{ctx.renders++;},toast:message=>toasts.push(message),api:async(op,data)=>{calls.push({op,data});if(op==='merchantSession')return {expiresAt:future(86400000),partnerName:'필링파인'};if(op==='merchantCouponPreview')return {memberName:'테스트 부원',stampCount:3,capacity:10,expiresAt:future(10000),serverNow:future(0)};if(op==='stampCoupon')return {stampCount:4,capacity:10};if(op==='merchantLogout')return {ok:true};if(op==='merchantLogin')return {sessionKey:merchantKey,expiresAt:future(365*86400000)};if(op==='memberCoupons')return {available:true,stampCount:3,capacity:10,revision:1,expiresAt:future(600000)};if(op==='issueCouponQr')return {token:qrToken,expiresAt:future(10000),serverNow:future(0)};throw Error('Unexpected op '+op);}};return {ctx,calls,toasts};}
+function context(){const calls=[],toasts=[],ctx={state:{},renders:0,render:async()=>{ctx.renders++;},toast:message=>toasts.push(message),api:async(op,data)=>{calls.push({op,data});if(op==='merchantSession')return {expiresAt:future(86400000),partnerName:'필링파인'};if(op==='merchantCouponPreview')return {memberName:'테스트 부원',stampCount:3,capacity:10,expiresAt:future(30000),serverNow:future(0)};if(op==='stampCoupon')return {stampCount:4,capacity:10};if(op==='merchantLogout')return {ok:true};if(op==='merchantLogin')return {sessionKey:merchantKey,expiresAt:future(365*86400000)};if(op==='memberCoupons')return {available:true,stampCount:3,capacity:10,revision:1,expiresAt:future(600000)};if(op==='issueCouponQr')return {token:qrToken,expiresAt:future(30000),serverNow:future(0)};throw Error('Unexpected op '+op);}};return {ctx,calls,toasts};}
 async function host(run,{path='/partners/feelingfine',blocked=false}={}){
  const keys=['document','window','location','history','sessionStorage','performance','setInterval','clearInterval','CSS'],previous=new Map(keys.map(key=>[key,Object.getOwnPropertyDescriptor(globalThis,key)]));
  const cookies=new Map(),writes=[],dialogs=[],timers=new Map(),tab=new Map(),docListeners=new Map(),winListeners=new Map();let now=1000,timerId=0,rejectCookies=blocked;
@@ -28,7 +28,7 @@ async function host(run,{path='/partners/feelingfine',blocked=false}={}){
  const location={pathname:path,search:'',hash:'',protocol:'https:',hostname:'martini.test',origin:'https://martini.test'};
  const values={document,window:{addEventListener:(n,fn)=>listen(winListeners,n,fn),removeEventListener:(n,fn)=>unlisten(winListeners,n,fn)},location,history:{state:{},replaceState(_s,_t,url){location.hash='';this.last=url;}},sessionStorage:{getItem:key=>tab.get(key)||null,setItem:(key,value)=>tab.set(key,value),removeItem:key=>tab.delete(key),get length(){return tab.size;},key:index=>[...tab.keys()][index]},performance:{now:()=>now},setInterval:fn=>{const id=++timerId;timers.set(id,fn);return id;},clearInterval:id=>timers.delete(id),CSS:{supports:()=>true}};
  for(const [key,value] of Object.entries(values))Object.defineProperty(globalThis,key,{configurable:true,writable:true,value});
- try{return await run({cookies,writes,dialogs,timers,tab,panel,blockCookies:value=>{rejectCookies=value;},tick:async ms=>{now+=ms;for(const fn of [...timers.values()])fn();await Promise.resolve();},hidden:async value=>{document.hidden=value;for(const fn of [...docListeners.get('visibilitychange')||[]])fn();await Promise.resolve();},focus:()=>{for(const fn of [...winListeners.get('focus')||[]])fn();}});}
+ try{return await run({cookies,writes,dialogs,timers,tab,panel,blockCookies:value=>{rejectCookies=value;},tick:async ms=>{now+=ms;for(const fn of [...timers.values()])fn();await Promise.resolve();},hidden:async value=>{document.hidden=value;for(const fn of [...docListeners.get('visibilitychange')||[]])fn();await Promise.resolve();},pagehide:async()=>{for(const fn of [...winListeners.get('pagehide')||[]])fn();await Promise.resolve();},focus:()=>{for(const fn of [...winListeners.get('focus')||[]])fn();}});}
  finally{for(const dialog of dialogs)dialog.close();for(const [key,value] of previous)if(value)Object.defineProperty(globalThis,key,value);else delete globalThis[key];}
 }
 function signIn(ctx){setMerchantSession(ctx,{sessionKey:merchantKey,expiresAt:future(365*86400000)});}
@@ -50,10 +50,11 @@ test('merchant cookie replacement and expiry invalidate the old in-memory identi
  cookies.set(MERCHANT_SESSION_COOKIE,encodeURIComponent(JSON.stringify({sessionKey:otherKey,expiresAt:future(-1000)})));assert.equal(getMerchantSessionKey(ctx),'');
 }));
 
-test('QR lifetime subtracts request latency, caps at ten seconds, and fails closed on malformed times',()=>{
- const response={expiresAt:'2026-10-05T01:00:10.000Z',serverNow:'2026-10-05T01:00:00.000Z'};
- assert.equal(qrLifetime(response,1000,3000),8000);assert.equal(qrLifetime(response,1000,12000),0);
- assert.equal(qrLifetime({...response,expiresAt:'2026-10-05T01:00:30.000Z'},1000,3000),8000);assert.equal(qrLifetime({},1000,1000),0);
+test('member QR lifetime subtracts request latency, caps at thirty seconds, and fails closed on malformed times',()=>{
+ const response={expiresAt:'2026-10-05T01:00:30.000Z',serverNow:'2026-10-05T01:00:00.000Z'};
+ assert.equal(qrLifetime(response,1000,3000),28000);assert.equal(qrLifetime(response,1000,32000),0);
+ assert.equal(qrLifetime({...response,expiresAt:'2026-10-05T01:01:00.000Z'},1000,3000),28000);
+ assert.equal(qrLifetime({...response,expiresAt:'2026-10-05T01:00:10.000Z'},1000,3000),8000);assert.equal(qrLifetime({},1000,1000),0);
 });
 
 test('a scanned QR is removed from the URL before the login form and performs no write or anonymous preview',async()=>host(async()=>{
@@ -105,10 +106,36 @@ test('late merchant preview responses do not populate another account or route',
  }
 }));
 
-test('merchant expiry and tab hiding discard preview tokens and stop local timers',async()=>host(async({tick,hidden,timers})=>{
- const {ctx}=context();signIn(ctx);location.hash='#qr='+qrToken;await renderMerchant(ctx);mountPartnerViews(ctx);assert.equal(timers.size,1);
- await tick(10001);assert.equal(ctx.state.feelingfineMerchant.token,'');assert.equal(ctx.state.feelingfineMerchant.preview,null);assert.equal(timers.size,0);
- location.hash='#qr='+qrToken;await renderMerchant(ctx);mountPartnerViews(ctx);await hidden(true);assert.equal(ctx.state.feelingfineMerchant.token,'');assert.equal(timers.size,0);clearPartnerViews(ctx);
+test('authenticated merchant preview and stamp action remain available after thirty seconds without a countdown',async()=>host(async({tick,timers,panel})=>{
+ const {ctx,calls}=context();signIn(ctx);location.hash='#qr='+qrToken;panel.innerHTML=await renderMerchant(ctx);mountPartnerViews(ctx);assert.equal(timers.size,1);
+ assert.doesNotMatch(panel.innerHTML,/data-merchant-countdown|QR 유효시간/);
+ await tick(30001);assert.equal(ctx.state.feelingfineMerchant.token,qrToken);assert.equal(ctx.state.feelingfineMerchant.preview.memberName,'테스트 부원');assert.match(panel.innerHTML,/data-action="merchant-stamp"/);
+ assert.equal(calls.filter(call=>call.op==='stampCoupon').length,0);
+ await merchantAction(ctx,'merchant-stamp');assert.deepEqual(calls.filter(call=>call.op==='stampCoupon'),[{op:'stampCoupon',data:{sessionKey:merchantKey,token:qrToken}}]);assert.equal(ctx.state.feelingfineMerchant.result.stampCount,4);clearPartnerViews(ctx);
+}));
+
+test('a merchant can finish login after thirty seconds and stamp a preview carrying an elapsed display timestamp',async()=>host(async({tick})=>{
+ const {ctx,calls}=context(),api=ctx.api;
+ ctx.api=async(op,data)=>{if(op==='merchantCouponPreview'){calls.push({op,data});return {memberName:'로그인 뒤 확인한 부원',stampCount:3,capacity:10,expiresAt:future(-60000),serverNow:future(0)};}return api(op,data);};
+ location.hash='#qr='+qrToken;assert.match(await renderMerchant(ctx),/data-form="merchant-login"/);await tick(30001);
+ await merchantSubmit(ctx,'merchant-login',{get:()=> 'synthetic-store-code'});const html=await renderMerchant(ctx);
+ assert.match(html,/로그인 뒤 확인한 부원/);assert.match(html,/data-action="merchant-stamp"/);assert.doesNotMatch(html,/data-merchant-countdown|QR이 만료/);
+ await merchantAction(ctx,'merchant-stamp');assert.equal(calls.filter(call=>call.op==='stampCoupon').length,1);assert.equal(ctx.state.feelingfineMerchant.result.stampCount,4);
+}));
+
+test('hiding the merchant tab or leaving the page still erases preview tokens and private DOM after thirty seconds',async()=>host(async({tick,hidden,pagehide,timers,panel})=>{
+ for(const leave of [()=>hidden(true),pagehide]){
+  await hidden(false);const {ctx}=context();signIn(ctx);location.hash='#qr='+qrToken;panel.innerHTML=await renderMerchant(ctx);mountPartnerViews(ctx);
+  await tick(30001);assert.match(panel.innerHTML,/테스트 부원/);await leave();
+  assert.equal(ctx.state.feelingfineMerchant.token,'');assert.equal(ctx.state.feelingfineMerchant.preview,null);assert.doesNotMatch(panel.innerHTML,/테스트 부원|data-action="merchant-stamp"/);assert.equal(timers.size,0);clearPartnerViews(ctx);
+ }
+}));
+
+test('a merchant session replaced in another tab clears an open preview and cannot stamp its old token',async()=>host(async({cookies,tick,panel,timers})=>{
+ const {ctx,calls}=context();signIn(ctx);location.hash='#qr='+qrToken;panel.innerHTML=await renderMerchant(ctx);mountPartnerViews(ctx);
+ cookies.set(MERCHANT_SESSION_COOKIE,encodeURIComponent(JSON.stringify({sessionKey:otherKey,expiresAt:future(60000)})));await tick(100);
+ assert.equal(ctx.state.feelingfineMerchant.token,'');assert.equal(ctx.state.feelingfineMerchant.preview,null);assert.doesNotMatch(panel.innerHTML,/테스트 부원|data-action="merchant-stamp"/);assert.equal(timers.size,0);
+ await merchantAction(ctx,'merchant-stamp');assert.equal(calls.filter(call=>call.op==='stampCoupon').length,0);clearPartnerViews(ctx);
 }));
 
 test('successful merchant member names clear when another tab removes the cookie',async()=>host(async({cookies,tick})=>{
@@ -122,9 +149,9 @@ test('navigation and pagehide cleanup erase existing merchant DOM before removin
  assert.doesNotMatch(panel.innerHTML,/PRIVATE/);assert.match(panel.innerHTML,/QR을 다시 스캔/);assert.equal(ctx.state.feelingfineMerchant,undefined);assert.equal(timers.size,0);
 }));
 
-test('server merchant revocation clears the cookie and returns to login while QR expiry preserves the merchant session',async()=>host(async()=>{
+test('server merchant revocation clears the cookie and returns to login while an unavailable QR preserves the merchant session',async()=>host(async()=>{
  const {ctx}=context();signIn(ctx);ctx.api=async()=>{throw Object.assign(Error('Revoked'),{code:'unauthenticated'});};assert.match(await renderMerchant(ctx),/data-form="merchant-login"/);assert.equal(getMerchantSessionKey(ctx),'');
- signIn(ctx);location.hash='#qr='+qrToken;ctx.api=async op=>{if(op==='merchantSession')return {};throw Object.assign(Error('QR이 만료되었습니다.'),{code:'failed-precondition'});};assert.match(await renderMerchant(ctx),/QR이 만료/);assert.equal(getMerchantSessionKey(ctx),merchantKey);
+ signIn(ctx);location.hash='#qr='+qrToken;ctx.api=async op=>{if(op==='merchantSession')return {};throw Object.assign(Error('더 이상 사용할 수 없는 QR입니다.'),{code:'failed-precondition'});};assert.match(await renderMerchant(ctx),/사용할 수 없는 QR/);assert.equal(getMerchantSessionKey(ctx),merchantKey);
 }));
 
 test('logout warns if this browser refuses cookie removal and sends server revocation',async()=>host(async({blockCookies})=>{
@@ -137,10 +164,11 @@ test('member partner popup keeps earned stamps when the partnership is disabled'
  assert.ok(dialog.classList.contains('member-partners-dialog'));assert.equal((html.match(/class="is-stamped"/g)||[]).length,6);assert.match(html,/모은 스탬프는 유지/);assert.doesNotMatch(html,/data-action="partner-qr"/);
 },{path:'/members'}));
 
-test('member QR is generated locally, removed at expiry, and never automatically regenerated or persisted',async()=>host(async({tick,timers,tab,cookies})=>{
+test('member QR remains visible after ten seconds, disappears after thirty, and is never regenerated or persisted automatically',async()=>host(async({tick,timers,tab,cookies})=>{
  const {ctx,calls}=context();memberSignIn(ctx);const dialog=await openMemberPartner(ctx);await partnerAction(ctx,'partner-qr');let html=dialog.querySelector('[data-partner-body]').innerHTML;
  assert.match(html,/src="data:image\/png;base64,/);assert.match(html,/partner-qr-frame/);assert.match(html,/data-partner-countdown/);assert.doesNotMatch(html,new RegExp(qrToken));
- assert.ok([...tab.values(),...cookies.values()].every(value=>!value.includes(qrToken)));assert.equal(timers.size,1);await tick(10001);
+ assert.ok([...tab.values(),...cookies.values()].every(value=>!value.includes(qrToken)));assert.equal(timers.size,1);assert.match(html,/30초/);await tick(10001);
+ html=dialog.querySelector('[data-partner-body]').innerHTML;assert.match(html,/src="data:image\/png;base64,/);assert.ok(ctx.state.memberPartner.qr);assert.equal(timers.size,1);await tick(20000);
  html=dialog.querySelector('[data-partner-body]').innerHTML;assert.doesNotMatch(html,/data:image/);assert.match(html,/새 QR 표시/);assert.equal(timers.size,0);assert.equal(calls.filter(call=>call.op==='issueCouponQr').length,1);
 },{path:'/members'}));
 
@@ -151,7 +179,7 @@ test('hiding a member QR or closing its dialog destroys the QR and its timers',a
 
 test('a QR issuance that returns after the member dialog closes cannot restore a QR',async()=>host(async()=>{
  const {ctx}=context();memberSignIn(ctx);const dialog=await openMemberPartner(ctx),pending=deferred();ctx.api=()=>pending.promise;
- const issuing=partnerAction(ctx,'partner-qr');dialog.close();pending.resolve({token:qrToken,expiresAt:future(10000),serverNow:future(0)});await issuing;assert.equal(ctx.state.memberPartner,undefined);
+ const issuing=partnerAction(ctx,'partner-qr');dialog.close();pending.resolve({token:qrToken,expiresAt:future(30000),serverNow:future(0)});await issuing;assert.equal(ctx.state.memberPartner,undefined);
 },{path:'/members'}));
 
 function adminContext(history=async()=>({items:[],nextCursor:null})){
