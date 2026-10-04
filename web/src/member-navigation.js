@@ -1,11 +1,10 @@
 import { esc, icon } from './ui.js';
 
 export const MEMBER_TABS = [
-  { id: 'home', label: '홈', icon: 'house' },
+  { id: 'activity', label: '내 현황', icon: 'clipboard-list' },
   { id: 'events', label: '행사', icon: 'calendar-days' },
   { id: 'visits', label: '출입', icon: 'door-open' },
   { id: 'benefits', label: '혜택', icon: 'ticket' },
-  { id: 'activity', label: '마이', icon: 'user-round' },
 ];
 const validTab = tab => MEMBER_TABS.some(item => item.id === tab);
 
@@ -14,7 +13,7 @@ export function memberTabForPath(path = globalThis.location?.pathname || '') {
   if (/^\/(?:members\/)?events(?:\/|$)/.test(pathname)) return 'events';
   if (/^\/members\/(?:applications|more)(?:\/|$)/.test(pathname)) return 'activity';
   if (pathname === '/members/coupons') return 'benefits';
-  return 'home';
+  return 'activity';
 }
 
 export function currentMemberTab(ctx) {
@@ -47,10 +46,9 @@ export function activateMemberTab(ctx, tab) {
   return true;
 }
 
-export function memberShell(content, { title, memberName = '', activeTab = 'home' } = {}) {
+export function memberShell(content, { title, memberName = '', activeTab = 'activity' } = {}) {
   const heading = title === undefined || title === null || title === '' ? '' : '<h1 class="member-shell-title">' + esc(title) + '</h1>';
-  const selected = validTab(activeTab) ? activeTab : 'home';
-  const initial = Array.from(String(memberName).trim())[0] || 'M';
+  const selected = validTab(activeTab) ? activeTab : 'activity';
   const navigation = MEMBER_TABS.map(item => '<button type="button" class="member-bottom-button" data-action="member-tab" data-id="' + item.id + '" aria-controls="member-panel-' + item.id + '"' + (item.id === selected ? ' aria-current="page"' : '') + '>' + icon(item.icon) + '<span>' + item.label + '</span></button>').join('');
-  return '<div class="member-shell member-app-shell" data-member-app><header class="member-app-header"><button type="button" class="member-app-brand" data-action="member-tab" data-id="home" aria-label="부원 홈으로"><img class="wordmark" src="/assets/wordmark.png" alt="Martini" width="170" height="42"></button><button type="button" class="member-app-profile" data-action="member-tab" data-id="activity" aria-label="내 활동 보기"><span aria-hidden="true">' + esc(initial) + '</span></button></header><div class="member-shell-content">' + heading + String(content ?? '') + '</div><nav class="member-bottom-nav" aria-label="부원 메뉴">' + navigation + '</nav></div>';
+  return '<div class="member-shell member-app-shell" data-member-app><header class="member-app-header"><button type="button" class="member-app-brand" data-action="member-tab" data-id="activity" aria-label="내 현황으로"><img class="wordmark" src="/assets/wordmark.png" alt="Martini" width="170" height="42"></button><div class="member-app-account"><span class="member-app-identity" title="' + esc(memberName) + '">' + esc(memberName) + '</span><button type="button" class="member-app-logout" data-action="member-forget" aria-label="로그아웃" title="로그아웃">' + icon('log-out') + '</button></div></header><div class="member-shell-content">' + heading + String(content ?? '') + '</div><nav class="member-bottom-nav" aria-label="부원 메뉴">' + navigation + '</nav></div>';
 }

@@ -19,9 +19,9 @@ const event=(id,extra={})=>({eventId:id,id,title:'행사 '+id,type:'class',locat
 const application=(id,status='registered',payment='unpaid')=>({application:{id,eventId:'event-'+id,name:'테스트 부원',status,payment,createdAt:time(-5000),offerExpiresAt:time(600000),paidAmount:0,refundAmount:0,fee:5000},event:event('event-'+id)});
 const deferred=()=>{let resolve,reject;const promise=new Promise((yes,no)=>{resolve=yes;reject=no;});return {promise,resolve,reject};};
 const visitForm=()=>{const data=new FormData();for(const [key,value] of Object.entries({visitDate:new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Seoul'}).format(new Date(Date.now()+2*86400000)),startTime:'18:00',guestCount:'2',guestNames:'PRIVATE OLD GUESTS',purpose:'PRIVATE OLD PURPOSE',consent:'on'}))data.set(key,value);return data;};
-function memberPanels(html,active='home'){
+function memberPanels(html,active='activity'){
  const entries=[...html.matchAll(/<section\b[^>]*data-member-panel="([^"]+)"[^>]*>/g)],panels={};
- assert.deepEqual(entries.map(match=>match[1]),['home','events','visits','benefits','activity']);
+ assert.deepEqual(entries.map(match=>match[1]),['activity','events','visits','benefits']);
  for(const entry of entries){
   assert.equal(/\shidden(?:\s|=|>)/.test(entry[0]),entry[1]!==active,entry[1]);
   const tags=/<\/?section\b[^>]*>/g;tags.lastIndex=entry.index+entry[0].length;let depth=1,tag;
@@ -41,7 +41,7 @@ function assertLoginGate(html){
 function sectionDocument(){
  const previous=Object.getOwnPropertyDescriptor(globalThis,'document'),scrolls=[],focuses=[];
  const sections=Object.fromEntries(['home','events','applications','coupons','more','detail'].map(id=>['member-'+id,{scrollIntoView:options=>scrolls.push({id,options}),focus:()=>focuses.push(id),setAttribute:()=>{},getAttribute:()=>'-1'}]));
- const panels=['home','events','visits','benefits','activity'].map(id=>({dataset:{memberPanel:id},hidden:id!=='home',focus:()=>focuses.push(id)}));
+ const panels=['activity','events','visits','benefits'].map(id=>({dataset:{memberPanel:id},hidden:id!=='activity',focus:()=>focuses.push(id)}));
  const buttons=panels.map(panel=>({dataset:{id:panel.dataset.memberPanel},classList:{toggle:()=>{}},setAttribute:()=>{},removeAttribute:()=>{}}));
  const app={querySelectorAll:selector=>selector==='[data-member-panel]'?panels:buttons};
  globalThis.document={getElementById:id=>sections[id]||null,querySelector:selector=>selector==='[data-member-app]'?app:selector.startsWith('#')?sections[selector.slice(1)]||null:null,querySelectorAll:()=>buttons};
@@ -120,24 +120,25 @@ async function view(section,options){
  const data=context(options);return {...data,html:await renderMemberPortal(data.ctx,{section})};
 }
 
-test('the member app mounts five panels with event choices, visit actions, benefits and private activity',async()=>{
+test('the member app mounts four management panels without a separate welcome or profile screen',async()=>{
  const events=[event('four',{startsAt:time(4000000)}),event('three',{startsAt:time(3000000)}),event('two',{startsAt:time(2000000)}),event('one',{startsAt:time(1000000)})];
  const requests=[{id:'visit-one',kind:'visit',purpose:'private visit purpose',guestNames:'private guest',status:'pending'}];
  const {html,ctx,calls}=await view('home',{events,requests,applications:[application('needs-payment'),application('offer','offered','none'),application('paid','registered','paid'),application('wait','waiting','none')]});
- const panels=memberPanels(html);assert.match(panels.home,/테스트 부원/);
+ const panels=memberPanels(html);assert.match(html,/<header\b[^>]*>[\s\S]*?테스트 부원[\s\S]*?data-action="member-forget"[\s\S]*?<\/header>/);
  for(const panel of Object.values(panels))assert.equal((panel.match(/<h1\b/g)||[]).length,1);
- assert.equal((panels.home.match(/data-action="member-event-open"/g)||[]).length,2);
  assert.equal((panels.events.match(/data-action="member-event-open"/g)||[]).length,4);
  assert.equal((panels.activity.match(/data-action="member-application-open"/g)||[]).length,4);
  const choices=panels.events;
  for(const id of ['one','two','three','four'])assert.match(choices,new RegExp('data-action="member-event-open"[^>]*data-id="'+id+'"'));
  assert.ok(choices.indexOf('data-id="one"')<choices.indexOf('data-id="two"'));
- assert.match(panels.visits,/data-action="member-visit"/);assert.match(panels.activity,/data-action="member-forget"/);
+ assert.match(panels.visits,/data-action="member-visit"/);assert.doesNotMatch(panels.activity,/data-action="member-forget"/);
  assert.match(panels.benefits,/data-action="member-partners"[^>]*aria-haspopup="dialog"/);
  const records=panels.activity;
- assert.match(records,/data-action="member-request" data-id="visit-one"/);assert.match(records,/id="member-applications"/);assert.match(records,/<h3[^>]*>내 행사 신청<\/h3>/);
+ assert.match(records,/data-action="member-request" data-id="visit-one"/);
+ for(const status of ['action','current'])assert.match(records,new RegExp('data-member-status="'+status+'"'));
  assert.doesNotMatch(html,/등록된 제휴 정보/);
  assert.doesNotMatch(html,/<details\b|<summary\b|data-action="member-(?:section|inquiry)"|운영진에게 문의|member-home-notices|data-coupon-state|학기|href="\/notices"|private guest/);
+ assert.doesNotMatch(html,/data-member-panel="home"|member-home-welcome|member-profile-card|member-home-hero|member-app-eyebrow|반가워요|마티니 홈페이지/);
  assert.deepEqual(calls.map(call=>call.op),['memberPortal','memberApplications']);
 });
 test('private events stay out of the event popup and application history while legacy public events remain visible',async()=>{
@@ -155,16 +156,16 @@ test('private events stay out of the event popup and application history while l
 test('activity groups applications and visits without secret links or retired inquiry history',async()=>{
  const requests=[{id:'visit-one',kind:'visit',purpose:'테스트 방문',startsAt:time(1000000),createdAt:time(-10000),guestCount:2,status:'pending'},{id:'inquiry-one',kind:'inquiry',subject:'테스트 문의',createdAt:time(-9000),status:'answered'}];
  const {html}=await view('applications',{requests,applications:[application('event-request')]});
- const panels=memberPanels(html,'activity'),records=panels.activity;assert.match(records,/id="member-applications"/);assert.match(records,/data-action="member-application-open"[^>]*data-id="event-request"/);
+ const panels=memberPanels(html,'activity'),records=panels.activity;assert.match(records,/data-action="member-application-open"[^>]*data-id="event-request"/);
  assert.match(records,/data-action="member-request" data-id="visit-one"/);assert.doesNotMatch(html,/inquiry-one|테스트 문의|출입 신청·문의/);
- for(const id of ['home','events','benefits'])assert.doesNotMatch(panels[id],/member-application-row|member-request-row/);
+ for(const id of ['events','benefits'])assert.doesNotMatch(panels[id],/member-application-row|member-request-row/);
  assert.doesNotMatch(html,new RegExp(sessionKey+'|'+receiptKey));assert.doesNotMatch(html,/href="\/members\/applications\/event-request"/);
 });
 test('empty member panels retain their actions and refresh reloads server status',async()=>{
  const {html,ctx,calls}=await view('applications',{events:[]});
  const panels=memberPanels(html,'activity');assert.match(panels.visits,/data-action="member-visit"/);assert.match(panels.events,/행사/);assert.match(panels.benefits,/data-action="member-partners"/);
- assert.doesNotMatch(html,/data-action="member-section"|id="member-applications"|id="member-history"|진행 중인 행사 신청이 없어요/);
- assert.match(panels.activity,/id="member-records"/);assert.match(panels.activity,/신청한 내역이 없습니다/);
+ assert.doesNotMatch(html,/data-action="member-section"|data-action="member-application-open"|data-action="member-request"/);
+ assert.doesNotMatch(panels.activity,/data-member-status=/);assert.match(panels.activity,/신청 내역이 없습니다/);
  let renders=0;ctx.render=async()=>{renders++;};
  await memberPortalAction(ctx,'member-refresh');assert.equal(renders,1);
  assert.deepEqual(calls.map(call=>call.op),['memberPortal','memberApplications']);
@@ -267,8 +268,8 @@ test('closing a receipt confirmation restores its detail popup without losing th
 });
 test('visit and logout remain directly available while the inquiry form and help section are removed',async()=>{
  const {html}=await view('more');
- const panels=memberPanels(html,'activity');assert.match(panels.visits,/data-action="member-visit"/);assert.match(panels.activity,/data-action="member-forget"/);
- assert.match(panels.activity,/테스트 부원/);
+ const panels=memberPanels(html,'activity');assert.match(panels.visits,/data-action="member-visit"/);assert.match(html,/data-action="member-forget"/);
+ assert.match(html,/테스트 부원/);
  assert.doesNotMatch(html,/href="\/(?:notices|members\/applications)"|data-action="member-(?:section|inquiry)"|운영진에게 문의|id="member-more"|로그인 중|학기/);
 });
 test('the old coupon URL requires login and selects benefits without eagerly fetching stamp data',async()=>{
@@ -279,7 +280,7 @@ test('the old coupon URL requires login and selects benefits without eagerly fet
 });
 
 test('legacy lounge routes select their relevant tab while mounting every panel and never loading notices',async()=>{
- for(const [path,active] of [['/members','home'],['/members/events','events'],['/members/applications','activity'],['/members/coupons','benefits'],['/members/more','activity'],['/events','events']]){
+ for(const [path,active] of [['/members','activity'],['/members/events','events'],['/members/applications','activity'],['/members/coupons','benefits'],['/members/more','activity'],['/events','events']]){
   values.clear();route(path);const {ctx,calls}=context({applications:[application('one')],requests:[{id:'one',kind:'inquiry',subject:'문의 내역',status:'answered'}]});const html=await renderPublic(ctx);
   memberPanels(html,active);assert.equal(ctx.state.memberAppTab,active);assert.doesNotMatch(html,/문의 내역|data-action="member-inquiry"/);
   assert.deepEqual(calls.map(call=>call.op),['memberPortal','memberApplications']);assert.doesNotMatch(html,/href="\/notices"|member-home-notices|member-navigation|data-action="member-section"|class="[^\"]*member-header-link/);
@@ -294,13 +295,34 @@ test('events and activity panels retain current and past records in chronologica
  const {html,ctx}=await view('home',{events:[event('current-event'),past],applications:[application('current-application'),pastApplication],requests});
  const panels=memberPanels(html),choices=panels.events,records=panels.activity;
  for(const id of ['current-event','past-event'])assert.match(choices,new RegExp('data-action="member-event-open"[^>]*data-id="'+id+'"'));
- assert.doesNotMatch(panels.home,/data-id="past-event"/);
+ assert.doesNotMatch(panels.activity,/data-action="member-event-open"/);
  for(const id of ['current-application','past-application'])assert.match(records,new RegExp('data-action="member-application-open"[^>]*data-id="'+id+'"'));
  for(const id of ['pending-request','past-request'])assert.match(records,new RegExp('data-action="member-request"[^>]*data-id="'+id+'"'));
  assert.doesNotMatch(html,/<details\b|<summary\b|aria-hidden="true"[^>]*class="(?:member-section|member-event)|data-action="member-section"/);
  assert.ok(choices.indexOf('data-id="current-event"')<choices.indexOf('data-id="past-event"'));
  assert.ok(records.indexOf('data-id="current-application"')<records.indexOf('data-id="past-application"'));
  assert.ok(records.indexOf('data-id="pending-request"')<records.indexOf('data-id="past-request"'));
+});
+
+test('dashboard separates action, current and past records without duplicate rows',async()=>{
+ const refundCancelled=application('refund-cancelled','cancelled','refund_pending');refundCancelled.event.status='cancelled';
+ const refundPast=application('refund-past','cancelled','refund_pending');refundPast.event.endsAt=time(-3600000);
+ const completed=application('completed','registered','paid');completed.event.status='completed';completed.event.endsAt=time(-3600000);
+ const applications=[application('unpaid'),application('live-offer','offered','none'),application('waiting','waiting','none'),application('requested','registered','requested'),application('paid','registered','paid'),refundCancelled,refundPast,completed,application('cancelled','cancelled','refunded')];
+ const requests=[{id:'approved-visit',kind:'visit',status:'approved',purpose:'방문',startsAt:time(3600000)},{id:'cancelled-visit',kind:'visit',status:'cancelled',purpose:'취소한 방문',startsAt:time(3600000)}];
+ const {html}=await view('home',{applications,requests}),dashboard=memberPanels(html).activity;
+ const entries=[...dashboard.matchAll(/<section\b[^>]*data-member-status="([^"]+)"[^>]*>/g)];
+ assert.deepEqual(entries.map(entry=>entry[1]),['action','current','past']);
+ const expected={action:['unpaid','live-offer'],current:['waiting','requested','paid','refund-cancelled','refund-past','approved-visit'],past:['completed','cancelled','cancelled-visit']};
+ for(const [index,entry] of entries.entries()){
+  const section=dashboard.slice(entry.index,entries[index+1]?.index??dashboard.length);
+  assert.match(section,/<h2\b/);
+  assert.match(section,new RegExp('class="member-section-count">'+expected[entry[1]].length+'<'));
+  const rows=[...section.matchAll(/data-action="member-(?:application-open|request)"[^>]*data-id="([^"]+)"/g)].map(match=>match[1]);
+  assert.deepEqual(rows.sort(),expected[entry[1]].toSorted(),entry[1]);
+ }
+ const ids=[...dashboard.matchAll(/data-action="member-(?:application-open|request)"[^>]*data-id="([^"]+)"/g)].map(match=>match[1]);
+ assert.equal(ids.length,11);assert.equal(new Set(ids).size,ids.length);
 });
 
 test('route initialization keeps the chosen tab during refresh and resets only on a real path change',async()=>{
