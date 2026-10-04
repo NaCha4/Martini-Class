@@ -405,7 +405,7 @@ export function createService(db,clock=Date.now){
   if(op==='clubRequestReceipt')return memberPortal.getReceipt(data,ctx);
   if(op==='cancelClubRequest')return memberPortal.cancel(data,ctx);
   const who=await admin(ctx);
-  if(['couponSettings','couponHistory','saveCouponSettings'].includes(op))return partnerStamps[op](data,who);
+  if(['couponSettings','couponHistory','saveCouponSettings','resetCouponData'].includes(op))return partnerStamps[op](data,who);
   if(op==='budgetPlanner')return budgetPlanner.read(data,who);
   if(op==='saveBudgetPlanner')return budgetPlanner.save(data,who);
   if(['onTheRockBoard','saveOnTheRockGroup','recordOnTheRockMission','updateOnTheRockRecord','voidOnTheRockRecord'].includes(op))return onTheRock(op,data,who);

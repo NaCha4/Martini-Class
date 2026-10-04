@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { registerHooks } from 'node:module';
 import { defaultRoles, hasPermission, permissionLabels } from '../functions/src/permissions.js';
 import { field } from '../web/src/ui.js';
+import { renderPartnerAdmin, partnerAdminAction } from '../web/src/partner-admin.js';
 
 // Load the actual renderer and form handlers without initializing Firebase.
 // In particular, these checks never load the app's Firebase configuration.
@@ -66,7 +67,7 @@ const nav=(html,label)=>html.match(new RegExp('<nav aria-label="'+label+'">([\\s
 // Browser layout and icon replacement are outside these checks.
 async function withDialogs(run){
  const dialogs=[];
- const element=()=>({innerHTML:'',style:{},classList:{toggle(){},add(){}},listeners:new Map(),setAttribute(){},removeAttribute(){},addEventListener(name,handler){this.listeners.set(name,handler);},querySelectorAll:()=>[],focus(){},scrollIntoView(){}});
+ const element=()=>({innerHTML:'',style:{},isConnected:true,classList:{toggle(){},add(){}},listeners:new Map(),setAttribute(){},removeAttribute(){},addEventListener(name,handler){this.listeners.set(name,handler);},querySelectorAll:()=>[],focus(){},scrollIntoView(){},remove(){this.isConnected=false;}});
  const document={
   activeElement:null,
   body:{append:dialog=>dialogs.push(dialog)},
@@ -80,7 +81,7 @@ async function withDialogs(run){
    form.querySelector=selector=>selector.includes('form-error')?error:null;
    dialog.querySelector=selector=>{
     if(parts.has(selector))return parts.get(selector);
-    if(selector==='[type=submit]'||selector==='[data-event-status-help]'||selector==='[data-existing-applications]'){
+    if(selector==='[type=submit]'||selector==='[data-event-status-help]'||selector==='[data-existing-applications]'||selector==='[data-partner-reset-progress]'){
      const control=element();parts.set(selector,control);return control;
     }
     const name=selector.match(/^\[name=([^\]]+)\]$/)?.[1];
@@ -96,7 +97,7 @@ async function withDialogs(run){
    };
    dialog.querySelectorAll=()=>[];
    dialog.showModal=()=>{dialog.open=true;};
-   dialog.close=()=>{dialog.open=false;};
+   dialog.close=()=>{if(!dialog.open)return;dialog.open=false;dialog.listeners.get('close')?.();};
    return dialog;
   },
  };
@@ -112,6 +113,87 @@ async function withDialogs(run){
   return result;
  });
 }
+
+const resetUuid='12345678-1234-4234-8234-123456789abc';
+const resetReply=(requestId,done=false,total=1)=>({requestId,done,deleted:{coupons:total,qrs:total,adjustments:0,audit:total}});
+const pendingReply=()=>{let resolve,reject;const promise=new Promise((yes,no)=>{resolve=yes;reject=no;});return {promise,resolve,reject};};
+async function withReset(run,{reset,respond}={}){
+ const {ctx}=context();ctx.state.user={uid:'reset-test-admin'};const calls=[],toasts=[];
+ const config={enabled:true,configured:true,revision:2,...(reset?{reset}:{})};
+ ctx.renders=0;ctx.toast=value=>toasts.push(value);
+ ctx.api=async(op,data)=>{calls.push({op,data});if(op==='couponSettings')return structuredClone(config);if(op==='resetCouponData'){const result=await (respond?respond(data,calls.filter(call=>call.op==='resetCouponData').length):resetReply(data.requestId,true));config.reset=result;return result;}throw Error('Unexpected reset test operation '+op);};
+ ctx.render=async()=>{ctx.renders++;return renderPartnerAdmin(ctx);};
+ return at('/admin/partners',async()=>{const html=await renderPartnerAdmin(ctx);return withDialogs(async dialogs=>{
+  const open=async()=>{await partnerAdminAction(ctx,'partneradmin-reset');return dialogs.at(-1);};
+  const submit=async(dialog,value='초기화')=>{const form=dialog.querySelector('form');form.entries=[['confirmation',value]];await form.listeners.get('submit')({preventDefault(){}});};
+  return run({ctx,calls,toasts,html,config,dialogs,open,submit});
+ });});
+}
+
+test('stamp reset stays inside the partner card and opening or cancelling never deletes records',async()=>withReset(async({html,calls,open})=>{
+ assert.match(html,/partner-admin-actions[\s\S]*data-action="partneradmin-reset"/);assert.match(html,/스탬프 초기화 \(임시\)/);
+ const dialog=await open();assert.match(dialog.innerHTML,/현재 보유 스탬프/);assert.match(dialog.innerHTML,/적립·수정 내역과 발급된 QR/);assert.match(dialog.innerHTML,/스탬프 관련 활동 로그/);assert.match(dialog.innerHTML,/설정과 사장님 로그인은 유지/);assert.match(dialog.innerHTML,/초기화 작업 자체는 로그/);assert.match(dialog.innerHTML,/button danger/);
+ assert.equal(await dialog.requestClose(),true);assert.equal(dialog.open,false);assert.deepEqual(calls.map(call=>call.op),['couponSettings']);
+}));
+
+test('stamp reset requires the exact confirmation phrase before any destructive request',async()=>withReset(async({calls,open,submit})=>{
+ const dialog=await open();for(const phrase of ['', '삭제', ' 초기화', '초기화 ', '초 기화']){await submit(dialog,phrase);assert.equal(dialog.open,true);assert.match(dialog.querySelector('form').querySelector('.form-error').textContent,/정확히 입력/);}
+ assert.equal(calls.filter(call=>call.op==='resetCouponData').length,0);
+}));
+
+test('stamp reset sends one operation ID through sequential batches and closes only after completion',async()=>{
+ let active=0,maxActive=0;
+ await withReset(async({calls,toasts,open,submit,ctx})=>{
+  const dialog=await open();await submit(dialog);const writes=calls.filter(call=>call.op==='resetCouponData');assert.equal(writes.length,3);assert.equal(new Set(writes.map(call=>call.data.requestId)).size,1);assert.match(writes[0].data.requestId,/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+  for(const write of writes)assert.deepEqual(Object.keys(write.data).sort(),['confirmation','requestId']);assert.ok(writes.every(call=>call.data.confirmation==='초기화'));assert.equal(dialog.open,false);assert.equal(ctx.renders,1);assert.equal(toasts.length,1);assert.equal(maxActive,1);
+ },{respond:async(data,n)=>{active++;maxActive=Math.max(active,maxActive);await Promise.resolve();active--;return resetReply(data.requestId,n===3,n);}});
+});
+
+test('an in-progress reset cannot be closed and a network retry retains its operation ID',async()=>{
+ const pending=pendingReply();
+ await withReset(async({calls,open,submit})=>{
+  const dialog=await open(),saving=submit(dialog);await Promise.resolve();await Promise.resolve();assert.equal(await dialog.requestClose(),false);assert.equal(dialog.open,true);
+  pending.reject(Error('네트워크 오류'));await saving;assert.equal(dialog.open,true);assert.match(dialog.querySelector('form').querySelector('.form-error').textContent,/일부 기록이 삭제되었을 수 있습니다/);
+  const first=calls.find(call=>call.op==='resetCouponData').data.requestId;await submit(dialog);const writes=calls.filter(call=>call.op==='resetCouponData');assert.equal(writes.length,2);assert.ok(writes.every(call=>call.data.requestId===first));assert.equal(dialog.open,false);
+ },{respond:(data,n)=>n===1?pending.promise:resetReply(data.requestId,true)});
+});
+
+test('an interrupted reset is resumed from settings and closing an error keeps its ID for reopening',async()=>{
+ await withReset(async({calls,html,open,submit})=>{
+  assert.match(html,/초기화 이어서/);assert.match(html,/초기화 진행 중/);assert.match(html,/data-action="partneradmin-history"[^>]*disabled/);assert.match(html,/data-action="partneradmin-edit"[^>]*disabled/);const dialog=await open();assert.match(dialog.innerHTML,/진행 중인 초기화/);await submit(dialog);assert.ok(calls.filter(call=>call.op==='resetCouponData').every(call=>call.data.requestId===resetUuid));
+ },{reset:resetReply(resetUuid,false,10)});
+ await withReset(async({calls,open,submit,ctx})=>{
+  const dialog=await open();await submit(dialog);const id=calls.find(call=>call.op==='resetCouponData').data.requestId;await dialog.requestClose(true);const reopened=await open();assert.match(reopened.innerHTML,/초기화 이어서/);await submit(reopened);assert.equal(ctx.state.partnerAdminView.settings.reset.requestId,id);assert.equal(new Set(calls.filter(call=>call.op==='resetCouponData').map(call=>call.data.requestId)).size,1);
+ },{respond:()=>{throw Error('연결 오류');}});
+});
+
+test('reset batches stop at a bounded checkpoint and the next confirmation continues the same operation',async()=>withReset(async({calls,open,submit})=>{
+ const dialog=await open();await submit(dialog);assert.equal(calls.filter(call=>call.op==='resetCouponData').length,30);assert.equal(dialog.open,true);assert.match(dialog.querySelector('form').querySelector('.form-error').textContent,/아직 진행 중/);
+ await submit(dialog);const writes=calls.filter(call=>call.op==='resetCouponData');assert.equal(writes.length,31);assert.equal(new Set(writes.map(call=>call.data.requestId)).size,1);assert.equal(dialog.open,false);
+},{respond:(data,n)=>resetReply(data.requestId,n===31,n)}));
+
+test('permission or identity loss before confirmation prevents reset and closes the old dialog',async()=>{
+ for(const change of [ctx=>{ctx.state.profile={...ctx.state.profile,permissions:[]};},ctx=>{ctx.state.user={uid:'other-admin'};},ctx=>{ctx.state.profile={...ctx.state.profile};}])await withReset(async({ctx,calls,open,submit})=>{
+  const dialog=await open();change(ctx);await submit(dialog);assert.equal(dialog.open,false);assert.equal(calls.filter(call=>call.op==='resetCouponData').length,0);assert.equal(ctx.renders,1);
+ });
+});
+
+test('permission rejection during reset closes the dialog and cannot trigger another batch',async()=>withReset(async({ctx,calls,open,submit,toasts})=>{
+ const dialog=await open();await submit(dialog);assert.equal(dialog.open,false);assert.equal(calls.filter(call=>call.op==='resetCouponData').length,1);assert.equal(ctx.renders,1);assert.equal(toasts.length,0);
+},{respond:()=>{throw Object.assign(Error('권한이 없습니다.'),{code:'functions/permission-denied'});}}));
+
+test('late reset responses cannot continue after navigation, account replacement, or dialog closure',async()=>{
+ for(const change of [async()=>{location.pathname='/admin/events';},async ctx=>{ctx.state.user={uid:'different-admin'};},async(_ctx,dialog)=>dialog.requestClose(true)]){
+  const pending=pendingReply();await withReset(async({ctx,calls,toasts,open,submit})=>{
+   const dialog=await open(),saving=submit(dialog);await Promise.resolve();await Promise.resolve();assert.equal(calls.filter(call=>call.op==='resetCouponData').length,1);await change(ctx,dialog);pending.resolve(resetReply(calls.find(call=>call.op==='resetCouponData').data.requestId,false));await saving;
+   assert.equal(dialog.open,false);assert.equal(calls.filter(call=>call.op==='resetCouponData').length,1);assert.equal(toasts.length,0);
+  },{respond:()=>pending.promise});
+ }
+});
+
+test('a completed reset response does not issue a second destructive request',async()=>withReset(async({calls,open,submit})=>{
+ const dialog=await open();await submit(dialog);await submit(dialog);assert.equal(calls.filter(call=>call.op==='resetCouponData').length,1);
+},{reset:resetReply(resetUuid,true,4)}));
 
 test('partner management requires settings permission and reads only safe dedicated configuration',async()=>{
  for(const permitted of [false,true]){

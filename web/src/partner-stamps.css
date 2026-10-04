@@ -13,17 +13,12 @@ dialog.partner-dialog.member-dialog .dialog-content{width:100%;min-width:0;paddi
 .partner-hero-title{position:absolute;inset:auto 56px 18px;color:#fff;text-shadow:0 2px 12px #0008}
 .partner-hero-title>p{margin:0 0 6px;font-size:11px;letter-spacing:.12em;color:#e1c79f}
 .partner-hero-title>h2{margin:0;font-size:34px;line-height:1.4;letter-spacing:-.04em}
-.partner-intro-copy{padding:2px 20px 26px}
+.partner-intro-copy{padding:2px 20px 16px}
 .partner-intro-tagline{margin:0;font-size:16px;line-height:1.7;color:var(--text);word-break:keep-all}
 .partner-intro-description{margin:7px 0 0;font-size:13px;line-height:1.9;color:var(--muted);word-break:keep-all}
-.partner-coupon-section{min-width:0;margin:0 24px;padding:22px 0 20px;border:1px solid #ddbd8433;border-radius:16px;background:radial-gradient(ellipse at 50% 15%,#ddbd8410,transparent 75%),linear-gradient(145deg,#ddbd8405,#00000012)}
-.partner-benefit-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 24px 2px}
-.partner-benefit-eyebrow{margin:0 0 6px;color:var(--gold);font-size:11px;font-weight:600;letter-spacing:.06em}
-.partner-benefit-heading h3{margin:0;font-size:18px;line-height:1.5;letter-spacing:-.03em}
-.partner-benefit-symbol{display:inline-flex;align-items:center;justify-content:center;width:38px;height:38px;border-radius:12px;background:#ddbd8410;color:var(--gold)}
-.partner-benefit-symbol svg{width:20px;height:20px}
-.partner-coupon-section .partner-message{padding:22px 24px}
-.partner-coupon-section .partner-qr-slot{padding-inline:16px}
+.partner-coupon-area{min-width:0;padding:0 24px}
+.partner-coupon-area .partner-message{padding:22px 12px}
+.partner-coupon-area .partner-qr-slot{padding-inline:16px}
 
 /* Preserve the original rectangular artwork and its 3000 × 1650 stamp positions. */
 .partner-coupon{margin:0;min-width:0}
@@ -44,10 +39,12 @@ dialog.partner-dialog.member-dialog .dialog-content{width:100%;min-width:0;paddi
 .partner-coupon-stage.is-dragging .partner-card{transition:none}
 
 .partner-qr-slot{text-align:center;margin-top:4px;padding:0 0 2px}
-.partner-qr-slot>.button{display:inline-flex;min-width:148px;min-height:48px;padding:12px 22px;border:1px solid var(--line);border-radius:999px;background:var(--raised);color:var(--gold)}
-.partner-qr-slot>.button:hover{border-color:var(--gold);background:var(--surface)}
-.partner-qr-help+.button{margin-top:12px}
-.partner-qr-slot>.partner-qr-help:first-child{margin-top:0}
+.partner-qr-trigger,.partner-qr-pending{display:inline-flex;align-items:center;justify-content:center;width:56px;height:56px;padding:12px;border:0;border-radius:8px;background:transparent;box-shadow:none;color:var(--gold)}
+.partner-qr-trigger{cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+.partner-qr-trigger:hover{color:var(--text)}
+.partner-qr-trigger>svg,.partner-qr-pending>svg{width:27px;height:27px}
+.partner-qr-trigger:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+.partner-qr-pending>svg{animation:partner-live-ring 1.4s linear infinite}
 .partner-qr-frame{display:inline-block;max-width:100%;position:relative;overflow:hidden;padding:7px;border-radius:15px;background:#705e3e;isolation:isolate}
 .partner-qr-frame::before{content:'';position:absolute;inset:-50%;background:conic-gradient(#897248,#f6deb0,#897248,#3b3020,#897248);animation:partner-live-ring 2s linear infinite;z-index:-1}
 .partner-qr-paper{background:#fff;padding:10px;border-radius:9px;line-height:0}
@@ -55,7 +52,6 @@ dialog.partner-dialog.member-dialog .dialog-content{width:100%;min-width:0;paddi
 .partner-qr-timer{display:flex;align-items:center;justify-content:center;gap:7px;margin-top:18px;font-size:14px}
 .partner-qr-timer strong{font-variant-numeric:tabular-nums;color:#f0d5a4}
 .partner-live-dot{width:7px;height:7px;background:#dcbc80;border-radius:50%;animation:partner-live-pulse 1s ease-in-out infinite}
-.partner-qr-help{font-size:13px;line-height:1.8;color:var(--muted);margin-top:12px}
 .partner-message{padding:22px 0;font-size:14px;color:var(--muted);line-height:1.8}
 .partner-message .button{margin-top:18px}
 
@@ -65,6 +61,15 @@ dialog.partner-dialog.member-dialog .dialog-content{width:100%;min-width:0;paddi
 .partner-admin-summary p{margin:0;color:var(--muted);font-size:13px;line-height:1.7}
 .partner-admin-actions{display:flex;justify-content:flex-end;flex-wrap:wrap;gap:8px;max-width:100%;margin-left:auto}
 .partner-admin-actions .button{min-height:44px;white-space:nowrap}
+.partner-admin-actions .partner-reset-trigger{color:var(--danger,#ef8984);background:transparent;border-color:#ef898440;font-size:12px}
+.partner-admin-actions .partner-reset-trigger:hover{background:#ef898410;border-color:#ef898480}
+.partner-reset-scope{font-size:14px;line-height:1.8;color:var(--muted)}
+.partner-reset-scope strong{color:var(--text)}
+.partner-reset-scope ul{padding-left:20px;margin:12px 0}
+.partner-reset-scope p{margin:0 0 12px}
+.partner-reset-warning{color:var(--danger,#ef8984);font-size:13px;line-height:1.7}
+.partner-reset-progress{color:var(--muted);font-size:12px;line-height:1.7;overflow-wrap:anywhere;margin:0}
+.partner-reset-progress:empty{display:none}
 
 .partner-history-dialog>.dialog-frame{display:flex;flex-direction:column;max-height:inherit;min-height:0}
 .partner-history-dialog .dialog-content{padding:22px 26px;min-width:0}
@@ -103,18 +108,14 @@ dialog.partner-dialog.member-dialog .dialog-content{width:100%;min-width:0;paddi
  .partner-hero{min-height:220px;aspect-ratio:1.6/1}
  .partner-hero-title{bottom:16px}
  .partner-hero-title>h2{font-size:29px}
- .partner-intro-copy{padding:0 18px 22px}
+ .partner-intro-copy{padding:0 18px 14px}
  .partner-intro-tagline{font-size:15px}
  .partner-intro-description{font-size:13px}
- .partner-coupon-section{margin-inline:14px;padding:18px 0;border-radius:14px}
- .partner-benefit-heading{padding-inline:18px}
- .partner-benefit-heading h3{font-size:17px}
+ .partner-coupon-area{padding-inline:14px}
  .partner-coupon-stage{padding:18px 8px 36px}
- .partner-qr-slot>.button{max-width:100%;min-height:48px;font-size:15px}
  .partner-qr-frame{width:min(314px,100%)}
  .partner-qr-paper img{width:100%}
  .partner-qr-timer{margin-top:14px;font-size:15px}
- .partner-qr-help{font-size:14px}
 }
 @media(max-width:540px){
  .partner-admin-card{padding:20px;gap:16px}

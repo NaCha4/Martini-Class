@@ -19,9 +19,21 @@ const historyPosition=z.object({at:z.string().datetime({precision:3}),id:token})
 const historyEntry=z.object({partner:z.literal(PARTNER),consumedAt:z.string().datetime({precision:3}),stampCount:z.number().int().min(1).max(COUPON_CAPACITY)});
 const merchantHistorySchema=historySchema.extend({sessionKey:token}).strict();
 const adjustmentSchema=z.object({sessionKey:token,receiptId:token,stampCount:z.number().int().min(0).max(COUPON_CAPACITY),expectedRevision:z.number().int().min(0)}).strict();
+const resetSchema=z.object({requestId:z.string().uuid(),confirmation:z.literal('초기화')}).strict();
 const HISTORY_PAGE_SIZE=30;
+const RESET_PAGE_SIZE=100;
+const resetScopes=[
+ // FeelingFine was the sole historical owner of this collection before partner
+ // markers existed. Explicit markers for any future partner must be preserved.
+ {key:'coupons',collection:'partnerCoupons',matches:record=>record.partner===undefined||record.partner===null||record.partner===PARTNER},
+ {key:'qrs',collection:'partnerCouponQrs',matches:record=>record.partner===PARTNER},
+ {key:'adjustments',collection:'partnerCouponAdjustments',matches:record=>record.partner===PARTNER},
+ {key:'audit',collection:'audit',matches:record=>record.entityType==='partnerCoupons'&&record.actor==='merchant:'+PARTNER}
+];
 const configured=config=>!!config&&typeof config.codeSalt==='string'&&/^[a-f0-9]{64}$/.test(config.codeSalt)&&typeof config.codeHash==='string'&&/^[a-f0-9]{128}$/.test(config.codeHash);
-const settingsView=config=>({revision:config?.revision||0,configured:configured(config),enabled:!!config?.enabled,...(config?.updatedAt?{updatedAt:config.updatedAt}:{})});
+const resetView=reset=>({requestId:reset.requestId,done:!!reset.done,deleted:Object.fromEntries(resetScopes.map(scope=>[scope.key,reset.deleted[scope.key]]))});
+const settingsView=config=>({revision:config?.revision||0,configured:configured(config),enabled:!!config?.enabled,...(config?.updatedAt?{updatedAt:config.updatedAt}:{}),...(config?.reset?{reset:resetView(config.reset)}:{})});
+function notResetting(config){if(config?.reset&&!config.reset.done)fail('failed-precondition','스탬프 기록을 초기화하고 있습니다. 완료 후 다시 이용해 주세요.');}
 const couponId=member=>hash(PARTNER+':student:'+member.studentId.trim().toLowerCase());
 const countSchema=z.object({stampCount:z.number().int().min(0).max(COUPON_CAPACITY),revision:z.number().int().min(0)});
 const couponValue=record=>record?parse(countSchema,record):{stampCount:0,revision:0};
@@ -64,12 +76,49 @@ export function createPartnerStamps({db,col,clock,now,roster,throttle,audit,auth
   ensureScope(who,'settings',clock());parse(z.object({}).strict(),data);
   return settingsView((await configRef().get()).data());
  }
+ async function resetCouponData(data,who){
+  ensureScope(who,'settings',clock());const input=parse(resetSchema,data);
+  return db.runTransaction(async tx=>{
+   const ref=configRef(),config=(await tx.get(ref)).data(),completedRef=col('partnerCouponResets').doc(input.requestId),completed=(await tx.get(completedRef)).data();
+   // Completion receipts survive later resets and settings edits. Replaying an
+   // earlier request can never delete activity created after that request.
+   if(completed?.done)return resetView(completed);
+   if(config?.reset?.requestId===input.requestId&&config.reset.done)return resetView(config.reset);
+   if(config?.reset&&!config.reset.done&&config.reset.requestId!==input.requestId)fail('failed-precondition','다른 초기화가 진행 중입니다. 진행 중인 초기화를 먼저 완료해 주세요.');
+   const at=now(),previous=config?.reset?.requestId===input.requestId?config.reset:null;
+   const state=previous?{...previous,deleted:{...previous.deleted},progress:{...previous.progress}}:{requestId:input.requestId,done:false,deleted:Object.fromEntries(resetScopes.map(scope=>[scope.key,0])),progress:{},startedAt:at,startedBy:who.uid};
+   const deletions=[];
+   for(const scope of resetScopes){
+    const progress=state.progress[scope.key];if(progress?.done)continue;
+    // Scan bounded document-ID pages, including unrelated rows, so filtering
+    // never loops on a preserved record or requires a new composite index.
+    let query=col(scope.collection).orderBy('__name__').limit(RESET_PAGE_SIZE+1);
+    if(progress?.cursor)query=query.startAfter(progress.cursor);
+    const result=await tx.get(query),docs=result.docs.slice(0,RESET_PAGE_SIZE);
+    for(const doc of docs)if(scope.matches(doc.data())){deletions.push(doc.ref);state.deleted[scope.key]++;}
+    state.progress[scope.key]={cursor:docs.at(-1)?.id||progress?.cursor||null,done:result.size<=RESET_PAGE_SIZE};
+   }
+   state.done=resetScopes.every(scope=>state.progress[scope.key]?.done);
+   if(state.done)state.completedAt=at;
+   // Every coupon writer reads this same config document in its transaction.
+   // The reset flag therefore fences writes between resumable deletion batches.
+   for(const deletion of deletions)tx.delete(deletion);
+   tx.set(ref,{...config,partner:PARTNER,revision:(config?.revision||0)+1,createdAt:config?.createdAt||at,updatedAt:at,updatedBy:who.uid,reset:state});
+   if(!previous)audit(tx,who,'partnerStampSettings',PARTNER,'필링파인 스탬프 기록 초기화 시작');
+   if(state.done){
+    tx.create(completedRef,{...resetView(state),completedAt:at});
+    audit(tx,who,'partnerStampSettings',PARTNER,'필링파인 스탬프 기록 전체 초기화');
+   }
+   return resetView(state);
+  });
+ }
  async function couponHistory(data,who){
   ensureScope(who,'settings',clock());const input=parse(historySchema,data);
   const position=historyCursor(input.cursor);
   // The existing consumed QR is the atomic accrual receipt. Ordering by the
   // single field and its default document-ID tie-break needs no new index.
   return db.runTransaction(async tx=>{
+   notResetting((await tx.get(configRef())).data());
    let query=col('partnerCouponQrs').orderBy('consumedAt','desc').orderBy('__name__','desc').limit(HISTORY_PAGE_SIZE+1);
    if(position)query=query.startAfter(position.at,position.id);
    const result=await tx.get(query),docs=result.docs.slice(0,HISTORY_PAGE_SIZE),members=new Map(),items=[];
@@ -102,6 +151,7 @@ export function createPartnerStamps({db,col,clock,now,roster,throttle,audit,auth
   const input=parse(merchantHistorySchema,data),position=historyCursor(input.cursor);await guard(ctx,'history',input.sessionKey,200,60);
   return db.runTransaction(async tx=>{
    const authorized=await merchant(input.sessionKey,tx);
+   notResetting(authorized.config);
    let query=col('partnerCouponQrs').orderBy('consumedAt','desc').orderBy('__name__','desc').limit(HISTORY_PAGE_SIZE+1);
    if(position)query=query.startAfter(position.at,position.id);
    const result=await tx.get(query),docs=result.docs.slice(0,HISTORY_PAGE_SIZE),members=new Map(),coupons=new Map(),items=[];
@@ -127,7 +177,8 @@ export function createPartnerStamps({db,col,clock,now,roster,throttle,audit,auth
  async function adjustMerchantCoupon(data,ctx){
   const input=parse(adjustmentSchema,data);await guard(ctx,'adjust',input.sessionKey,200,60);
   return db.runTransaction(async tx=>{
-   const authorized=await merchant(input.sessionKey,tx),receipt=(await tx.get(col('partnerCouponQrs').doc(input.receiptId))).data();
+   const authorized=await merchant(input.sessionKey,tx);notResetting(authorized.config);
+   const receipt=(await tx.get(col('partnerCouponQrs').doc(input.receiptId))).data();
    if(!historyEntry.safeParse(receipt).success||receipt.deletedAt||receipt.anonymizedAt)fail('not-found','수정할 적립 기록을 찾을 수 없습니다.');
    const member=await receiptMember(receipt,tx);
    if(!linkedMember(receipt,member)||!adjustableMember(member))fail('failed-precondition','부원 정보가 변경되어 수정할 수 없습니다. 목록을 새로고침해 주세요.');
@@ -150,10 +201,11 @@ export function createPartnerStamps({db,col,clock,now,roster,throttle,audit,auth
   const codeHash=codeSalt?(await hashCode(input.code,codeSalt)).toString('hex'):null;
   return db.runTransaction(async tx=>{
    const ref=configRef(),old=(await tx.get(ref)).data();
+   notResetting(old);
    if(input.revision!==(old?.revision||0))fail('aborted','제휴 설정이 변경되었습니다. 새로고침한 뒤 다시 확인해 주세요.');
    if(input.enabled&&!codeHash&&!configured(old))fail('failed-precondition','제휴처 로그인 코드를 먼저 설정해 주세요.');
    const at=now(),credentialsChanged=!!codeHash||!old||old.enabled!==input.enabled;
-   const next={partner:PARTNER,enabled:input.enabled,revision:input.revision+1,credentialVersion:(old?.credentialVersion||0)+(credentialsChanged?1:0),createdAt:old?.createdAt||at,updatedAt:at,updatedBy:who.uid,...(configured(old)?{codeSalt:old.codeSalt,codeHash:old.codeHash}:{}),...(codeHash?{codeSalt,codeHash}:{})};
+   const next={partner:PARTNER,enabled:input.enabled,revision:input.revision+1,credentialVersion:(old?.credentialVersion||0)+(credentialsChanged?1:0),createdAt:old?.createdAt||at,updatedAt:at,updatedBy:who.uid,...(configured(old)?{codeSalt:old.codeSalt,codeHash:old.codeHash}:{}),...(codeHash?{codeSalt,codeHash}:{}),...(old?.reset?{reset:old.reset}:{})};
    tx.set(ref,next);audit(tx,who,'partnerStampSettings',PARTNER,'필링파인 제휴 설정 변경');return settingsView(next);
   });
  }
@@ -161,6 +213,7 @@ export function createPartnerStamps({db,col,clock,now,roster,throttle,audit,auth
   const input=parse(sessionSchema,data);await guard(ctx,'coupons',input.sessionKey,200,60);
   return db.runTransaction(async tx=>{
    const {member,expiresAt}=await authenticate(input.sessionKey,tx),config=(await tx.get(configRef())).data();
+   notResetting(config);
    const coupon=couponValue((await tx.get(couponRef(member))).data());
    return {available:configured(config)&&!!config.enabled,capacity:COUPON_CAPACITY,...coupon,expiresAt};
   },{readOnly:true});
@@ -172,6 +225,7 @@ export function createPartnerStamps({db,col,clock,now,roster,throttle,audit,auth
   const rawToken=newToken(),tokenHash=hash(rawToken);
   return db.runTransaction(async tx=>{
    const {member,expiresAt:memberExpiresAt}=await authenticate(input.sessionKey,tx),config=(await tx.get(configRef())).data();
+   notResetting(config);
    if(!configured(config)||!config.enabled)fail('failed-precondition','현재 제휴처 스탬프 적립을 이용할 수 없습니다.');
    const ref=couponRef(member),stored=(await tx.get(ref)).data(),coupon=couponValue(stored);
    if(coupon.stampCount>=COUPON_CAPACITY)fail('failed-precondition','스탬프 10개를 모두 모았습니다. 추가 적립은 할 수 없습니다.');
@@ -218,7 +272,8 @@ export function createPartnerStamps({db,col,clock,now,roster,throttle,audit,auth
   });
  }
  async function verifyQr(input,tx){
-  const authorized=await merchant(input.sessionKey,tx),ref=qrRef(input.token),qr=(await tx.get(ref)).data();
+  const authorized=await merchant(input.sessionKey,tx);notResetting(authorized.config);
+  const ref=qrRef(input.token),qr=(await tx.get(ref)).data();
   if(!qr||qr.partner!==PARTNER||!token.safeParse(qr.memberSessionHash).success)fail('not-found','스탬프 QR을 확인해 주세요.');
   let verified;
   try{verified=await authenticateSessionHash(qr.memberSessionHash,tx);}
@@ -260,5 +315,5 @@ export function createPartnerStamps({db,col,clock,now,roster,throttle,audit,auth
    return {stampCount:next.stampCount,capacity:COUPON_CAPACITY,memberName:member.name};
   });
  }
- return {couponSettings,couponHistory,saveCouponSettings,memberCoupons,issueCouponQr,merchantLogin,merchantSession,merchantLogout,merchantCouponPreview,stampCoupon,merchantCouponHistory,adjustMerchantCoupon};
+ return {couponSettings,couponHistory,saveCouponSettings,resetCouponData,memberCoupons,issueCouponQr,merchantLogin,merchantSession,merchantLogout,merchantCouponPreview,stampCoupon,merchantCouponHistory,adjustMerchantCoupon};
 }

@@ -744,3 +744,173 @@ test('adjustment ledger, immutable receipt and audit remain atomic when any writ
  }
  f.failWrites(null);assert.equal((await adjust(f,hash(qr.token),5,1)).stampCount,5);
 });
+
+const RESET_ID='11111111-1111-4111-8111-111111111111',OTHER_RESET_ID='22222222-2222-4222-8222-222222222222';
+const reset=(f,requestId=RESET_ID)=>f.handle({op:'resetCouponData',requestId,confirmation:'초기화'},owner);
+const resetSettings=f=>f.handle({op:'couponSettings'},owner);
+const resetReceiptPath=id=>'martini_v2_partnerCouponResets/'+id;
+const resetAuditRecords=f=>[...f.records.values()].filter(record=>record.entityType==='partnerStampSettings'&&record.action==='필링파인 스탬프 기록 전체 초기화');
+const resetStartRecords=f=>[...f.records.values()].filter(record=>record.entityType==='partnerStampSettings'&&record.action==='필링파인 스탬프 기록 초기화 시작');
+
+test('coupon data reset requires settings authority and an exact confirmed UUID request',async()=>{
+ const f=await ready(),payload={op:'resetCouponData',requestId:RESET_ID,confirmation:'초기화'},before=clone([...f.records]);
+ await assert.rejects(f.handle(payload,guest),errorCode('unauthenticated'));
+ await assert.rejects(f.handle(payload,finance),errorCode('permission-denied'));
+ await assert.rejects(f.handle({...payload,sessionKey:f.merchant.sessionKey}),errorCode('unauthenticated'));
+ for(const patch of [{requestId:undefined},{requestId:'not-a-uuid'},{requestId:'../settings'},{confirmation:undefined},{confirmation:'초기화 '},{confirmation:'삭제'},{confirmation:true},{all:true},{partner:'other'},{limit:10000}])await assert.rejects(f.handle({...payload,...patch},owner),errorCode('invalid-argument'));
+ assert.deepEqual([...f.records],before);
+ assert.equal((await resetSettings(f)).reset,undefined);
+});
+
+test('reset deletes only FeelingFine stamp data and merchant stamp audits while preserving identities, credentials, and other partners',async()=>{
+ const f=await ready(),issued=await f.qr();await stampAmount(f,issued,3);await adjust(f,hash(issued.token),2,1);
+ const unused=await f.qr();
+ const targets={
+  'martini_v2_partnerCoupons/legacy-balance':{stampCount:7,revision:1},
+  'martini_v2_partnerCoupons/feelingfine-balance':{partner:'feelingfine',stampCount:4,revision:1},
+  'martini_v2_partnerCouponQrs/feelingfine-qr':{partner:'feelingfine'},
+  'martini_v2_partnerCouponAdjustments/feelingfine-adjustment':{partner:'feelingfine'},
+  'martini_v2_audit/feelingfine-stamp':{entityType:'partnerCoupons',actor:'merchant:feelingfine'}
+ };
+ const unrelated={
+  'martini_v2_partnerCoupons/other-balance':{partner:'other',stampCount:8,revision:2},
+  'martini_v2_partnerCouponQrs/other-qr':{partner:'other'},
+  'martini_v2_partnerCouponQrs/unmarked-qr':{legacy:true},
+  'martini_v2_partnerCouponAdjustments/other-adjustment':{partner:'other'},
+  'martini_v2_partnerCouponAdjustments/unmarked-adjustment':{legacy:true},
+  'martini_v2_audit/other-partner':{entityType:'partnerCoupons',actor:'merchant:other'},
+  'martini_v2_audit/other-entity':{entityType:'events',actor:'merchant:feelingfine'},
+  'martini_v2_audit/other-actor':{entityType:'partnerCoupons',actor:'owner'},
+  'martini_v2_events/keep-event':{title:'보존 행사'},
+  'martini_v2_applications/keep-application':{status:'registered'},
+  'martini_v2_partnerStampSettings/other':{partner:'other',enabled:true}
+ };
+ for(const [path,value] of Object.entries({...targets,...unrelated}))f.records.set(path,value);
+ const priorConfig=clone(f.records.get(settingsPath)),sessionRecords=clone([...f.records].filter(([path])=>path.includes('Sessions/')||path.includes('/members/')||path.startsWith('martini_v2_admins/')||path==='martini_v2_settings/club'));
+ const result=await reset(f);
+ assert.deepEqual(result,{requestId:RESET_ID,done:true,deleted:{coupons:3,qrs:3,adjustments:2,audit:3}});
+ for(const path of [couponPath,qrPath(issued.token),qrPath(unused.token),...Object.keys(targets)])assert.equal(f.records.has(path),false,path);
+ for(const [path,value] of Object.entries(unrelated))assert.deepEqual(f.records.get(path),value,path);
+ for(const [path,value] of sessionRecords)assert.deepEqual(f.records.get(path),value,path);
+ for(const key of ['codeSalt','codeHash','credentialVersion','enabled'])assert.deepEqual(f.records.get(settingsPath)[key],priorConfig[key]);
+ assert.equal(resetAuditRecords(f).length,1);
+ assert.equal(resetStartRecords(f).length,1);
+ const settings=await resetSettings(f);assert.deepEqual(settings.reset,result);safeResponse(settings);
+ assert.deepEqual(Object.keys(settings.reset).sort(),['deleted','done','requestId']);
+ assert.ok(!JSON.stringify(settings).includes('progress'));
+ assert.equal((await f.coupons()).stampCount,0);assert.equal((await f.coupons()).revision,0);
+ assert.deepEqual(await history(f),{items:[],nextCursor:null});
+ assert.deepEqual(await merchantHistory(f),{items:[],nextCursor:null});
+ await assert.rejects(preview(f,unused.token),errorCode('not-found'));
+ await assert.rejects(stamp(f,issued.token),errorCode('not-found'));
+ await assert.rejects(adjust(f,hash(issued.token),1,2),errorCode('not-found'));
+ assert.equal((await f.handle({op:'merchantSession',sessionKey:f.merchant.sessionKey})).partnerName,'필링파인');
+ const fresh=await f.qr();assert.equal((await stampAmount(f,fresh,4)).stampCount,4);
+ const before=clone([...f.records]),writeCount=f.writes.length;
+ assert.deepEqual(await reset(f),result);
+ assert.deepEqual([...f.records],before);assert.equal(f.writes.length,writeCount);
+});
+
+test('reset scans bounded pages past unrelated records and resumes with persisted cumulative counts',async()=>{
+ const f=fixture(),scopes=[['coupons','partnerCoupons'],['qrs','partnerCouponQrs'],['adjustments','partnerCouponAdjustments'],['audit','audit']];
+ for(const [kind,collection] of scopes){
+  for(let index=0;index<110;index++)f.records.set('martini_v2_'+collection+'/00-other-'+String(index).padStart(3,'0'),kind==='audit'?{entityType:'partnerCoupons',actor:'merchant:other'}:{partner:'other'});
+  for(let index=0;index<205;index++)f.records.set('martini_v2_'+collection+'/10-target-'+String(index).padStart(3,'0'),kind==='audit'?{entityType:'partnerCoupons',actor:'merchant:feelingfine'}:kind==='coupons'?{stampCount:1,revision:1}:{partner:'feelingfine'});
+ }
+ let result;const calls=[];
+ do{
+  const start=f.writes.length;result=await reset(f);calls.push(result);
+  const writes=f.writes.slice(start);assert.ok(writes.filter(write=>write.type==='delete').length<=400);assert.ok(writes.length<=404);
+  assert.deepEqual((await resetSettings(f)).reset,result);
+  assert.ok(calls.length<10);
+ }while(!result.done);
+ assert.equal(calls.length,4);
+ assert.deepEqual(calls[0].deleted,{coupons:0,qrs:0,adjustments:0,audit:0});
+ assert.deepEqual(result.deleted,{coupons:205,qrs:205,adjustments:205,audit:205});
+ assert.equal([...f.records.keys()].filter(path=>path.includes('/10-target-')).length,0);
+ assert.equal([...f.records.keys()].filter(path=>path.includes('/00-other-')).length,440);
+ assert.equal(resetAuditRecords(f).length,1);
+ assert.equal(resetStartRecords(f).length,1);
+ assert.ok(f.queries.every(query=>query.maximum===101&&JSON.stringify(query.orders)===JSON.stringify([['__name__','asc']])));
+ const receipt=f.records.get(resetReceiptPath(RESET_ID));assert.deepEqual(Object.keys(receipt).sort(),['completedAt','deleted','done','requestId']);
+});
+
+test('active reset fences coupon reads and writes but preserves merchant login and recoverable settings progress',async()=>{
+ const f=await ready(),qr=await f.qr();await stamp(f,qr.token);
+ const active=await f.qr();
+ for(let index=0;index<150;index++)f.records.set('martini_v2_partnerCoupons/extra-'+String(index).padStart(3,'0'),{stampCount:1,revision:1});
+ const result=await reset(f);assert.equal(result.done,false);
+ assert.equal(resetStartRecords(f).length,1);assert.equal(resetAuditRecords(f).length,0);
+ const configBefore=clone(f.records.get(settingsPath));
+ for(const operation of [()=>f.coupons(),()=>f.qr(),()=>preview(f,active.token),()=>stamp(f,active.token),()=>adjust(f,hash(qr.token),0,1),()=>history(f),()=>merchantHistory(f)])await assert.rejects(operation(),errorCode('failed-precondition'));
+ await assert.rejects(f.handle({op:'saveCouponSettings',revision:configBefore.revision,enabled:false},owner),errorCode('failed-precondition'));
+ await assert.rejects(reset(f,OTHER_RESET_ID),errorCode('failed-precondition'));
+ assert.deepEqual(f.records.get(settingsPath),configBefore);
+ assert.deepEqual((await resetSettings(f)).reset,result);
+ assert.equal((await f.handle({op:'merchantSession',sessionKey:f.merchant.sessionKey})).partnerName,'필링파인');
+ const second=await f.login();assert.ok(second.sessionKey);
+ assert.equal((await reset(f)).done,true);
+ assert.equal((await f.coupons()).stampCount,0);
+ const fresh=await f.qr();assert.equal((await stamp(f,fresh.token,second.sessionKey)).stampCount,1);
+});
+
+test('completion receipts make older request IDs harmless after settings edits and later resets',async()=>{
+ const f=await ready(),qr=await f.qr();await stamp(f,qr.token);
+ const first=await reset(f),settings=await resetSettings(f);
+ const saved=await f.handle({op:'saveCouponSettings',revision:settings.revision},owner);
+ assert.deepEqual(saved.reset,first);
+ const next=await f.qr();await stampAmount(f,next,2);
+ assert.deepEqual(await reset(f),first);assert.equal((await f.coupons()).stampCount,2);
+ const second=await reset(f,OTHER_RESET_ID);assert.equal(second.done,true);
+ const newest=await f.qr();await stampAmount(f,newest,3);
+ const before=clone([...f.records]),count=f.writes.length;
+ assert.deepEqual(await reset(f),first);
+ assert.deepEqual(await reset(f,OTHER_RESET_ID),second);
+ assert.deepEqual([...f.records],before);assert.equal(f.writes.length,count);
+ assert.equal((await f.coupons()).stampCount,3);
+ assert.deepEqual((await resetSettings(f)).reset,second);
+ assert.equal(resetAuditRecords(f).length,2);
+ assert.equal(resetStartRecords(f).length,2);
+});
+
+test('reset failure rolls back deletions, progress, completion receipt, and audit together',async()=>{
+ const f=await ready(),qr=await f.qr();await stamp(f,qr.token);await adjust(f,hash(qr.token),2,1);
+ const before=clone([...f.records]);
+ for(const prefix of ['martini_v2_partnerCoupons/','martini_v2_partnerCouponQrs/','martini_v2_partnerCouponAdjustments/','martini_v2_audit/',settingsPath,'martini_v2_partnerCouponResets/']){
+  f.failWrites(write=>write.path.startsWith(prefix));
+  await assert.rejects(reset(f),/Synthetic transaction write failure/);
+  assert.deepEqual([...f.records],before);
+  assert.equal((await resetSettings(f)).reset,undefined);
+ }
+ f.failWrites(null);assert.equal((await reset(f)).done,true);assert.equal(resetAuditRecords(f).length,1);
+});
+
+test('an interrupted multi-batch reset resumes from the last committed page and emits one completion audit',async()=>{
+ const f=await ready();for(let index=0;index<250;index++)f.records.set('martini_v2_partnerCoupons/'+String(index).padStart(3,'0'),{stampCount:1,revision:1});
+ const first=await reset(f);assert.equal(first.done,false);assert.equal(first.deleted.coupons,100);
+ assert.equal(resetStartRecords(f).length,1);assert.equal(resetAuditRecords(f).length,0);
+ const before=clone([...f.records]);
+ f.failWrites(write=>write.path===settingsPath);
+ await assert.rejects(reset(f),/Synthetic transaction write failure/);
+ assert.deepEqual([...f.records],before);assert.deepEqual((await resetSettings(f)).reset,first);
+ f.failWrites(null);
+ const results=await Promise.all([reset(f),reset(f),reset(f)]);
+ assert.equal(results[0].deleted.coupons,200);assert.equal(results[0].done,false);
+ assert.equal(results[1].deleted.coupons,250);assert.equal(results[1].done,true);
+ assert.deepEqual(results[2],results[1]);assert.equal(resetAuditRecords(f).length,1);
+ assert.equal(resetStartRecords(f).length,1);
+ assert.equal([...f.records.keys()].filter(path=>path.startsWith('martini_v2_partnerCoupons/')).length,0);
+});
+
+test('resetting an unconfigured empty stamp store never creates credentials or erases activity from a later configuration',async()=>{
+ const f=fixture();assert.equal(f.records.has(settingsPath),false);
+ const result=await reset(f);
+ assert.deepEqual(result,{requestId:RESET_ID,done:true,deleted:{coupons:0,qrs:0,adjustments:0,audit:0}});
+ const settings=await resetSettings(f);assert.equal(settings.configured,false);assert.equal(settings.enabled,false);
+ for(const key of ['codeHash','codeSalt','credentialVersion'])assert.equal(key in f.records.get(settingsPath),false);
+ const configured=await f.handle({op:'saveCouponSettings',revision:settings.revision,code:STORE_CODE},owner);
+ assert.equal(configured.configured,true);assert.deepEqual(configured.reset,result);
+ f.merchant=await f.login();const qr=await f.qr();await stampAmount(f,qr,2);
+ const before=clone([...f.records]);assert.deepEqual(await reset(f),result);assert.deepEqual([...f.records],before);
+ assert.equal((await f.coupons()).stampCount,2);assert.equal(resetStartRecords(f).length,1);assert.equal(resetAuditRecords(f).length,1);
+});

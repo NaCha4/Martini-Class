@@ -325,12 +325,14 @@ test('member QR remains visible after ten seconds, disappears after thirty, and 
  html=dialog.querySelector('[data-partner-body]').innerHTML;assert.doesNotMatch(html,/data:image/);assert.match(html,/새 QR 표시/);assert.equal(timers.size,0);assert.equal(calls.filter(call=>call.op==='issueCouponQr').length,1);
 },{path:'/members'}));
 
-test('member partner dialog places the Feeling Fine introduction above stamp benefits and closes safely with one header X and no footer',async()=>host(async({hidden,timers})=>{
+test('member partner dialog places the introduction above the coupon and accessible QR icon with one header X and no footer',async()=>host(async({hidden,timers})=>{
  const {ctx}=context();memberSignIn(ctx);const dialog=await openMemberPartner(ctx),html=dialog.innerHTML,body=()=>dialog.querySelector('[data-partner-body]').innerHTML;
  assert.match(html,/<section class="partner-feelingfine" aria-labelledby="modal-title">[\s\S]*?<div class="partner-intro">/);
- const introIndex=html.indexOf('class="partner-intro"'),benefitIndex=html.indexOf('class="partner-coupon-section"');assert.ok(introIndex>=0&&benefitIndex>introIndex);
+ const introIndex=html.indexOf('class="partner-intro"'),benefitIndex=html.indexOf('class="partner-coupon-area"');assert.ok(introIndex>=0&&benefitIndex>introIndex);
  assert.match(html.slice(introIndex,benefitIndex),/<h2 id="modal-title" tabindex="-1">필링파인<\/h2>/);
- assert.match(html.slice(benefitIndex),/aria-labelledby="partner-benefit-title">[\s\S]*?class="partner-benefit-heading"[\s\S]*?<h3 id="partner-benefit-title">[^<]+<\/h3>[\s\S]*?data-partner-body/);
+ assert.match(html.slice(benefitIndex),/class="partner-coupon-area"><div data-partner-body>/);
+ assert.doesNotMatch(html,/partner-benefit-heading|partner-benefit-title|제휴 혜택|음료 스탬프/);
+ assert.match(body(),/<button\b[^>]*class="partner-qr-trigger"[^>]*data-action="partner-qr"[^>]*aria-label="QR 표시"><i data-lucide="qr-code" aria-hidden="true"><\/i><\/button>/);
  assert.equal((html.match(/<h2\b/g)||[]).length,1);assert.equal((html.match(/id="modal-title"/g)||[]).length,1);
  const header=html.match(/<header\b[^>]*>[\s\S]*?<\/header>/)?.[0];assert.ok(header);assert.doesNotMatch(header,/<h2\b/);
  assert.doesNotMatch(html,/partner-coupon-title|partner-information|partner-info-card|안내 준비 중/);
