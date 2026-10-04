@@ -433,7 +433,7 @@ test('full or disabled member coupons retain their stamps and cannot issue a QR 
  }
 },{path:'/members',motion:true}));
 
-test('member partner dialog places the introduction above the coupon and accessible QR icon with one header X and no footer',async()=>host(async({hidden,timers})=>{
+test('expanded member partner places the introduction above the coupon with an accessible back control and no footer',async()=>host(async({hidden,timers})=>{
  const {ctx}=context();memberSignIn(ctx);const dialog=await openRevealedPartner(ctx),html=dialog.innerHTML,body=()=>dialog.querySelector('[data-partner-body]').innerHTML,face=dialog.querySelector('[data-partner-qr-face]'),stage=dialog.querySelector('[data-coupon-interactive]');
  assert.match(html,/<section class="partner-feelingfine" aria-labelledby="modal-title">[\s\S]*?<div class="partner-intro">/);
  const introIndex=html.indexOf('class="partner-intro"'),benefitIndex=html.indexOf('class="partner-coupon-area"');assert.ok(introIndex>=0&&benefitIndex>introIndex);
@@ -445,18 +445,34 @@ test('member partner dialog places the introduction above the coupon and accessi
  assert.equal((html.match(/<h2\b/g)||[]).length,1);assert.equal((html.match(/id="modal-title"/g)||[]).length,1);
  const header=html.match(/<header\b[^>]*>[\s\S]*?<\/header>/)?.[0];assert.ok(header);assert.doesNotMatch(header,/<h2\b/);
  assert.doesNotMatch(html,/partner-coupon-title|partner-information|partner-info-card|안내 준비 중/);
- assert.doesNotMatch(html,/<footer\b/);assert.equal((html.match(/\bdata-close\b/g)||[]).length,1);assert.match(html,/<button\b[^>]*data-close[^>]*aria-label="닫기"[^>]*>[\s\S]*?data-lucide="x"/);
+ assert.doesNotMatch(html,/<footer\b/);assert.equal((html.match(/\bdata-close\b/g)||[]).length,1);
+ assert.ok(dialog.classList.contains('partner-expanded'));const back=dialog.querySelector('[data-close]');assert.equal(back.getAttribute('aria-label'),'혜택으로 돌아가기');assert.match(back.innerHTML,/data-lucide="arrow-left"/);assert.doesNotMatch(back.innerHTML,/data-lucide="x"/);
  assert.equal(dialog.querySelector('.dialog-actions'),null);assert.equal(dialog.querySelector('.dialog-status'),null);
  assert.doesNotMatch(body(),/data-action="partner-refresh"|방문하고 스탬프를 모아 보세요|매장에서 적립할 때 QR을 표시해 주세요/);
  await partnerAction(ctx,'partner-qr');await hidden(true);
  assert.equal(face.innerHTML,'');assert.equal(face.hidden,true);assert.equal(stage.classList.contains('is-qr-visible'),false);assert.equal(timers.size,0);await hidden(false);await partnerAction(ctx,'partner-qr');assert.equal(timers.size,1);assert.match(face.innerHTML,/data:image/);
- dialog.pendingRequest=true;assert.equal(await dialog.requestClose(),false);assert.equal(dialog.open,true);dialog.pendingRequest=false;
+ dialog.pendingRequest=true;assert.equal(await dialog.requestClose(),false);assert.equal(dialog.open,true);assert.equal(ctx.state.memberPartner.closing,false);dialog.pendingRequest=false;
  assert.equal(await dialog.requestClose(true),true);assert.equal(dialog.open,false);assert.equal(timers.size,0);assert.equal(ctx.state.memberPartner,undefined);assert.equal(dialog.querySelector('.partner-qr-slot').innerHTML,'');assert.equal(face.innerHTML,'');
 },{path:'/members'}));
 
 test('a QR issuance that returns after the member dialog closes cannot restore a QR',async()=>host(async()=>{
  const {ctx}=context();memberSignIn(ctx);const dialog=await openRevealedPartner(ctx),face=dialog.querySelector('[data-partner-qr-face]'),pending=deferred();ctx.api=()=>pending.promise;
  const issuing=partnerAction(ctx,'partner-qr');assert.match(face.innerHTML,/partner-card-qr-loading/);dialog.close();assert.equal(face.innerHTML,'');pending.resolve({token:qrToken,expiresAt:future(30000),serverNow:future(0)});await issuing;assert.equal(ctx.state.memberPartner,undefined);assert.equal(face.innerHTML,'');assert.equal(dialog.querySelector('.partner-qr-slot').innerHTML,'');
+},{path:'/members'}));
+
+test('reverse expansion immediately clears QR work and discards its late response before the dialog closes',async()=>host(async({timers})=>{
+ const {ctx,calls}=context();memberSignIn(ctx);const dialog=await openRevealedPartner(ctx),view=ctx.state.memberPartner,face=dialog.querySelector('[data-partner-qr-face]'),pending=deferred(),animation=deferred();
+ view.origin={getBoundingClientRect:()=>({top:100,left:20,bottom:400,right:370,width:350,height:300})};
+ dialog.getBoundingClientRect=()=>({top:0,left:0,bottom:844,right:390,width:390,height:844});
+ let animationCount=0;dialog.animate=()=>{animationCount++;return {finished:animation.promise,cancel:()=>animation.resolve()};};
+ ctx.api=async(op,data)=>{calls.push({op,data});return pending.promise;};
+ const issuing=partnerAction(ctx,'partner-qr');assert.match(face.innerHTML,/partner-card-qr-loading/);
+ const closing=dialog.requestClose();assert.equal(view.closing,true);assert.equal(dialog.open,true);assert.equal(view.issuing,false);assert.equal(face.innerHTML,'');assert.equal(timers.size,0);
+ assert.equal(dialog.requestClose(),closing);assert.equal(animationCount,1);
+ const callsBefore=calls.length;await partnerAction(ctx,'partner-qr');assert.equal(calls.length,callsBefore);
+ pending.resolve({token:qrToken,expiresAt:future(30000),serverNow:future(0)});await issuing;
+ assert.equal(view.qr,null);assert.equal(face.innerHTML,'');assert.equal(dialog.open,true);
+ animation.resolve();assert.equal(await closing,true);assert.equal(dialog.open,false);assert.equal(ctx.state.memberPartner,undefined);assert.equal(face.innerHTML,'');assert.equal(timers.size,0);
 },{path:'/members'}));
 
 test('hiding or leaving during issuance restores the front and discards the late QR reply',async()=>host(async({hidden,pagehide,timers})=>{

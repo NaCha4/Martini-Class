@@ -97,7 +97,7 @@ main.member-public-page.member-app-page{width:100%;max-width:680px;min-height:10
 .member-app-shell .member-benefit-photo::after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,#15131108 15%,#20202222 48%,var(--app-surface) 100%);pointer-events:none}
 .member-app-shell .member-benefit-copy{position:relative;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:8px 17px 13px}
 .member-app-shell .member-benefit-title{display:block;margin:0;color:#f2ece0;font-size:20px;font-weight:600;line-height:1.5;letter-spacing:-.025em}
-.member-app-shell .member-benefit-cta{display:flex;align-items:center;justify-content:space-between;gap:9px;min-height:44px;color:#e2c58f;font-size:13px;font-weight:500;line-height:1.6}
+.member-app-shell .member-benefit-cta{display:flex;align-items:center;justify-content:center;flex-shrink:0;width:44px;height:44px;color:#e2c58f}
 .member-app-shell .member-benefit-cta>svg{width:18px;height:18px;flex-shrink:0}
 
 @media(min-width:700px){

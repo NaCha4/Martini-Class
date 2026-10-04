@@ -158,7 +158,7 @@ function visitsPanel(ctx){
  return appIntro('외부인 출입')+'<button type="button" class="member-visit-create" data-action="member-visit" aria-haspopup="dialog"><span class="member-visit-create-icon">'+icon('door-open')+'</span><span class="member-visit-create-label">출입 신청</span>'+icon('arrow-right')+'</button>'+receiptMessages(ctx)+'<section class="member-app-section"><div class="member-app-section-heading"><h2>신청 현황</h2>'+appLink('전체 내역','activity')+'</div>'+(requests.length?requestRows(requests):appEmpty('door-open','신청 내역이 없습니다.'))+'</section>';
 }
 function benefitsPanel(){
- return appIntro('혜택')+'<button type="button" class="member-benefit-feature" data-action="member-partners" aria-haspopup="dialog" aria-label="필링파인 스탬프 열기"><span class="member-benefit-photo"><img src="/assets/feelingfine-bar-hero.jpg" alt="" loading="lazy"></span><span class="member-benefit-copy"><strong class="member-benefit-title">필링파인</strong><span class="member-benefit-cta">스탬프'+icon('arrow-up-right')+'</span></span></button>';
+ return appIntro('혜택')+'<button type="button" class="member-benefit-feature" data-action="member-partners" aria-haspopup="dialog" aria-label="필링파인 열기"><span class="member-benefit-photo"><img src="/assets/feelingfine-bar-hero.jpg" alt="" loading="lazy"></span><span class="member-benefit-copy"><strong class="member-benefit-title">필링파인</strong><span class="member-benefit-cta" aria-hidden="true">'+icon('arrow-up-right')+'</span></span></button>';
 }
 function activityPanel(ctx){
  const view=state(ctx),groups={action:[],current:[],past:[]};

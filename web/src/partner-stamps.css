@@ -195,3 +195,19 @@ dialog.partner-dialog.member-dialog .dialog-content{width:100%;min-width:0;paddi
  .partner-dialog .partner-hero,.partner-dialog .partner-coupon-pocket .partner-coupon-peek,.partner-dialog .partner-coupon-float,.partner-dialog .partner-coupon-stage.is-qr-visible .partner-card{transition:none}
  .partner-dialog .partner-qr-pending>svg,.partner-dialog .partner-card-qr-loading>svg{animation:none}
 }
+
+/* The member's store card expands into a full-screen surface, retaining native dialog focus. */
+dialog.partner-dialog.member-dialog.partner-expanded[open]{position:fixed;inset:0;width:100vw;max-width:none;height:100dvh;max-height:none;margin:0;padding:0;overflow:hidden;border:0;border-radius:0;background:var(--partner-surface);box-shadow:none}
+dialog.partner-dialog.partner-expanded::backdrop{background:transparent;backdrop-filter:none;-webkit-backdrop-filter:none}
+dialog.partner-dialog.partner-expanded>.dialog-frame{height:100%;max-height:100%;overflow:hidden}
+dialog.partner-dialog.partner-expanded>.dialog-frame>.dialog-scroll{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:auto;scroll-padding-top:calc(68px + env(safe-area-inset-top));-webkit-overflow-scrolling:touch}
+dialog.partner-dialog.member-dialog.partner-expanded .dialog-content{min-height:100%;padding:0}
+dialog.partner-dialog.partner-expanded .partner-feelingfine{width:100%;max-width:680px;min-height:100dvh;margin:0 auto;padding-bottom:max(32px,calc(env(safe-area-inset-bottom) + 20px))}
+dialog.partner-dialog.member-dialog.partner-expanded>.dialog-frame>header{inset:max(8px,env(safe-area-inset-top)) auto auto max(12px,calc((100vw - 680px)/2 + 12px),env(safe-area-inset-left));justify-content:flex-start}
+dialog.partner-dialog.partner-expanded>.dialog-frame>header>.icon-button{display:grid;place-items:center;width:48px;height:48px;padding:0}
+dialog.partner-dialog.partner-expanded>.dialog-frame>header>.icon-button>svg{width:24px;height:24px}
+dialog.partner-dialog.partner-expanded .partner-hero{min-height:clamp(300px,40dvh,440px)}
+dialog.partner-dialog.partner-expanded.is-coupon-revealed .partner-hero{min-height:clamp(200px,28dvh,230px)}
+dialog.partner-dialog.partner-expanded .partner-coupon-area{width:100%;max-width:464px;margin-inline:auto;padding-inline:0}
+dialog.partner-dialog.partner-expanded .partner-coupon-pocket::after{bottom:-56px}
+dialog.partner-dialog.partner-expanded .partner-coupon-float{max-width:440px}
