@@ -115,6 +115,44 @@ test('inventory board escapes names and retains unassigned records without forci
  assert.doesNotMatch(html,/<img src=x|<script>파티|legacy-spirit|legacy-ingredient|legacy-supply|legacy-tool/);
 });
 
+test('category navigation preserves a valid selection and resets a removed category to all',async()=>{
+ const {ctx}=context({pages:[[item('gin','아주 긴 제품명 블렌디드 스카치 위스키',{categoryId:'party',unit:'ml',quantity:100000})]],categories:[category('party','파티'),category('empty','빈 분류')]});
+ ctx.state.inventoryCategory='party';
+ let html=await renderInventory(ctx);
+ assert.match(html,/data-inventory-filter="party" data-inventory-drop="party" aria-pressed="true"/);
+ assert.match(html,/data-inventory-create data-category="party"/);
+ assert.match(html,/data-inventory-filter="\*" aria-pressed="false"/);
+ assert.doesNotMatch(html,/data-inventory-drop="\*"/);
+ assert.match(html,/data-inventory-filter="empty"/);
+ assert.match(html,/아주 긴 제품명 블렌디드 스카치 위스키/);
+ assert.match(html,/100,000 mL/);
+ assert.equal(ctx.state.data.inventory.gin.quantity,100000);
+ ctx.state.inventoryCategory='removed';
+ html=await renderInventory(ctx);
+ assert.equal(ctx.state.inventoryCategory,'*');
+ assert.match(html,/data-inventory-filter="\*" aria-pressed="true"/);
+ assert.match(html,/data-inventory-create data-category=""/);
+ ctx.state.inventoryCategory='';
+ html=await renderInventory(ctx);
+ assert.equal(ctx.state.inventoryCategory,'');
+ assert.match(html,/data-inventory-filter="" data-inventory-drop="" aria-pressed="true"/);
+});
+
+test('a 37 item inventory has stable category totals and hides only empty groups in all view',async()=>{
+ const totals=[6,11,2,4,11,3],categories=totals.map((_,i)=>category('group-'+i,'분류 '+i));
+ const rows=totals.flatMap((count,i)=>Array.from({length:count},(_,j)=>item('item-'+i+'-'+j,'품목 '+i+' '+j,{categoryId:categories[i].id,quantity:j*100,unit:'ml'})));
+ const {ctx}=context({pages:[rows],categories});
+ const openingGroups=html=>Array.from(html.matchAll(/<section class="inventory-lane"[^>]+>/g),match=>({id:match[0].match(/data-inventory-category="([^"]*)"/)[1],hidden:match[0].includes(' hidden')}));
+ let html=await renderInventory(ctx);
+ assert.equal((html.match(/data-inventory-card=/g)||[]).length,37);
+ assert.deepEqual(Array.from(html.matchAll(/data-inventory-nav-count>(\d+)</g),match=>Number(match[1])),[37,0,...totals]);
+ assert.deepEqual(openingGroups(html),[{id:'',hidden:true},...categories.map(({id})=>({id,hidden:false}))]);
+ ctx.state.inventoryCategory='group-1';
+ html=await renderInventory(ctx);
+ assert.deepEqual(openingGroups(html).filter(group=>!group.hidden),[{id:'group-1',hidden:false}]);
+ assert.equal((html.match(/data-inventory-card=/g)||[]).length,37,'Selection must retain records for immediate category changes');
+});
+
 test('blank board shows item and category creation without photos or onboarding copy',async()=>{
  const {ctx}=context();
  const html=await renderInventory(ctx);
@@ -220,35 +258,44 @@ test('category editing saves trimmed names and rejects deleting a category conta
 
 // A minimal board DOM runs the actual delegated callbacks, including nested
 // targets. It intentionally does not claim browser layout or touch simulation.
-function boardDOM(){
+function boardDOM({assigned=false,empty=false}={}){
  const node=(dataset={})=>{
   const classes=new Set();
   return {dataset,hidden:false,listeners:new Map(),attributes:new Map(),classList:{add:(...values)=>values.forEach(value=>classes.add(value)),remove:(...values)=>values.forEach(value=>classes.delete(value)),contains:value=>classes.has(value)},
    addEventListener(name,handler){this.listeners.set(name,handler);},setAttribute(name,value){this.attributes.set(name,value);},removeAttribute(name){this.attributes.delete(name);}};
  };
- const first=node({inventoryCard:'gin',inventoryName:'런던 드라이 진'}),second=node({inventoryCard:'lemon',inventoryName:'레몬'});
- const lanes=[node({inventoryCategory:''}),node({inventoryCategory:'party'})];
+ const first=node({inventoryCard:'gin',inventoryName:'런던 드라이 진'}),second=node({inventoryCard:'lemon',inventoryName:'레몬'}),third=node({inventoryCard:'rum',inventoryName:'드라이 럼'});
+ const lanes=[node({inventoryCategory:'',inventoryDrop:''}),node({inventoryCategory:'party',inventoryDrop:'party'})];
  for(const [index,lane] of lanes.entries()){
-  lane.cards=index===0?[first,second]:[];
+  lane.cards=empty?[]:index===0?[first,second]:assigned?[third]:[];
   lane.count={textContent:''};lane.empty={hidden:false,textContent:''};
   lane.querySelectorAll=selector=>{assert.equal(selector,'[data-inventory-card]');return lane.cards;};
   lane.querySelector=selector=>({'[data-inventory-count]':lane.count,'[data-inventory-empty]':lane.empty})[selector]||null;
-  lane.closest=selector=>selector==='[data-inventory-category]'?lane:null;
+  lane.closest=selector=>['[data-inventory-category]','[data-inventory-drop]'].includes(selector)?lane:null;
   lane.contains=target=>target===lane||lane.cards.includes(target);
  }
+ const tabs=['*','','party'].map(id=>{
+  const tab=node({inventoryFilter:id,...(id==='*'?{}:{inventoryDrop:id})});
+  tab.count={textContent:String(id==='*'?lanes.reduce((n,lane)=>n+lane.cards.length,0):lanes.find(lane=>lane.dataset.inventoryCategory===id).cards.length)};
+  tab.querySelector=selector=>selector==='[data-inventory-nav-count]'?tab.count:null;
+  tab.closest=selector=>selector==='[data-inventory-filter]'||selector==='[data-inventory-drop]'&&id!=='*'?tab:null;
+  tab.contains=target=>target===tab;
+  return tab;
+ });
  const handle=node({inventoryDrag:'gin'});
  handle.closest=selector=>({'[data-inventory-drag]':handle,'[data-inventory-card]':first})[selector]||null;
  const nestedHandle={closest:selector=>handle.closest(selector)};
  const nestedLane={closest:selector=>lanes[1].closest(selector)};
+ const nestedNav={closest:selector=>tabs[2].closest(selector)};
  const search=node();search.value='';
- const results={textContent:''},status={textContent:''};
+ const results={textContent:''},status={textContent:''},noResults=node(),create=node({category:''});
  const board=node();
- board.querySelector=selector=>({'[data-inventory-search]':search,'[data-inventory-results]':results,'.inventory-save-status':status})[selector]||null;
- board.querySelectorAll=selector=>selector==='[data-inventory-card]'?[first,second]:selector==='[data-inventory-category]'?lanes:[...lanes,first,second].filter(el=>selector.split(',').some(value=>el.classList.contains(value.slice(1))));
- const root={querySelector:selector=>selector==='[data-inventory-board]'?board:null};
+ board.querySelector=selector=>({'[data-inventory-search]':search,'[data-inventory-results]':results,'[data-inventory-no-results]':noResults,'.inventory-save-status':status})[selector]||null;
+ board.querySelectorAll=selector=>selector==='[data-inventory-card]'?lanes.flatMap(lane=>lane.cards):selector==='[data-inventory-category]'?lanes:selector==='[data-inventory-filter]'?tabs:[...lanes,...tabs,first,second,third].filter(el=>selector.split(',').some(value=>el.classList.contains(value.slice(1))));
+ const root={querySelector:selector=>({'[data-inventory-board]':board,'[data-inventory-create]':create})[selector]||null};
  const transfer={data:new Map(),setData(name,value){this.data.set(name,value);},setDragImage(){}};
  const event=target=>({target,dataTransfer:transfer,prevented:false,preventDefault(){this.prevented=true;}});
- return {root,board,search,results,status,first,second,lanes,nestedHandle,nestedLane,transfer,event};
+ return {root,board,search,results,status,noResults,create,first,second,third,lanes,tabs,nestedHandle,nestedLane,nestedNav,transfer,event};
 }
 
 test('board search filters item names while keeping category counters accurate',async()=>{
@@ -264,7 +311,78 @@ test('board search filters item names while keeping category counters accurate',
  dom.search.value='';dom.search.listeners.get('input')();
  assert.equal(dom.second.hidden,false);assert.equal(dom.lanes[0].count.textContent,'2');
  assert.equal(dom.lanes[1].empty.textContent,'품목 없음');
- assert.equal(dom.results.textContent,'');
+ assert.equal(dom.results.textContent,'2개 품목');
+});
+
+test('category selection filters immediately with the current search and keeps navigation totals',()=>{
+ const {ctx,calls,renders}=context(),dom=boardDOM({assigned:true});
+ bindInventoryBoard(ctx,dom.root);
+ assert.equal(dom.results.textContent,'3개 품목');
+ dom.search.value='드라이';dom.search.listeners.get('input')();
+ assert.equal(dom.results.textContent,'2개 품목 검색됨');
+ dom.board.listeners.get('click')(dom.event(dom.nestedNav));
+ assert.equal(ctx.state.inventoryCategory,'party');
+ assert.equal(dom.first.hidden,true);assert.equal(dom.second.hidden,true);assert.equal(dom.third.hidden,false);
+ assert.equal(dom.lanes[0].hidden,true);assert.equal(dom.lanes[1].hidden,false);
+ assert.equal(dom.results.textContent,'1개 품목 검색됨');
+ assert.equal(dom.tabs[2].attributes.get('aria-pressed'),'true');
+ assert.equal(dom.tabs[0].attributes.get('aria-pressed'),'false');
+ assert.equal(dom.create.dataset.category,'party');
+ assert.deepEqual(dom.tabs.map(tab=>tab.count.textContent),['3','2','1']);
+ dom.board.listeners.get('click')(dom.event(dom.tabs[1]));
+ assert.equal(ctx.state.inventoryCategory,'','The empty id selects unassigned records');
+ assert.equal(dom.first.hidden,false);assert.equal(dom.third.hidden,true);
+ assert.equal(dom.create.dataset.category,'');
+ assert.equal(ctx.state.inventorySearch,'드라이');
+ const refreshed=boardDOM({assigned:true});bindInventoryBoard(ctx,refreshed.root);
+ assert.equal(refreshed.search.value,'드라이');
+ assert.equal(refreshed.tabs[1].attributes.get('aria-pressed'),'true');
+ assert.equal(refreshed.third.hidden,true);
+ assert.deepEqual(calls,[]);assert.equal(renders(),0,'Selection must not reload inventory');
+});
+
+test('empty categories remain selectable and an empty search shows one shared result message',()=>{
+ const {ctx}=context(),dom=boardDOM();
+ bindInventoryBoard(ctx,dom.root);
+ assert.equal(dom.lanes[1].hidden,true,'All view hides the empty group');
+ assert.equal(dom.tabs[2].hidden,false);
+ dom.board.listeners.get('click')(dom.event(dom.nestedNav));
+ assert.equal(dom.lanes[1].hidden,false,'Selecting an empty group exposes its add and edit controls');
+ assert.equal(dom.lanes[1].empty.hidden,false);
+ assert.equal(dom.results.textContent,'0개 품목');
+ assert.equal(dom.noResults.hidden,true);
+ dom.search.value='레몬';dom.search.listeners.get('input')();
+ assert.equal(dom.first.hidden,true);assert.equal(dom.second.hidden,true,'Search stays within the selected category');
+ assert.equal(dom.noResults.hidden,false);
+ assert.equal(dom.lanes[0].hidden,true);assert.equal(dom.lanes[1].hidden,true);
+ dom.board.listeners.get('click')(dom.event(dom.tabs[0]));
+ assert.equal(dom.second.hidden,false);assert.equal(dom.noResults.hidden,true);
+ assert.equal(dom.create.dataset.category,'');
+ const emptyState=context(),blank=boardDOM({empty:true});
+ emptyState.ctx.state.inventoryCategory='deleted-category';
+ bindInventoryBoard(emptyState.ctx,blank.root);
+ assert.equal(emptyState.ctx.state.inventoryCategory,'*');
+ assert.equal(blank.lanes[0].hidden,false);assert.equal(blank.lanes[1].hidden,true);
+ assert.equal(blank.lanes[0].empty.hidden,false);
+ assert.equal(blank.results.textContent,'0개 품목');assert.equal(blank.noResults.hidden,true);
+});
+
+test('navigation accepts a dragged item while the all button cannot be a drop destination',async()=>{
+ const state=context({pages:[[item('gin','진')]],categories:[category('party','파티')]}),dom=boardDOM();
+ await renderInventory(state.ctx);
+ bindInventoryBoard(state.ctx,dom.root);
+ state.ctx.api=async(op,data)=>{state.calls.push({op,data});return {};};
+ dom.board.listeners.get('dragstart')(dom.event(dom.nestedHandle));
+ const allOver=dom.event(dom.tabs[0]);dom.board.listeners.get('dragover')(allOver);
+ const allDrop=dom.event(dom.tabs[0]);await dom.board.listeners.get('drop')(allDrop);
+ assert.equal(allOver.prevented,false);assert.equal(allDrop.prevented,false);
+ assert.equal(state.calls.filter(call=>call.op==='moveInventoryItem').length,0);
+ const navOver=dom.event(dom.nestedNav);dom.board.listeners.get('dragover')(navOver);
+ assert.equal(navOver.prevented,true);assert.equal(dom.tabs[2].classList.contains('inventory-drop-target'),true);
+ await dom.board.listeners.get('drop')(dom.event(dom.nestedNav));
+ assert.deepEqual(state.calls.filter(call=>call.op==='moveInventoryItem'),[{op:'moveInventoryItem',data:{id:'gin',revision:3,categoryId:'party'}}]);
+ assert.equal(dom.tabs[2].classList.contains('inventory-drop-target'),false);
+ assert.equal(dom.board.inert,false);
 });
 
 test('delegated drag/drop accepts the dragged item, blocks external drops and clears busy state after failure',async()=>{
