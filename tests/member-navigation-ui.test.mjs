@@ -10,13 +10,7 @@ test('member shell exposes four accessible tabs and selects only the requested p
     const content = '<section id="member-panel-' + activeTab + '">내용</section>';
     const html = memberShell(content, { activeTab, memberName: '테스트 부원' });
     assert.ok(html.includes('<div class="member-shell-content">' + content));
-    const dock = html.slice(html.indexOf('<div class="member-bottom-dock"'));
-    const visitActions = dock.match(/<div\b[^>]*data-member-visit-actions[^>]*>/)?.[0];
-    assert.ok(visitActions);
-    assert.equal(/\shidden(?:\s|=|>)/.test(visitActions), activeTab !== 'visits');
-    assert.equal((html.match(/data-action="member-visit"/g) || []).length, 1);
-    assert.match(dock, /data-action="member-visit"[^>]*aria-haspopup="dialog"/);
-    assert.ok(dock.indexOf('data-action="member-visit"') < dock.indexOf('<nav'));
+    assert.doesNotMatch(html, /data-member-visit-actions|data-action="member-visit"|member-visit-create/);
     const nav = html.match(/<nav\b[^>]*aria-label="부원 메뉴"[^>]*>([\s\S]*?)<\/nav>/)?.[1];
     assert.ok(nav);
     const buttons = [...nav.matchAll(/<button\b[^>]*data-action="member-tab"[^>]*data-id="([^"]+)"[^>]*>/g)];
@@ -40,7 +34,7 @@ test('member shell escapes optional text and falls back to activity for an inval
   assert.ok(html.includes('&lt;img src=x onerror=alert(1)&gt; &amp; 제목'));
   assert.match(html, /&lt;script&gt;/);
   assert.match(html, /data-id="activity" aria-controls="member-panel-activity" aria-current="page"/);
-  assert.match(html, /data-member-visit-actions[^>]*\shidden(?:\s|=|>)/);
+  assert.doesNotMatch(html, /data-member-visit-actions|data-action="member-visit"/);
   assert.doesNotMatch(html, /<script\b|<img src=x/);
 });
 
@@ -65,18 +59,16 @@ test('legacy member URLs initialize the relevant tab while explicit tab state ta
 
 test('tab changes preserve mounted content, restore scroll and never refetch or navigate', () => {
   const previous = Object.getOwnPropertyDescriptor(globalThis, 'document'), scrolls = [], focuses = [];
-  const draft = { value: '작성 중인 방문 목적' }, loadedEvent = { id: 'already-loaded' };
+  const draft = { value: '작성 중인 방문 목적', date: '2026-10-07', time: '18:00', guests: 2, consent: true }, loadedEvent = { id: 'already-loaded' };
   const panels = ids.map(id => ({ dataset: { memberPanel: id }, hidden: id !== 'activity', draft, loadedEvent, focus: options => focuses.push({ id, options }) }));
   const buttons = ids.map(id => ({ dataset: { id }, attrs: new Map(id === 'activity' ? [['aria-current', 'page']] : []), setAttribute(name, value) { this.attrs.set(name, value); }, removeAttribute(name) { this.attrs.delete(name); } }));
-  const visitActions = { hidden: true };
-  const app = { querySelector: selector => selector === '[data-member-visit-actions]' ? visitActions : null, querySelectorAll: selector => selector === '[data-member-panel]' ? panels : buttons };
+  const app = { querySelector: () => null, querySelectorAll: selector => selector === '[data-member-panel]' ? panels : buttons };
   const win = { scrollY: 125, scrollTo: options => scrolls.push(options) };
   const ctx = { state: { memberAppTab: 'activity', memberAppScroll: { visits: 48 } }, api: () => assert.fail('tab change must not query the API'), render: () => assert.fail('tab change must not rerender'), navigate: () => assert.fail('tab change must not navigate') };
   Object.defineProperty(globalThis, 'document', { configurable: true, value: { querySelector: () => app, defaultView: win } });
   try {
     assert.equal(activateMemberTab(ctx, 'visits'), true);
     assert.equal(ctx.state.memberAppTab, 'visits');
-    assert.equal(visitActions.hidden, false);
     assert.equal(ctx.state.memberAppGeneration, 1);
     assert.deepEqual(panels.filter(panel => !panel.hidden).map(panel => panel.dataset.memberPanel), ['visits']);
     assert.deepEqual(buttons.filter(button => button.attrs.has('aria-current')).map(button => button.dataset.id), ['visits']);
@@ -86,28 +78,23 @@ test('tab changes preserve mounted content, restore scroll and never refetch or 
     assert.equal(focuses.at(-1).options.preventScroll, true);
     win.scrollY = 90;
     assert.equal(activateMemberTab(ctx, 'activity'), true);
-    assert.equal(visitActions.hidden, true);
     assert.equal(scrolls.at(-1).top, 125);
     assert.equal(ctx.state.memberAppScroll.visits, 90);
     assert.equal(ctx.state.memberAppGeneration, 2);
     assert.ok(panels.every(panel => panel.draft === draft && panel.loadedEvent === loadedEvent));
-    assert.equal(draft.value, '작성 중인 방문 목적');
+    assert.deepEqual(draft, { value: '작성 중인 방문 목적', date: '2026-10-07', time: '18:00', guests: 2, consent: true });
     const scrollCount = scrolls.length;
     assert.equal(activateMemberTab(ctx, 'activity'), true);
     assert.equal(scrolls.length, scrollCount);
     assert.equal(ctx.state.memberAppGeneration, 2);
     assert.equal(activateMemberTab(ctx, 'invalid'), false);
     assert.equal(ctx.state.memberAppTab, 'activity');
-    assert.equal(visitActions.hidden, true);
     assert.equal(activateMemberTab(ctx, 'visits'), true);
-    assert.equal(visitActions.hidden, false);
     assert.equal(activateMemberTab(ctx, 'invalid'), false);
     assert.equal(ctx.state.memberAppTab, 'visits');
-    assert.equal(visitActions.hidden, false);
     panels.splice(panels.findIndex(panel => panel.dataset.memberPanel === 'benefits'), 1);
     assert.equal(activateMemberTab(ctx, 'benefits'), false);
     assert.equal(ctx.state.memberAppTab, 'visits');
-    assert.equal(visitActions.hidden, false);
   } finally {
     if (previous) Object.defineProperty(globalThis, 'document', previous); else delete globalThis.document;
   }

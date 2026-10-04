@@ -37,8 +37,6 @@ export function activateMemberTab(ctx, tab) {
   }
   ctx.state.memberAppTab = tab;
   for (const item of panels) item.hidden = item !== panel;
-  const visitActions = app.querySelector('[data-member-visit-actions]');
-  if (visitActions) visitActions.hidden = tab !== 'visits';
   for (const item of app.querySelectorAll('.member-bottom-nav [data-action="member-tab"]')) {
     if (item.dataset.id === tab) item.setAttribute('aria-current', 'page');
     else item.removeAttribute('aria-current');
@@ -51,7 +49,6 @@ export function activateMemberTab(ctx, tab) {
 export function memberShell(content, { title, memberName = '', activeTab = 'activity' } = {}) {
   const heading = title === undefined || title === null || title === '' ? '' : '<h1 class="member-shell-title">' + esc(title) + '</h1>';
   const selected = validTab(activeTab) ? activeTab : 'activity';
-  const visitActions = '<div class="member-visit-actions" data-member-visit-actions' + (selected === 'visits' ? '' : ' hidden') + '><button type="button" class="member-visit-create" data-action="member-visit" aria-haspopup="dialog"><span class="member-visit-create-icon">' + icon('door-open') + '</span><span class="member-visit-create-label">출입 신청</span>' + icon('arrow-right') + '</button></div>';
   const navigation = MEMBER_TABS.map(item => '<button type="button" class="member-bottom-button" data-action="member-tab" data-id="' + item.id + '" aria-controls="member-panel-' + item.id + '"' + (item.id === selected ? ' aria-current="page"' : '') + '>' + icon(item.icon) + '<span>' + item.label + '</span></button>').join('');
-  return '<div class="member-shell member-app-shell" data-member-app><header class="member-app-header"><button type="button" class="member-app-brand" data-action="member-tab" data-id="activity" aria-label="내 현황으로"><img class="wordmark" src="/assets/wordmark.png" alt="Martini" width="170" height="42"></button><div class="member-app-account"><span class="member-app-identity" title="' + esc(memberName) + '">' + esc(memberName) + '</span><button type="button" class="member-app-logout" data-action="member-forget" aria-label="로그아웃" title="로그아웃">' + icon('log-out') + '</button></div></header><div class="member-shell-content">' + heading + String(content ?? '') + '</div><div class="member-bottom-dock">' + visitActions + '<nav class="member-bottom-nav" aria-label="부원 메뉴">' + navigation + '</nav></div></div>';
+  return '<div class="member-shell member-app-shell" data-member-app><header class="member-app-header"><button type="button" class="member-app-brand" data-action="member-tab" data-id="activity" aria-label="내 현황으로"><img class="wordmark" src="/assets/wordmark.png" alt="Martini" width="170" height="42"></button><div class="member-app-account"><span class="member-app-identity" title="' + esc(memberName) + '">' + esc(memberName) + '</span><button type="button" class="member-app-logout" data-action="member-forget" aria-label="로그아웃" title="로그아웃">' + icon('log-out') + '</button></div></header><div class="member-shell-content">' + heading + String(content ?? '') + '</div><nav class="member-bottom-nav" aria-label="부원 메뉴">' + navigation + '</nav></div>';
 }

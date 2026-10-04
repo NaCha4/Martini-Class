@@ -4,6 +4,7 @@ import { esc, icon, refreshIcons, toast, modal, closeModal, formSignature, captu
 import { renderScreen, screenAction, screenSubmit, isAdminScreen, isMerchantScreen } from './screen-router.js';
 import { sortMemberRows } from './admin.js';
 import { bindInventoryBoard } from './inventory.js';
+import { bindVisitCalendar } from './visit-calendar.js';
 import { filterListRows } from './list-filters.js';
 import { isMemberRoute, getMemberSessionKey, memberStorage, MEMBER_SESSION_CHANNEL } from './member-session.js';
 import { mountMemberDetail } from './member-detail.js';
@@ -40,9 +41,10 @@ history.replaceState({...history.state,martiniIndex:currentIndex},'');
 history.scrollRestoration='manual';
 function rememberPosition(){positions.set(currentIndex,{scroll:scrollY,search:state.search,filter:state.filter,eventType:state.eventType});}
 function dirtyApplication(){return trackedForm?.node.isConnected&&formSignature(trackedForm.node)!==trackedForm.signature;}
-async function mayLeave() {
+async function mayLeave({preserveVisitDraft=false}={}) {
   if(document.querySelector('form[data-form][aria-busy=true]')){toast('요청을 처리하고 있습니다. 완료될 때까지 기다려 주세요.');return false;}
   if(!await closeModal())return false;
+  if(preserveVisitDraft&&trackedForm?.node.matches('form[data-form="member-visit"]'))return true;
   if(!dirtyApplication())return true;
   return new Promise(resolve=>{
     let accepted=false;
@@ -189,6 +191,8 @@ export async function render({focus=false,scroll}={}) {
     if(current!==renderNumber)return;
     if(isMemberRoute()&&!getMemberSessionKey(ctx))await closeModal({discard:true});
     app.innerHTML=html;renderedMemberSession=isMemberRoute()?getMemberSessionKey(ctx):'';refreshIcons();bindInventoryBoard(ctx,app);
+    const visitPanel=app.querySelector('[data-member-panel="visits"]');
+    if(visitPanel)bindVisitCalendar(visitPanel);
     currentUrl=location.pathname+location.search+location.hash;
     const search=app.querySelector('[data-search]'),filter=app.querySelector('[data-filter]');
     if(search)search.value=state.search;if(filter)filter.value=state.filter;const type=app.querySelector('[data-event-type]');if(type)type.value=state.eventType;filterRows();

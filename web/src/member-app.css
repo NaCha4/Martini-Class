@@ -2,8 +2,7 @@
 main.member-public-page.member-app-page{width:100%;max-width:680px;min-height:100svh;margin:0 auto;padding:0;background:#171719}
 .member-shell.member-app-shell{--app-bg:#171719;--app-surface:#202022;--app-line:#ffffff0d;--app-muted:#aaa59c;--app-accent:#ddbd84;position:relative;min-width:0;max-width:680px;min-height:100svh;margin:0 auto;background:var(--app-bg)}
 .member-app-shell [hidden]{display:none!important}
-.member-app-shell .member-shell-content{min-width:0;padding:20px max(20px,env(safe-area-inset-right)) calc(var(--member-dock-space,96px) + env(safe-area-inset-bottom)) max(20px,env(safe-area-inset-left))}
-.member-app-shell:has([data-member-visit-actions]:not([hidden])){--member-dock-space:188px}
+.member-app-shell .member-shell-content{min-width:0;padding:20px max(20px,env(safe-area-inset-right)) calc(96px + env(safe-area-inset-bottom)) max(20px,env(safe-area-inset-left))}
 .member-app-shell :is(button,a){touch-action:manipulation;-webkit-tap-highlight-color:transparent}
 .member-app-shell :is(button,a):focus-visible{outline:2px solid var(--app-accent);outline-offset:4px}
 .member-app-shell .member-app-panel{min-width:0;scroll-margin-top:calc(84px + env(safe-area-inset-top))}
@@ -18,9 +17,7 @@ main.member-public-page.member-app-page{width:100%;max-width:680px;min-height:10
 .member-app-shell .member-app-identity{min-width:0;max-width:10em;overflow:hidden;color:#c8c1b6;font-size:13px;line-height:1.6;text-overflow:ellipsis;white-space:nowrap}
 .member-app-shell .member-app-logout{display:grid;place-items:center;flex-shrink:0;width:48px;min-height:48px;margin:0;padding:0;border:0;border-radius:10px;background:transparent;color:#aaa295;cursor:pointer}
 .member-app-shell .member-app-logout>svg{width:19px;height:19px;stroke-width:1.6}
-.member-app-shell .member-bottom-dock{position:fixed;z-index:40;bottom:0;left:50%;width:min(100%,680px);transform:translateX(-50%)}
-.member-app-shell .member-visit-actions{padding:12px max(20px,env(safe-area-inset-right)) 12px max(20px,env(safe-area-inset-left));background:linear-gradient(transparent,var(--app-bg) 14px)}
-.member-app-shell .member-bottom-nav{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:2px;width:100%;padding:7px max(8px,env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom)) max(8px,env(safe-area-inset-left));border-top:1px solid #ddbd8424;background:#1d1d20f7;box-shadow:0 -12px 32px #0000001a;backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px)}
+.member-app-shell .member-bottom-nav{position:fixed;z-index:40;bottom:0;left:50%;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:2px;width:min(100%,680px);padding:7px max(8px,env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom)) max(8px,env(safe-area-inset-left));border-top:1px solid #ddbd8424;background:#1d1d20f7;box-shadow:0 -12px 32px #0000001a;backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);transform:translateX(-50%)}
 .member-app-shell .member-bottom-button{position:relative;isolation:isolate;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;min-width:0;min-height:58px;margin:0;padding:8px 2px 5px;border:0;border-radius:12px;background:transparent;color:#99958e;font:inherit;font-size:11px;font-weight:500;line-height:1.3;cursor:pointer;transition:color .15s}
 .member-app-shell .member-bottom-button::before{content:'';position:absolute;z-index:-1;top:3px;left:50%;width:48px;height:32px;border-radius:12px;background:#ddbd8412;opacity:0;transform:translateX(-50%);transition:opacity .15s}
 .member-app-shell .member-bottom-button>svg{width:22px;height:22px;stroke-width:1.8}
@@ -36,7 +33,6 @@ main.member-public-page.member-app-page{width:100%;max-width:680px;min-height:10
 .member-app-shell .member-panel-heading>.button{flex-shrink:0;min-height:48px;border-radius:11px}
 .member-app-shell .member-app-section{min-width:0;margin-top:22px}
 .member-app-shell .member-app-intro+.member-app-section{margin-top:0}
-.member-app-shell #member-panel-visits>.sr-only+.member-app-section{margin-top:0}
 .member-app-shell .member-app-section-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:28px;margin-bottom:10px}
 .member-app-shell .member-app-section-heading h2{margin:0;font-size:15px;font-weight:600;line-height:1.6;letter-spacing:-.02em}
 .member-app-shell .member-section-count{display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;min-width:24px;min-height:22px;padding:2px 7px;border-radius:7px;background:#ffffff07;color:#aaa295;font-size:11px;line-height:1.4;font-variant-numeric:tabular-nums}
@@ -88,13 +84,34 @@ main.member-public-page.member-app-page{width:100%;max-width:680px;min-height:10
 .member-app-shell :is(.member-inline-message,.member-history-warning,.member-quiet-empty){font-size:13px;line-height:1.8;word-break:keep-all;overflow-wrap:anywhere}
 .member-app-shell .member-connection-note{margin:0 0 18px;border-radius:15px}
 
-/* Direct entry points keep the existing visit and coupon dialogs. */
-.member-app-shell .member-visit-create{display:flex;align-items:center;gap:14px;width:100%;min-height:74px;margin:0;padding:16px;border:1px solid #ddbd842e;border-radius:15px;background:var(--app-surface);color:var(--text);font:inherit;text-align:left;cursor:pointer;transition:background .15s,border-color .15s}
-.member-app-shell .member-visit-create-icon{display:grid;place-items:center;flex-shrink:0;width:40px;height:40px;border-radius:12px;background:#ddbd840c;color:#d7b580}
-.member-app-shell .member-visit-create-icon>svg{width:21px;height:21px;stroke-width:1.6}
-.member-app-shell .member-visit-create-label{flex:1;min-width:0;font-size:15px;font-weight:600;line-height:1.6}
-.member-app-shell .member-visit-create>svg{flex-shrink:0;width:18px;height:18px;color:#c5ac82;stroke-width:1.6}
-.member-app-shell .member-visit-create:active{background:#2a2823;border-color:#ddbd8460}
+/* The visit tab opens directly into a single-column request form. */
+.member-app-shell #member-panel-visits>.member-app-intro p{margin-top:6px;color:var(--app-muted);font-size:13px;line-height:1.8;word-break:keep-all}
+.member-app-shell .member-visit-form{min-width:0}
+.member-app-shell .member-visit-form>.member-form-intro{display:none}
+.member-app-shell .member-visit-form .visit-layout{grid-template-columns:minmax(0,1fr);gap:28px;margin-bottom:0}
+.member-app-shell .member-visit-form .visit-calendar{position:static;padding:0;border:0;border-radius:0;background:transparent}
+.member-app-shell .member-visit-form .visit-calendar-nav{margin:14px 0 12px}
+.member-app-shell .member-visit-form .visit-calendar-nav h4{font-size:19px}
+.member-app-shell .member-visit-form .visit-calendar-nav .icon-button{width:48px;height:48px;border-color:var(--app-line);border-radius:10px;background:var(--app-surface)}
+.member-app-shell .member-visit-form :is(.visit-days,.visit-weekdays){gap:2px}
+.member-app-shell .member-visit-form .visit-day{min-height:48px;border-radius:10px}
+.member-app-shell .member-visit-form .visit-selection{gap:5px;margin-top:16px;padding-top:16px;border-color:var(--app-line)}
+.member-app-shell .member-visit-form .visit-selection strong{font-size:16px}
+.member-app-shell .member-visit-form .visit-calendar-hint{margin-top:12px}
+.member-app-shell .member-visit-form .visit-approval-note{margin-top:12px;color:var(--app-muted)}
+.member-app-shell .member-visit-form .visit-layout h3{font-size:17px;line-height:1.6;margin-bottom:12px}
+.member-app-shell .member-visit-form .member-form-identity{padding:0;border:0;border-radius:0;background:transparent;color:var(--app-muted);font-size:12px;margin-bottom:20px}
+.member-app-shell .member-visit-form .member-form-identity strong{color:var(--text)}
+.member-app-shell .member-visit-form .field{gap:8px}
+.member-app-shell .member-visit-form .field :is(input:not([type=checkbox]),textarea,select){min-width:0;max-width:100%;min-height:48px;border-radius:10px;background:var(--app-surface);font-size:16px}
+.member-app-shell .member-visit-form .visit-time-fields{min-width:0;grid-template-columns:minmax(0,1fr)}
+.member-app-shell .member-visit-form .visit-guest-option span{min-height:48px;border-radius:10px}
+.member-app-shell .member-visit-form .member-consent-note{padding:16px 0 0;margin:4px 0 12px;border:0;border-top:1px solid var(--app-line);border-radius:0;background:transparent}
+.member-app-shell .member-visit-form .check-field{min-height:48px;padding-block:10px;margin-bottom:12px;font-size:13px}
+.member-app-shell .member-visit-form .form-error:empty{margin:0}
+.member-app-shell .member-visit-form>.button{min-height:50px;border-radius:11px}
+
+/* The benefit card opens the existing coupon dialog. */
 .member-app-shell .member-benefit-feature{display:block;width:100%;overflow:hidden;margin:0;padding:0;border:1px solid #ddbd842b;border-radius:16px;background:var(--app-surface);color:var(--text);font:inherit;text-align:left;cursor:pointer;transition:border-color .15s}
 .member-app-shell .member-benefit-photo{position:relative;display:block;width:100%;height:154px;overflow:hidden;background:#28201a}
 .member-app-shell .member-benefit-photo>img{display:block;width:100%;height:100%;object-fit:cover;object-position:center 48%}
@@ -106,14 +123,12 @@ main.member-public-page.member-app-page{width:100%;max-width:680px;min-height:10
 
 @media(min-width:700px){
  .member-shell.member-app-shell{border-inline:1px solid #ffffff07;box-shadow:0 0 80px #00000014}
- .member-app-shell .member-shell-content{padding:24px 28px calc(var(--member-dock-space,100px) + env(safe-area-inset-bottom))}
- .member-app-shell .member-visit-actions{padding-inline:28px}
+ .member-app-shell .member-shell-content{padding:24px 28px calc(100px + env(safe-area-inset-bottom))}
  .member-app-shell .member-app-header{padding-inline:28px}
  .member-app-shell .member-benefit-photo{height:180px}
 }
 @media(max-width:360px){
  .member-app-shell .member-shell-content{padding-inline:max(16px,env(safe-area-inset-left)) max(16px,env(safe-area-inset-right))}
- .member-app-shell .member-visit-actions{padding-inline:max(16px,env(safe-area-inset-left)) max(16px,env(safe-area-inset-right))}
  .member-app-shell .member-app-header{padding-inline:max(16px,env(safe-area-inset-left)) max(16px,env(safe-area-inset-right))}
  .member-app-shell .member-app-brand .wordmark{width:103px}
  .member-app-shell .member-app-identity{max-width:7em;font-size:12px}
@@ -129,7 +144,6 @@ main.member-public-page.member-app-page{width:100%;max-width:680px;min-height:10
  .member-app-shell .member-bottom-button:hover{color:#e7d4b1}
  .member-app-shell .member-benefit-feature:hover{border-color:#ddbd8470}
  .member-app-shell .member-app-link:hover{color:#f1dcb5}
- .member-app-shell .member-visit-create:hover{background:#262523;border-color:#ddbd8455}
  .member-app-shell .member-application-row.needs-action:hover{border-color:#c5a26999;background:#302b21}
 }
 @media(prefers-reduced-motion:reduce){

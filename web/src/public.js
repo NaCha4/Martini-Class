@@ -77,11 +77,12 @@ export async function publicSubmit(ctx,form,data,node){
 }
 export async function publicAction(ctx,action,id,target){
  if(isMemberRoute()&&!getMemberSessionKey(ctx)&&!['member-verify','member-refresh','public-refresh'].includes(action))return ctx.render();
+ if(action==='member-visit'){action='member-tab';id='visits';}
  if(action==='member-tab'){
   if(!isMemberRoute()||!MEMBER_TABS.some(tab=>tab.id===id))return false;
   const sessionKey=getMemberSessionKey(ctx),path=location.pathname;
   if(!sessionKey)return ctx.render();
-  if(ctx.mayLeave&&!await ctx.mayLeave())return false;
+  if(ctx.mayLeave&&!await ctx.mayLeave({preserveVisitDraft:true}))return false;
   if(location.pathname!==path)return false;
   if(getMemberSessionKey(ctx)!==sessionKey)return ctx.render();
   if(!activateMemberTab(ctx,id))return false;
@@ -90,9 +91,9 @@ export async function publicAction(ctx,action,id,target){
  }
  if(action.startsWith('partner-'))return partnerAction(ctx,action,id,target);
  const refreshSelection=['member-refresh','public-refresh'].includes(action)?ctx.state.memberInlineDetail:null;
- if(isMemberRoute()&&['member-refresh','public-refresh','member-visit','member-request','member-events','member-partners'].includes(action)&&ctx.mayLeave&&!await ctx.mayLeave())return;
+ if(isMemberRoute()&&['member-refresh','public-refresh','member-request','member-events','member-partners'].includes(action)&&ctx.mayLeave&&!await ctx.mayLeave())return;
  if(refreshSelection&&getMemberSessionKey(ctx))ctx.state.memberInlineDetail={...refreshSelection};
- if(['member-visit','member-request','member-events','member-partners'].includes(action)){
+ if(['member-request','member-events','member-partners'].includes(action)){
   delete ctx.state.memberInlineDetail;delete ctx.state.currentEvent;delete ctx.state.currentReceipt;
  }
  if(['member-event-open','member-application-open','member-detail-close'].includes(action)){

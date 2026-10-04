@@ -1,9 +1,9 @@
 import './member-portal.css';
 import './member-app.css';
-import { visitCalendar, bindVisitCalendar, visitSchedule } from './visit-calendar.js';
+import { visitCalendar, visitSchedule } from './visit-calendar.js';
 import { esc, icon, field, button, date, label, money, textBlock, modal } from './ui.js';
 import { memberState as state, memberStorage as storage, persistMemberStorage as persist, clearMemberIdentity as clearIdentity, validMemberReceipt as validReceipt, getMemberSessionKey, getVerifiedMember, setMemberSession, refreshMemberSession, isMemberAccessError, safeMemberReturnTarget, forgetMemberDevice } from './member-session.js';
-import { memberShell, currentMemberTab } from './member-navigation.js';
+import { memberShell, currentMemberTab, activateMemberTab } from './member-navigation.js';
 import { openMemberPartner } from './partner-stamps.js';
 export { getMemberSessionKey } from './member-session.js';
 
@@ -33,9 +33,9 @@ function guestCountChoices(){
 function visitBody(ctx){
  return '<p class="member-form-intro wide">날짜를 고르고, 인원과 방문 사유를 알려 주세요.</p><div class="visit-layout wide">'+visitCalendar()+'<section class="visit-details" aria-labelledby="visit-details-title"><h3 id="visit-details-title">방문 내용</h3>'+verifiedNote(ctx)+'<div class="visit-time-fields">'+input('startTime','시작 시간','',{required:true,type:'time'})+'</div>'+guestCountChoices()+input('purpose','방문 사유','',{required:true,type:'textarea',rows:3,maxLength:1000,placeholder:'예: 친구와 함께 칵테일 연습을 하려고 합니다.'})+input('guestNames','외부인 이름','',{required:true,type:'textarea',rows:2,maxLength:300,placeholder:'방문자 전원의 이름을 쉼표로 구분해 주세요.'})+'</section></div>'+consent('visit');
 }
-function openForm(ctx){
- const dialog=modal('외부인 출입 신청',visitBody(ctx),(data,node)=>memberPortalSubmit(ctx,'member-visit',data,node),{wide:true,submit:'출입 승인 요청',busyText:'접수 중…'});
- dialog.classList.add('member-dialog','member-visit-dialog');bindVisitCalendar(dialog);return dialog;
+function openVisitTab(ctx){
+ if(activateMemberTab(ctx,'visits'))return true;
+ ctx.state.memberAppTab='visits';return ctx.render();
 }
 export function renderMemberVerificationGate(ctx,{returnTo,title='부원 로그인',description='부원 명단에 등록된 이름과 학번으로 로그인해 주세요.',message=''}={}){
  const path=safeMemberReturnTarget(returnTo||location.pathname);ctx.state.memberVerificationReturnTo=path;
@@ -52,7 +52,7 @@ export function openMemberVerification(ctx,{returnTo,continueToVisit=false}={}){
    try{
     delete ctx.state.memberVerificationReturnTo;
     if(location.pathname!==target)await ctx.navigate(target,{discard:true});else await ctx.render();
-    if(continueToVisit&&getVerifiedMember(ctx))openForm(ctx);
+    if(continueToVisit&&getVerifiedMember(ctx))await openVisitTab(ctx);
    }catch(error){ctx.toast(error.message||'화면을 불러오지 못했습니다. 다시 시도해 주세요.');}
   },0),{once:true});
  },{submit:'로그인',busyText:'로그인 중…'});
@@ -137,9 +137,6 @@ function currentRequest(request){
  if(request.kind==='visit')return ['pending','approved'].includes(request.status)&&(!request.startsAt||Date.parse(request.endsAt||request.startsAt)>=Date.now());
  return request.status==='pending';
 }
-function requestRows(requests){
- return '<div class="member-request-list">'+requests.map(requestRow).join('')+'</div>';
-}
 function requestRow(request){return '<button type="button" class="member-request-row" data-action="member-request" data-id="'+esc(request.id)+'"><span class="member-request-icon">'+icon(request.kind==='visit'?'door-open':request.kind==='join'?'user-plus':'notebook-pen')+'</span><span class="member-request-content"><span class="member-request-kind">'+esc(kinds[request.kind]||'신청')+'</span><strong>'+esc(requestTitle(request)||kinds[request.kind])+'</strong><small>'+esc(requestSummary(request))+'</small></span>'+requestStatus(request)+icon('arrow-right')+'</button>';}
 function connectionMessage(message){return message?'<div class="member-connection-note" role="alert">'+icon('circle-x')+'<p>'+esc(message)+'</p>'+button('다시 불러오기','member-refresh',{class:'button secondary small'})+'</div>':'';}
 function receiptMessages(ctx,{legacy=false}={}){
@@ -149,13 +146,11 @@ function receiptMessages(ctx,{legacy=false}={}){
  if(!legacy&&last?.kind==='visit'&&receiptFor(ctx,view.lastReceiptId)&&view.lastReceiptId!==view.linkedId)output+='<div class="member-receipt-banner" role="status">'+icon('check')+'<p>신청 완료. 확인 링크를 보관해 주세요.</p>'+button('확인 링크 복사','member-receipt-copy',{id:view.lastReceiptId,class:'button secondary small',icon:'copy'})+'</div>';
  return output;
 }
-function appLink(title,tab){return '<button type="button" class="member-app-link" data-action="member-tab" data-id="'+tab+'">'+esc(title)+icon('arrow-right')+'</button>';}
 function appIntro(title){return '<h1 class="sr-only" tabindex="-1">'+title+'</h1>';}
 function appPanel(id,title,content,activeTab){return '<section class="member-app-panel" id="member-panel-'+id+'" data-member-panel="'+id+'" aria-label="'+title+'" tabindex="-1"'+(activeTab===id?'':' hidden')+'>'+content+'</section>';}
 function appEmpty(symbol,message){return '<div class="member-app-empty">'+icon(symbol)+'<p>'+message+'</p></div>';}
 function visitsPanel(ctx){
- const requests=allRequests(ctx).filter(row=>row.kind==='visit'&&currentRequest(row));
- return appIntro('외부인 출입')+receiptMessages(ctx)+'<section class="member-app-section"><div class="member-app-section-heading"><h2>신청 현황</h2>'+appLink('전체 내역','activity')+'</div>'+(requests.length?requestRows(requests):appEmpty('door-open','신청 내역이 없습니다.'))+'</section>';
+ return '<div class="member-app-intro"><h1 id="member-visit-title">출입 신청</h1><p>방문 일정과 외부인 정보를 입력해 주세요.</p></div><form class="member-visit-form" data-form="member-visit" aria-labelledby="member-visit-title">'+visitBody(ctx)+'<p class="form-error" role="alert"></p><button type="submit" class="button full">출입 승인 요청</button></form>';
 }
 function benefitsPanel(){
  return appIntro('혜택')+'<button type="button" class="member-benefit-feature" data-action="member-partners" aria-haspopup="dialog" aria-label="필링파인 스탬프 열기"><span class="member-benefit-photo"><img src="/assets/feelingfine-bar-hero.jpg" alt="" loading="lazy"></span><span class="member-benefit-copy"><strong class="member-benefit-title">필링파인</strong><span class="member-benefit-cta">스탬프'+icon('arrow-up-right')+'</span></span></button>';
@@ -226,6 +221,7 @@ export async function memberPortalAction(ctx,action,id){
  if(action==='member-verify')return openMemberVerification(ctx);
  if(action==='member-refresh'){await ctx.render();return;}
  if(action==='member-forget'){
+  if(ctx.mayLeave&&!await ctx.mayLeave())return;
   const sessionKey=getMemberSessionKey(ctx);
   const revoked=sessionKey?ctx.api('memberLogout',{sessionKey}).then(()=>true,()=>false):Promise.resolve(true);
   let removalError;try{forgetMemberDevice(ctx);}catch(error){removalError=error;}
@@ -234,7 +230,7 @@ export async function memberPortalAction(ctx,action,id){
   ctx.toast(removalError?.message||(serverCleared?'로그아웃했습니다.':'이 기기에서 로그아웃했습니다. 서버 연결이 끊겨 인증 해제를 확인하지 못했습니다.'));return;
  }
  if(!getMemberSessionKey(ctx))return ctx.render();
- if(action==='member-visit')return getVerifiedMember(ctx)?openForm(ctx):ctx.render();
+ if(action==='member-visit')return getVerifiedMember(ctx)?openVisitTab(ctx):ctx.render();
  if(action==='member-events'){
   if(!getVerifiedMember(ctx))return ctx.render();
   const dialog=modal('행사','<div class="wide member-event-picker">'+renderMemberEventChoices(ctx)+'</div>',null,{wide:true});
@@ -321,7 +317,8 @@ export async function memberPortalSubmit(ctx,form,data,node){
  if(!result.id)throw new Error('접수 결과를 확인하지 못했습니다. 입력 내용은 유지됩니다. 다시 요청해 주세요.');
  saved.receipts=saved.receipts.filter(item=>item.id!==result.id).concat({id:result.id,receiptKey:pending.receiptKey}).slice(-20);delete saved.pending[kind];persist(ctx);
  state(ctx).lastReceiptId=result.id;
- ctx.state.memberAppTab='visits';
+ ctx.state.memberAppTab='activity';
+ ctx.state.memberAppScroll={...ctx.state.memberAppScroll,activity:0,visits:0};
  if(result.request)state(ctx).receiptRows.push(result.request);
- await ctx.render();ctx.toast(recovered?'이전에 접수된 신청을 확인했습니다. 출입 신청 내역을 확인해 주세요.':'출입 승인 요청을 보냈습니다. 승인 결과를 확인한 뒤 방문해 주세요.');
+ await ctx.render({focus:true,scroll:0});ctx.toast(recovered?'이전에 접수된 신청을 확인했습니다. 내 현황에서 확인해 주세요.':'출입 승인 요청을 보냈습니다. 내 현황에서 승인 결과를 확인해 주세요.');
 }
