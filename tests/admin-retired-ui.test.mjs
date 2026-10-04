@@ -39,7 +39,7 @@ function context({operator=profile(),rows={},roles=[]}={}){
    if(op==='listInventoryCategories')return {rows:rows.inventoryCategories||[]};
    if(op==='read'){
     assert.ok(!retired.includes(data.kind),'Retired records must not be read: '+data.kind);
-    assert.ok(['settings','events','members','inventory','applications'].includes(data.kind),'Unexpected read: '+data.kind);
+    assert.ok(['settings','events','members','inventory','stockMoves','applications'].includes(data.kind),'Unexpected read: '+data.kind);
     return {rows:data.kind==='settings'?[{...settings}]:rows[data.kind]||[],nextCursor:null};
    }
    throw Error('Unexpected API operation: '+op);
@@ -89,7 +89,9 @@ async function withDialogs(run){
      const tag=dialog.innerHTML.match(new RegExp('<(?:input|select|textarea)\\b[^>]*name="'+name+'"[^>]*>'))?.[0];
      if(!tag)return null;
      const control=element(),wrapper=element();
+     wrapper.querySelector=()=>element();
      control.value=tag.match(/\bvalue="([^"]*)"/)?.[1]??dialog.innerHTML.match(new RegExp('<select\\b[^>]*name="'+name+'"[^>]*>[\\s\\S]*?<option value="([^"]*)" selected'))?.[1]??'';
+     control.step=tag.match(/\bstep="([^"]*)"/)?.[1]??'';
      control.checked=/\bchecked\b/.test(tag);
      control.closest=()=>wrapper;parts.set(selector,control);return control;
     }
@@ -320,14 +322,114 @@ test('mobile full menu uses the active grouped navigation and cannot reopen reti
  assert.deepEqual(calls,[]);
 });
 
-test('event preparation keeps its inventory workflow without meetings, tasks, publishing, or ledger links',async()=>{
+test('event preparation stays separate from inventory without meetings, tasks, publishing, or ledger links',async()=>{
  const {ctx,calls}=context({rows:{events:[event()]}});
  const html=await at('/admin/events/event-a?tab=preparation',()=>renderAdmin(ctx)),body=main(html);
  assert.match(body,/준비와 마무리/);
- assert.ok(hrefs(body).includes('/admin/inventory'));
- assert.doesNotMatch(body,/회의록|결정 · 할 일|지출 · 정산|활동 기록/);
+ assert.ok(!hrefs(body).includes('/admin/inventory'));
+ assert.doesNotMatch(body,/재고|이 행사에 연결|회의록|결정 · 할 일|지출 · 정산|활동 기록/);
  assert.deepEqual(calls.filter(call=>call.op==='read').map(call=>call.data.kind),['settings','events']);
  noRetiredLinks(html);
+});
+
+test('stock recording needs only inventory access and never loads or submits an event link',async()=>{
+ for(const operator of [profile({role:'inventory',permissions:['inventory']}),profile()]){
+  const current={id:'item-a',name:'레몬',revision:4,unit:'each',quantity:5,minimum:0};
+  const {ctx,calls}=context({operator,rows:{inventory:[current]}}),api=ctx.api;
+  let rendered=0;ctx.render=async()=>{rendered++;};ctx.toast=()=>{};
+  ctx.api=async(op,data)=>{if(op==='stock'){calls.push({op,data});return {saved:true};}return api(op,data);};
+  await at('/admin/inventory',()=>withDialogs(async dialogs=>{
+   await adminAction(ctx,'stock-record',current.id);
+   assert.deepEqual(calls,[{op:'read',data:{kind:'inventory',recordId:current.id}}]);
+   const dialog=dialogs[0],form=dialog.querySelector('form');
+   assert.match(dialog.innerHTML,/재고 기록 · 레몬/);
+   assert.doesNotMatch(dialog.innerHTML,/eventId|연결 행사|행사 연결/);
+   form.entries=[['action','use'],['amount','2'],['reason','사용'],['eventId','ignored-old-event']];
+   await form.listeners.get('submit')({preventDefault(){}});
+   const saved=calls.filter(({op})=>op==='stock');assert.equal(saved.length,1);
+   const {requestId,...data}=saved[0].data;
+   assert.ok(requestId);
+   assert.deepEqual(data,{id:'item-a',revision:4,action:'use',amount:2,reason:'사용'});
+   assert.equal(rendered,1);assert.equal(dialog.open,false);
+  }));
+  assert.equal(calls.some(({data})=>data?.kind==='events'||Object.hasOwn(data||{},'eventId')),false);
+ }
+});
+
+test('inventory detail keeps item deletion available without reading events',async()=>{
+ const current={id:'item-a',name:'레몬',revision:4,unit:'each',quantity:5,minimum:0};
+ const {ctx,calls}=context({operator:profile({permissions:['inventory']}),rows:{inventory:[current],stockMoves:[]}});
+ await at('/admin/inventory',()=>withDialogs(async dialogs=>{
+  await adminAction(ctx,'item-view',current.id);
+  assert.match(dialogs[0].innerHTML,/data-action="record-delete" data-kind="inventory" data-id="item-a">품목 삭제/);
+ }));
+ assert.deepEqual(calls,[{op:'read',data:{kind:'inventory',recordId:'item-a'}},{op:'read',data:{kind:'stockMoves',itemId:'item-a'}}]);
+});
+
+test('item deletion refreshes its version and submits only after confirmation even with stock remaining',async()=>{
+ for(const revision of [undefined,7]){
+  const current={id:'item-a',name:'진 <테스트>',unit:'bottle',quantity:3,bottles:{'bottle-a':60},updatedAt:'2026-10-05T02:00:00.000Z',...(revision===undefined?{}:{revision})};
+  const {ctx,calls}=context({operator:profile({permissions:['inventory']}),rows:{inventory:[current]}}),api=ctx.api;
+  ctx.state.data={inventory:{'item-a':{...current,revision:2,updatedAt:'stale'}},stockMoves:{old:{id:'old'}},events:{'event-a':event()}};
+  ctx.state.pages={inventory:{rows:[current]},events:{rows:[event()]}};ctx.state.publicInfo={cached:true};
+  const unrelated={events:ctx.state.data.events,page:ctx.state.pages.events,publicInfo:ctx.state.publicInfo};
+  let rendered=0;ctx.render=async()=>{rendered++;};ctx.toast=()=>{};
+  ctx.api=async(op,data)=>{if(op==='deleteRecord'){calls.push({op,data});return {deleted:true};}return api(op,data);};
+  await at('/admin/inventory',()=>withDialogs(async dialogs=>{
+   await adminAction(ctx,'record-delete',current.id,{dataset:{kind:'inventory'}});
+   assert.deepEqual(calls,[{op:'read',data:{kind:'inventory',recordId:'item-a'}}]);
+   const dialog=dialogs[0],form=dialog.querySelector('form');
+   assert.match(dialog.innerHTML,/진 &lt;테스트&gt;/);
+   assert.match(dialog.innerHTML,/품목을 삭제할까요/);
+   assert.doesNotMatch(dialog.innerHTML,/type="checkbox"|보유 수량은 먼저|정산|학기말|개인정보/);
+   assert.equal(rendered,0);assert.equal(ctx.state.data.inventory['item-a'].quantity,3);
+   await form.listeners.get('submit')({preventDefault(){}});
+   assert.deepEqual(calls[1],{op:'deleteRecord',data:{kind:'inventory',id:'item-a',updatedAt:current.updatedAt,...(revision===undefined?{}:{revision}),confirmed:true}});
+   assert.equal(rendered,1);assert.equal(dialog.open,false);
+   assert.equal(ctx.state.data.inventory,undefined);assert.equal(ctx.state.data.stockMoves,undefined);assert.equal(ctx.state.pages.inventory,undefined);
+   assert.equal(ctx.state.data.events,unrelated.events);assert.equal(ctx.state.pages.events,unrelated.page);assert.equal(ctx.state.publicInfo,unrelated.publicInfo);
+  }));
+ }
+});
+
+test('closing item deletion without confirmation never writes or refreshes',async()=>{
+ const current={id:'item-a',name:'레몬',revision:4,unit:'each',quantity:5,updatedAt:'2026-10-05T02:00:00.000Z'};
+ const {ctx,calls}=context({rows:{inventory:[current]}});
+ ctx.render=async()=>assert.fail('Cancelled deletion must not refresh');ctx.toast=()=>{};
+ await at('/admin/inventory',()=>withDialogs(async dialogs=>{
+  await adminAction(ctx,'record-delete',current.id,{dataset:{kind:'inventory'}});
+  assert.equal(await dialogs[0].requestClose(),true);assert.equal(dialogs[0].open,false);
+  assert.equal(ctx.state.data.inventory['item-a'].quantity,5);
+ }));
+ assert.deepEqual(calls,[{op:'read',data:{kind:'inventory',recordId:'item-a'}}]);
+});
+
+test('failed item deletion leaves the item, caches, and confirmation available for retry',async()=>{
+ const current={id:'item-a',name:'레몬',revision:4,unit:'each',quantity:5,updatedAt:'2026-10-05T02:00:00.000Z'};
+ const {ctx,calls}=context({rows:{inventory:[current]}}),api=ctx.api;
+ ctx.state.pages={inventory:{rows:[current]}};ctx.state.publicInfo={cached:true};
+ ctx.render=async()=>assert.fail('Rejected deletion must not refresh');ctx.toast=()=>assert.fail('Rejected deletion must not report success');
+ ctx.api=async(op,data)=>{if(op==='deleteRecord'){calls.push({op,data});throw Error('다른 운영진이 품목을 수정했습니다.');}return api(op,data);};
+ await at('/admin/inventory',()=>withDialogs(async dialogs=>{
+  await adminAction(ctx,'record-delete',current.id,{dataset:{kind:'inventory'}});
+  const before=structuredClone(ctx.state),dialog=dialogs[0],form=dialog.querySelector('form');
+  await form.listeners.get('submit')({preventDefault(){}});
+  assert.deepEqual(ctx.state,before);assert.equal(dialog.open,true);
+  assert.match(form.querySelector('.form-error').textContent,/다른 운영진이 품목을 수정/);
+ }));
+ assert.equal(calls.filter(({op})=>op==='deleteRecord').length,1);
+});
+
+test('missing inventory records or a failed lookup never open an unsafe deletion dialog',async()=>{
+ for(const rejected of [false,true])for(const action of ['record-delete','stock-record','item-view']){
+  const {ctx,calls}=context();
+  if(rejected)ctx.api=async(op,data)=>{calls.push({op,data});throw Error('품목을 불러오지 못했습니다.');};
+  await at('/admin/inventory',()=>withDialogs(async dialogs=>{
+   await assert.rejects(adminAction(ctx,action,'missing',{dataset:{kind:'inventory'}}),rejected?/품목을 불러오지 못했습니다/:/품목을 찾을 수 없습니다/);
+   assert.equal(dialogs.length,0);
+  }));
+  assert.deepEqual(calls,[{op:'read',data:{kind:'inventory',recordId:'missing'}}]);
+ }
 });
 
 test('new, legacy, and private event editors preserve visibility defaults and save an explicit public flag',async()=>{

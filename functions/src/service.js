@@ -203,7 +203,6 @@ export function createService(db,clock=Date.now){
    const [s,previous]=await tx.getAll(ref,moveRef);
    if(previous.exists)return previous.data();
    const item=snapshot(s);if(!item)fail('not-found','재고 품목을 찾을 수 없습니다.');requireRevision(item,input.revision);
-   if(input.eventId){const event=await tx.get(col('events').doc(input.eventId));if(!snapshot(event))fail('not-found','연결할 행사를 찾을 수 없습니다.');}
    const next={...changeStock(item,input),revision:item.revision+1,updatedAt:now(),updatedBy:who.uid};
    const move={...input,itemId:item.id,itemName:item.name,before:stockTotal(item),after:stockTotal(next),beforeQuantity:item.quantity,afterQuantity:next.quantity,actor:who.displayName,createdAt:now(),updatedAt:now()};
    tx.set(ref,next);tx.create(moveRef,move);audit(tx,who,'inventory',item.id,input.action);return visible('inventory',next,who);

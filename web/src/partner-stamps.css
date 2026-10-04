@@ -11,7 +11,6 @@ dialog.partner-dialog.member-dialog .dialog-content{width:100%;min-width:0;paddi
 .partner-hero>img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 47%;z-index:-2}
 .partner-hero::after{content:'';position:absolute;inset:0;z-index:-1;background:linear-gradient(180deg,#0003 0%,transparent 25%,#15151538 50%,var(--surface) 100%);pointer-events:none}
 .partner-hero-title{position:absolute;inset:auto 56px 18px;color:#fff;text-shadow:0 2px 12px #0008}
-.partner-hero-title>p{margin:0 0 6px;font-size:11px;letter-spacing:.12em;color:#e1c79f}
 .partner-hero-title>h2{margin:0;font-size:34px;line-height:1.4;letter-spacing:-.04em}
 .partner-intro-copy{padding:2px 20px 16px}
 .partner-intro-tagline{margin:0;font-size:16px;line-height:1.7;color:var(--text);word-break:keep-all}

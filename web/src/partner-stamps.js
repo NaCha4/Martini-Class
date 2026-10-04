@@ -71,7 +71,7 @@ export async function openMemberPartner(ctx){
  const sessionKey=getMemberSessionKey(ctx);if(!sessionKey||!isMemberRoute())return ctx.render();
  disposeMember(ctx);const view={sessionKey,generation:0,coupons:null,qr:null,disposed:false,error:''};
  const content='<section class="partner-feelingfine" aria-labelledby="modal-title">'+
-  '<div class="partner-intro"><div class="partner-hero"><img src="/assets/feelingfine-bar-hero.jpg" width="1672" height="941" alt="분위기를 표현한 가상의 바 테이블 이미지" decoding="async" draggable="false"><div class="partner-hero-title"><p>한양대학교 ERICA 앞</p><h2 id="modal-title" tabindex="-1">필링파인</h2></div></div><div class="partner-intro-copy"><p class="partner-intro-tagline">좋은 사람들과, 기분 좋은 한 잔.</p><p class="partner-intro-description">다양한 칵테일과 안주를 함께 즐기는 공간.</p></div></div>'+
+  '<div class="partner-intro"><div class="partner-hero"><img src="/assets/feelingfine-bar-hero.jpg" width="1672" height="941" alt="분위기를 표현한 가상의 바 테이블 이미지" decoding="async" draggable="false"><div class="partner-hero-title"><h2 id="modal-title" tabindex="-1">필링파인</h2></div></div><div class="partner-intro-copy"><p class="partner-intro-tagline">좋은 사람들과, 기분 좋은 한 잔.</p><p class="partner-intro-description">다양한 칵테일과 안주를 함께 즐기는 공간.</p></div></div>'+
   '<div class="partner-coupon-area"><div data-partner-body>'+memberBody(view)+'</div></div></section>';
  const dialog=modal('필링파인',content,null,{contentOnly:true,bodyTitle:true,footer:false,onClose:()=>{if(ctx.state.memberPartner===view)disposeMember(ctx);}});
  dialog.classList.add('member-dialog','member-partners-dialog','partner-dialog');view.dialog=dialog;ctx.state.memberPartner=view;
