@@ -14,11 +14,14 @@ export function qrLifetime(response,started,now=monotonic()){
  return Math.max(0,Math.min(30000,expires-server)-Math.max(0,now-started));
 }
 const count=value=>Math.min(CAPACITY,Math.max(0,Math.floor(Number(value)||0)));
-function stampCard(total){
+function stampCard(total,view){
  const completed=count(total);
+ const angles=view.stampAngles??=[];
+ // Keep each impression steady when the same card is refreshed or gains a stamp.
+ while(angles.length<completed)angles.push(Math.round((Math.random()*36-18)*10)/10);
  // The supplied 3000 × 1650 artwork stays intact; marks use its glass centers.
  const columns=[439,969.5,1500.5,2031.5,2562.5],rows=[418,900.5];
- const marks=Array.from({length:completed},(_,index)=>'<g class="is-stamped" transform="translate('+columns[index%5]+' '+rows[Math.floor(index/5)]+') rotate('+(index%2?6:-8)+')" fill="none" stroke="currentColor"><circle r="185" stroke-width="12"/><circle r="172" stroke-width="4" opacity=".55"/><circle cx="132" cy="128" r="52" fill="currentColor" stroke="none"/><path d="M106 128l18 18 30-36" stroke="#fff" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"/></g>').join('');
+ const marks=Array.from({length:completed},(_,index)=>'<g class="is-stamped" transform="translate('+columns[index%5]+' '+rows[Math.floor(index/5)]+') rotate('+angles[index]+')"><image href="/assets/stamp.png?v=aeb5a211" x="-225" y="-210" width="450" height="420"/></g>').join('');
  return '<figure class="partner-coupon"><div class="partner-card"><img class="partner-card-art" src="/assets/FeelingFineCoupon.png?v=07f0f639" width="3000" height="1650" alt="Feeling Fine × Martini 쿠폰" draggable="false"><svg class="partner-stamps" viewBox="0 0 3000 1650" aria-hidden="true" focusable="false">'+marks+'</svg><ol class="sr-only" aria-label="스탬프 '+completed+'개 적립, 총 10개">'+Array.from({length:CAPACITY},(_,index)=>'<li>'+(index+1)+'번째 '+(index<completed?'적립 완료':'미적립')+'</li>').join('')+'</ol></div></figure>';
 }
 function memberCurrent(ctx,view){return ctx.state.memberPartner===view&&!view.disposed&&view.dialog?.open&&isMemberRoute()&&getMemberSessionKey(ctx)===view.sessionKey;}
@@ -26,9 +29,9 @@ function stop(view){view.stop?.();view.stop=null;}
 function memberBody(view){
  if(view.error)return '<div class="partner-message"><p role="alert">'+esc(view.error)+'</p>'+button('다시 불러오기','partner-refresh',{class:'button secondary'})+'</div>';
  if(!view.coupons)return '<p class="partner-message" role="status">스탬프를 불러오고 있어요.</p>';
- if(!view.coupons.available)return stampCard(count(view.coupons.stampCount))+'<p class="partner-message">지금은 스탬프를 적립할 수 없습니다. 모은 스탬프는 유지됩니다.</p>';
+ if(!view.coupons.available)return stampCard(count(view.coupons.stampCount),view)+'<p class="partner-message">지금은 스탬프를 적립할 수 없습니다. 모은 스탬프는 유지됩니다.</p>';
  const full=count(view.coupons.stampCount)>=CAPACITY;
- return '<div class="partner-heading"><p>방문하고 스탬프를 모아 보세요.</p>'+button('새로고침','partner-refresh',{class:'button small secondary',icon:'refresh-cw'})+'</div>'+stampCard(count(view.coupons.stampCount))+(!full?'<section class="partner-qr-slot" aria-label="스탬프 적립 QR">'+(view.qr?'<div class="partner-qr-frame"><div class="partner-qr-paper"><img src="'+esc(view.qr.image)+'" width="280" height="280" alt="필링파인 매장에서 스캔할 일회용 적립 QR 코드"></div></div><p class="partner-qr-timer"><span class="partner-live-dot" aria-hidden="true"></span>남은 시간 <strong data-partner-countdown>'+Math.ceil(Math.max(0,view.qr.deadline-monotonic())/1000)+'</strong>초</p><p class="partner-qr-help">직원에게 QR을 보여 주세요. QR은 30초 동안 표시됩니다.</p>':view.issuing?'<p class="partner-qr-help" role="status">QR을 만들고 있어요.</p>':(view.expired?'<p class="partner-qr-help" role="status">QR 표시가 종료되었습니다. 필요하면 새 QR을 표시해 주세요.</p>':'<p class="partner-qr-help">매장에서 적립할 때 QR을 표시해 주세요.</p>')+button(view.expired?'새 QR 표시':'QR 표시','partner-qr',{icon:'ticket'}))+'</section>':'');
+ return '<div class="partner-heading"><p>방문하고 스탬프를 모아 보세요.</p>'+button('새로고침','partner-refresh',{class:'button small secondary',icon:'refresh-cw'})+'</div>'+stampCard(count(view.coupons.stampCount),view)+(!full?'<section class="partner-qr-slot" aria-label="스탬프 적립 QR">'+(view.qr?'<div class="partner-qr-frame"><div class="partner-qr-paper"><img src="'+esc(view.qr.image)+'" width="280" height="280" alt="필링파인 매장에서 스캔할 일회용 적립 QR 코드"></div></div><p class="partner-qr-timer"><span class="partner-live-dot" aria-hidden="true"></span>남은 시간 <strong data-partner-countdown>'+Math.ceil(Math.max(0,view.qr.deadline-monotonic())/1000)+'</strong>초</p><p class="partner-qr-help">직원에게 QR을 보여 주세요. QR은 30초 동안 표시됩니다.</p>':view.issuing?'<p class="partner-qr-help" role="status">QR을 만들고 있어요.</p>':(view.expired?'<p class="partner-qr-help" role="status">QR 표시가 종료되었습니다. 필요하면 새 QR을 표시해 주세요.</p>':'<p class="partner-qr-help">매장에서 적립할 때 QR을 표시해 주세요.</p>')+button(view.expired?'새 QR 표시':'QR 표시','partner-qr',{icon:'ticket'}))+'</section>':'');
 }
 function paintMember(view){const body=view.dialog?.querySelector('[data-partner-body]');if(body){body.innerHTML=memberBody(view);refreshIcons();}}
 function expireMemberQr(view){stop(view);view.qr=null;view.issuing=false;view.expired=true;view.generation++;if(!view.disposed)paintMember(view);}
@@ -97,27 +100,27 @@ function captureQr(view){
  const hash=location.hash||'';if(!hash)return;
  const token=/^#qr=([a-f0-9]{64})$/.exec(hash)?.[1]||'';
  history.replaceState(history.state,'',location.pathname+location.search);
- stop(view);view.token=token;view.preview=null;view.result=null;view.pending=false;view.error=token?'':'올바른 적립 QR이 아닙니다. 부원에게 새 QR을 요청해 주세요.';
+ stop(view);view.token=token;view.preview=null;view.result=null;view.stampAngles=[];view.pending=false;view.error=token?'':'올바른 적립 QR이 아닙니다. 부원에게 새 QR을 요청해 주세요.';
 }
 function merchantCurrent(ctx,view,sessionKey,request){return isMerchantRoute()&&ctx.state.feelingfineMerchant===view&&getMerchantSessionKey(ctx)===sessionKey&&(!request||view.request===request);}
 function merchantShell(body,authenticated=false){return '<main id="main-content" class="merchant-page"><header><span class="merchant-brand">FEELING FINE</span><h1 id="page-title" tabindex="-1">필링파인 스탬프</h1><p>매장용 적립 화면</p></header>'+body+(authenticated?'<footer>'+button('로그아웃','merchant-logout',{class:'button ghost'})+'</footer>':'')+'</main>';}
 function loginHtml(view){return merchantShell('<section class="merchant-panel"><h2>매장 로그인</h2><p>운영진에게 전달받은 매장 코드를 입력해 주세요.</p>'+(view.token?'<p class="merchant-note">로그인 후 스캔한 QR을 확인합니다.</p>':'')+'<form data-form="merchant-login">'+field('code','매장 코드','',{type:'password',required:true,maxLength:null,autocomplete:'off',spellcheck:false})+'<p class="form-error" role="alert">'+esc(view.error)+'</p><button type="submit" class="button full">로그인</button></form><p class="merchant-note">이 기기에서 최대 1년간 로그인 상태가 유지됩니다.</p></section>');}
 function merchantHtml(ctx,view){
  let body='';
- if(view.result)body='<section class="merchant-panel merchant-result">'+icon('check')+'<h2>'+(view.result.duplicate?'이미 적립된 QR입니다':'스탬프를 적립했습니다')+'</h2>'+(view.result.memberName?'<p>'+esc(view.result.memberName)+' 님</p>':'')+stampCard(count(view.result.stampCount))+'<p class="merchant-note">다음 부원의 QR을 휴대전화 카메라로 스캔해 주세요.</p></section>';
- else if(view.preview){const full=count(view.preview.stampCount)>=CAPACITY;body='<section class="merchant-panel"><p class="merchant-eyebrow">적립할 부원</p><h2>'+esc(view.preview.memberName)+' 님</h2>'+stampCard(count(view.preview.stampCount))+(full?'<p>스탬프 10개가 모두 채워져 있습니다.</p>':button('스탬프 1개 적립','merchant-stamp',{class:'button full',icon:'plus',disabled:view.pending}))+'<p class="form-error" role="alert">'+esc(view.error)+'</p></section>';}
+ if(view.result)body='<section class="merchant-panel merchant-result">'+icon('check')+'<h2>'+(view.result.duplicate?'이미 적립된 QR입니다':'스탬프를 적립했습니다')+'</h2>'+(view.result.memberName?'<p>'+esc(view.result.memberName)+' 님</p>':'')+stampCard(count(view.result.stampCount),view)+'<p class="merchant-note">다음 부원의 QR을 휴대전화 카메라로 스캔해 주세요.</p></section>';
+ else if(view.preview){const full=count(view.preview.stampCount)>=CAPACITY;body='<section class="merchant-panel"><p class="merchant-eyebrow">적립할 부원</p><h2>'+esc(view.preview.memberName)+' 님</h2>'+stampCard(count(view.preview.stampCount),view)+(full?'<p>스탬프 10개가 모두 채워져 있습니다.</p>':button('스탬프 1개 적립','merchant-stamp',{class:'button full',icon:'plus',disabled:view.pending}))+'<p class="form-error" role="alert">'+esc(view.error)+'</p></section>';}
  else body='<section class="merchant-panel merchant-scan">'+icon('ticket')+'<h2>'+(view.error?'QR을 다시 확인해 주세요':'부원의 QR을 스캔해 주세요')+'</h2><p'+(view.error?' role="status"':'')+'>'+esc(view.error||'휴대전화 카메라로 부원이 표시한 QR을 스캔하면 적립 화면이 열립니다.')+'</p></section>';
  if(merchantCookieUnavailable(ctx))body+='<p class="merchant-note">쿠키를 저장하지 못해 이 화면을 닫으면 다시 로그인해야 할 수 있습니다.</p>';
  return merchantShell(body,true);
 }
 function clearMerchantQr(view,message='QR을 다시 스캔해 주세요.'){
- stop(view);view.token='';view.preview=null;view.result=null;view.error=message;
+ stop(view);view.token='';view.preview=null;view.result=null;view.stampAngles=[];view.error=message;
 }
 export async function renderMerchant(ctx){
  const view=merchantView(ctx);captureQr(view);stop(view);
  const sessionKey=getMerchantSessionKey(ctx);
  if(!sessionKey){view.preview=null;view.result=null;view.sessionKey='';return loginHtml(view);}
- if(view.sessionKey&&view.sessionKey!==sessionKey){view.token='';view.preview=null;view.result=null;view.error='';}
+ if(view.sessionKey&&view.sessionKey!==sessionKey){view.token='';view.preview=null;view.result=null;view.stampAngles=[];view.error='';}
  view.sessionKey=sessionKey;const request=Symbol();view.request=request;
  try{
   await ctx.api('merchantSession',{sessionKey});
