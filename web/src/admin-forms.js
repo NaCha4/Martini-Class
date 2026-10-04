@@ -59,7 +59,7 @@ async function eventEdit(ctx,id){
 async function stockRecord(ctx,id){
  const r=await record(ctx,'inventory',id);
  if(!r)throw Error('품목을 찾을 수 없습니다. 목록을 새로고침해 주세요.');
- const choices=[['receive','입고'],['use','미개봉 · 일반 수량 사용'],['count','미개봉 · 일반 수량 실사']];
+ const choices=[['receive','입고'],['use','사용'],['count','실사']];
  if(r.unit==='bottle')choices.splice(2,0,['open','새 병 개봉'],['remaining','개봉 병 잔량 기록'],['adjustRemaining','개봉 병 잔량 실사 · 정정']);
  const requestId=uuid();
  const dialog=modal('재고 기록 · '+r.name,'<div class="wide stock-current">현재 <strong>'+total(r).toLocaleString()+' '+unit(r)+'</strong> · 미개봉/일반 수량 '+r.quantity+'</div>'+field('action','작업 종류','receive',{choices})+field('amount','입고 수량',0,{type:'number',min:1,max:100000,step:r.unit==='g'||r.unit==='ml'?'0.1':'1',required:true})+
