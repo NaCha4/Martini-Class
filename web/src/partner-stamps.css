@@ -6,25 +6,15 @@ dialog.partner-dialog{width:min(740px,calc(100% - 32px));max-width:calc(100% - 3
 .partner-heading p{color:var(--muted);font-size:14px;line-height:1.7}
 .partner-heading .button{flex:none;font-size:12px;padding:10px 12px}
 
-/* A printed coupon, with the ink marks kept separate from the QR surface. */
-.partner-card{position:relative;isolation:isolate;overflow:hidden;padding:34px 32px 22px;border:1px solid #d6bfa0;border-radius:8px;background:radial-gradient(#8b654714 .7px,transparent .9px) 0 0/5px 5px,linear-gradient(125deg,#fff9ec,#f2e4cc);color:#603c34;box-shadow:0 12px 30px #00000025,0 2px 2px #00000018;text-align:left}
-.partner-card::before{content:'';position:absolute;inset:10px;border:1px solid #a9715845;border-radius:3px;pointer-events:none;z-index:-1}
-.partner-card-heading{display:flex;align-items:center;justify-content:space-between;gap:18px;padding-bottom:25px;margin-bottom:28px;border-bottom:1px dashed #aa816a80}
-.partner-card-caption{display:block;color:#8b6150;font-size:10px;font-weight:700;letter-spacing:.2em;line-height:1.6}
-.partner-card-title{margin:9px 0 0;font-size:clamp(19px,3vw,29px);line-height:1.5;font-weight:650;letter-spacing:-.045em;word-break:keep-all}
-.partner-card-count{flex:none;display:flex;align-items:baseline;gap:5px;color:#803f38;font-family:Georgia,'Times New Roman',serif;font-size:49px;line-height:1;font-weight:400;white-space:nowrap}
-.partner-card-count small{font-family:inherit;font-size:20px;color:#795747;font-weight:400}
-.partner-stamps{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:19px 15px}
-.partner-stamps li{position:relative;aspect-ratio:1;display:grid;place-items:center;justify-self:center;width:100%;max-width:90px;min-width:0;border:1.5px dashed #b1947a;border-radius:50%;background:#fffdf54d;color:#805e48;font-family:Georgia,'Times New Roman',serif;font-size:24px;line-height:1}
-.partner-stamps li.is-stamped{border-color:transparent;background:transparent}
-.partner-stamp-mark{position:absolute;inset:1px;display:grid;place-items:center;border:4px double currentColor;border-radius:50%;color:#994f46;transform:rotate(-11deg);opacity:.92;background:repeating-linear-gradient(18deg,transparent 0 5px,#f8ecd923 5px 6px)}
-.partner-stamp-mark::after{content:'';position:absolute;inset:5px;border:1px solid #994f4655;border-radius:50%;pointer-events:none}
-.partner-stamps li:nth-child(3n+2) .partner-stamp-mark{transform:rotate(8deg);opacity:.82}
-.partner-stamps li:nth-child(3n) .partner-stamp-mark{transform:rotate(-4deg)}
-.partner-stamps svg{width:43%;height:43%;stroke-width:1.8}
-.partner-card-flourish{display:flex;align-items:center;justify-content:center;gap:14px;margin-top:24px;color:#a6765e;font-size:13px;line-height:1}
-.partner-card-flourish::before,.partner-card-flourish::after{content:'';width:40px;border-top:1px solid #b9957a80}
-.partner-complete{margin:18px 0 2px;color:#803f38;font-size:14px;text-align:center;font-weight:600}
+/* Keep the original artwork and the stamp overlay in the same 3000 × 1650 space. */
+.partner-coupon{margin:0;min-width:0}
+.partner-card{position:relative;width:100%;line-height:0}
+.partner-card-art{display:block;width:100%;height:auto}
+.partner-stamps{position:absolute;inset:0;width:100%;height:100%;color:#a34c43;pointer-events:none}
+.partner-card-status{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:8px 18px;margin-top:12px;font-size:13px;line-height:1.6;color:var(--muted)}
+.partner-card-count{margin-left:auto;white-space:nowrap}
+.partner-card-count strong{margin-left:6px;color:var(--text);font-size:16px;font-variant-numeric:tabular-nums}
+.partner-complete{color:var(--text)}
 
 .partner-qr-slot{text-align:center;padding:30px 0 2px}
 .partner-qr-slot>.button{margin-top:16px;min-width:180px;min-height:48px}
@@ -61,9 +51,7 @@ dialog.partner-dialog{width:min(740px,calc(100% - 32px));max-width:calc(100% - 3
 .merchant-panel h2{font-size:21px;line-height:1.5;overflow-wrap:anywhere;margin-bottom:12px}
 .merchant-panel>p{color:var(--muted);font-size:13px;line-height:1.8}
 .merchant-panel form{margin-top:25px}
-.merchant-panel .partner-card{margin:22px 0;padding:26px 22px 20px}
-.merchant-panel .partner-card-title{font-size:21px}
-.merchant-panel .partner-card-count{font-size:39px}
+.merchant-panel .partner-coupon{margin:22px 0}
 .merchant-note{font-size:12px!important;line-height:1.8;color:var(--muted);margin-top:20px}
 .merchant-panel .merchant-eyebrow{font-size:12px;color:var(--gold);margin-bottom:8px}
 .merchant-countdown{margin:18px 0}
@@ -83,30 +71,11 @@ dialog.partner-dialog{width:min(740px,calc(100% - 32px));max-width:calc(100% - 3
  .partner-dialog footer{padding:14px 20px}
  .partner-heading{gap:10px;margin-bottom:18px}
  .partner-heading p{font-size:13px}
- .partner-card{padding:26px 20px 20px}
- .partner-card-heading{padding-bottom:20px;margin-bottom:22px;gap:12px}
- .partner-card-count{font-size:39px}
- .partner-card-count small{font-size:17px}
- .partner-stamps{gap:14px 9px}
- .partner-stamps li{font-size:20px}
- .partner-card-flourish{margin-top:20px}
  .merchant-page{padding:32px 16px 22px}
  .merchant-panel{padding:22px 18px}
- .merchant-panel .partner-card{padding:25px 16px 18px}
- .merchant-panel .partner-card-title{font-size:19px}
 }
 @media(max-width:360px){
  .partner-dialog .dialog-content{padding-inline:12px}
- .partner-card,.merchant-panel .partner-card{padding:24px 14px 18px}
- .partner-card::before{inset:7px}
- .partner-card-title,.merchant-panel .partner-card-title{font-size:17px}
- .partner-card-caption{font-size:9px;letter-spacing:.14em}
- .partner-card-count,.merchant-panel .partner-card-count{font-size:33px}
- .partner-card-count small{font-size:14px}
- .partner-stamps{gap:12px 6px}
- .partner-stamps li{font-size:17px}
- .partner-stamp-mark{border-width:3px}
- .partner-stamp-mark::after{inset:4px}
  .partner-heading p{font-size:12px}
  .partner-heading .button{padding:8px;font-size:11px}
  .merchant-panel{padding:20px 12px}
