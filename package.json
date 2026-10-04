@@ -7,7 +7,7 @@
     "dev": "vite --host 127.0.0.1",
     "build": "node scripts/build.mjs",
     "preview": "vite preview --host 127.0.0.1",
-    "test": "node --test tests/domain.test.mjs tests/share-links.test.mjs tests/on-the-rock-rules.test.mjs tests/on-the-rock-ui.test.mjs tests/coupons.test.mjs tests/member-session.test.mjs tests/member-session-server.test.mjs tests/member-navigation-ui.test.mjs tests/member-views.test.mjs tests/admin-retired-ui.test.mjs",
+    "test": "node --test tests/domain.test.mjs tests/share-links.test.mjs tests/on-the-rock-rules.test.mjs tests/on-the-rock-ui.test.mjs tests/coupons.test.mjs tests/member-session.test.mjs tests/member-session-server.test.mjs tests/member-navigation-ui.test.mjs tests/member-views.test.mjs tests/admin-retired-ui.test.mjs tests/budget-planner.test.mjs tests/budget-access.test.mjs tests/budget-planner-ui.test.mjs",
     "test:integration": "node --test tests/integration.test.mjs tests/decision-categories.test.mjs tests/staff-pricing.test.mjs tests/member-portal.test.mjs tests/on-the-rock.test.mjs",
     "emulators": "node scripts/start-emulators.mjs",
     "seed:local": "node scripts/seed-local.mjs",

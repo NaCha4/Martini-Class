@@ -202,6 +202,7 @@ export async function render({focus=false,scroll}={}) {
   }finally{if(current===renderNumber){rendering=false;app.removeAttribute('aria-busy');progress.remove();scheduleMemberExpiry();}}
 }
 onAuthStateChanged(auth,async user=>{
+  if(state.user?.uid!==user?.uid){delete state.budgetPlannerView;if(document.querySelector('.budgetplanner-dialog'))await closeModal({discard:true});}
   state.user=user;state.profile=null;
   if(user){try{state.profile=await api('profile');}catch(error){state.authError=error.message;}}
   state.authReady=true;if(isAdminScreen())render();

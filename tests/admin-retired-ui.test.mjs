@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { registerHooks } from 'node:module';
+import { defaultRoles, hasPermission, permissionLabels } from '../functions/src/permissions.js';
 
 // Load the actual renderer and form handlers without initializing Firebase.
 // In particular, these checks never load the app's Firebase configuration.
@@ -301,6 +302,127 @@ test('participant payment and refund records stay linked to their application wi
    const {requestId,...payload}=saved[0];
    assert.ok(requestId);
    assert.deepEqual(payload,{kind,amount,title:'참가비 기록',eventId:'event-a',applicationId:'application-a',semester:'2026-2',note:'확인 완료'});
+  }));
+ }
+});
+
+test('budget access is an explicit grant and is absent from every built-in default role',()=>{
+ assert.equal(permissionLabels.budget,'예산 업무');
+ for(const role of defaultRoles){
+  assert.ok(!role.permissions.includes('budget'),role.id+' must opt in to budget work');
+  assert.equal(hasPermission({role:role.id},'budget'),false,role.id);
+ }
+ assert.equal(hasPermission(profile({permissions:['finance']}),'budget'),false);
+ assert.equal(hasPermission(profile({permissions:['admins']}),'budget'),false);
+ assert.equal(hasPermission(profile({permissions:['budget']}),'budget'),true);
+ assert.equal(hasPermission(profile({permissions:['budget']}),'finance'),false);
+ assert.equal(hasPermission(profile({permissions:['budget']}),'eventRead'),false);
+});
+
+test('the budget menu is in operational support only for explicitly granted roles',async()=>{
+ for(const granted of [true,false]){
+  const {ctx,calls}=context({operator:profile({role:'custom',permissions:granted?['budget']:['finance']})});
+  const html=await at('/admin',()=>renderAdmin(ctx)),desktop=nav(html,'운영 메뉴');
+  const support=desktop.match(/<section class="nav-group"><h2>운영 지원<\/h2>([\s\S]*?)<\/section>/)?.[1]||'';
+  assert.equal(hrefs(support).includes('/admin/budget'),granted);
+  assert.equal(hrefs(html).includes('/admin/budget'),granted);
+  assert.ok(!calls.some(({op,data})=>op.toLowerCase().includes('budget')||data?.kind?.toLowerCase().includes('budget')),'The dashboard must not load independent budget data');
+  await at('/admin',()=>withDialogs(async dialogs=>{
+   await adminAction(ctx,'mobile-menu');
+   assert.equal(hrefs(dialogs[0].innerHTML).includes('/admin/budget'),granted);
+  }));
+ }
+});
+
+test('direct budget URLs deny access before data reads without a current budget grant',async()=>{
+ for(const role of ['owner','chair','finance','custom']){
+  const operator=profile({role,permissions:role==='finance'?['finance']:role==='custom'?[]:[...permissions]});
+  const {ctx,calls}=context({operator});
+  const html=await at('/admin/budget',()=>renderAdmin(ctx));
+  assert.match(html,/접근 권한이 없습니다/);
+  assert.deepEqual(calls,[{op:'profile',data:undefined}],role);
+ }
+ // The fresh profile response must override a stale grant held by the page.
+ const {ctx,calls}=context({operator:profile({permissions:['finance']})});
+ ctx.state.profile=profile({permissions:['finance','budget']});
+ const html=await at('/admin/budget',()=>renderAdmin(ctx));
+ assert.match(html,/접근 권한이 없습니다/);
+ assert.deepEqual(calls,[{op:'profile',data:undefined}]);
+});
+
+test('authorized budget pages load their independent board without reading settings, events, participants, or finance',async()=>{
+ const {ctx,calls}=context({operator:profile({role:'planner',permissions:['budget']})}),api=ctx.api;
+ ctx.api=async(op,data)=>{
+  if(op==='budgetPlanner'){
+   calls.push({op,data});
+   return {revision:2,funds:100000,plans:[{id:'plan-a',name:'독립 행사 예산',allocated:80000,items:[{id:'food',title:'식비',amount:50000}]}]};
+  }
+  return api(op,data);
+ };
+ const html=await at('/admin/budget',()=>renderAdmin(ctx)),body=main(html);
+ assert.deepEqual(calls,[{op:'profile',data:undefined},{op:'budgetPlanner',data:{}}]);
+ assert.match(body,/독립 행사 예산/);
+ assert.match(body,/식비/);
+ assert.match(body,/지출 후 남을 금액/);
+ assert.match(nav(html,'운영 메뉴'),/<a href="\/admin\/budget"[^>]*aria-current="page"/);
+ assert.equal(hrefs(body).some(href=>/^\/admin\/(?:events|finance|members|settings)/.test(href)),false);
+});
+
+test('role editors expose and persist a separate budget checkbox without adding finance or event grants',async()=>{
+ for(const existing of [false,true]){
+  const role={id:'planner',name:'예산 담당',revision:4,permissions:['inventory'],assigned:2};
+  const {ctx}=context({roles:[role]});
+  const saved=[],api=ctx.api;
+  ctx.api=async(op,data)=>{if(op==='saveRole'){saved.push(data);return data;}return api(op,data);};
+  ctx.render=async()=>{};ctx.toast=()=>{};
+  await at('/admin/roles',()=>withDialogs(async dialogs=>{
+   await adminAction(ctx,'role-edit',existing?role.id:undefined);
+   const dialog=dialogs[0],html=dialog.innerHTML,form=dialog.querySelector('form');
+   assert.match(html,/name="permission-budget"/);
+   assert.match(html,/예산 업무/);
+   assert.doesNotMatch(html,/name="permission-budget"[^>]*checked/);
+   form.entries=[['name','예산 담당'],['permission-budget','on']];
+   await form.listeners.get('submit')({preventDefault(){}});
+   assert.deepEqual(saved,[{...(existing?{id:role.id,revision:4}:{revision:0}),name:'예산 담당',permissions:['budget']}]);
+   assert.equal(dialog.open,false);
+  }));
+ }
+});
+
+test('unchecking budget on an ordinary role removes only that grant and preserves historical permissions',async()=>{
+ const {ctx}=context({roles:[{id:'planner',name:'운영팀',revision:7,permissions:['finance','budget','meetings','decisions','content'],assigned:2}]});
+ const saved=[],api=ctx.api;
+ ctx.api=async(op,data)=>{if(op==='saveRole'){saved.push(data);return data;}return api(op,data);};
+ ctx.render=async()=>{};ctx.toast=()=>{};
+ await at('/admin/roles',()=>withDialogs(async dialogs=>{
+  await adminAction(ctx,'role-edit','planner');
+  const dialog=dialogs[0],form=dialog.querySelector('form');
+  assert.match(dialog.innerHTML,/name="permission-budget"[^>]*checked/);
+  form.entries=[['name','운영팀'],['permission-finance','on']];
+  await form.listeners.get('submit')({preventDefault(){}});
+  assert.deepEqual(saved,[{id:'planner',revision:7,name:'운영팀',permissions:['finance','meetings','decisions','content']}]);
+ }));
+});
+
+test('protected leadership roles expose only a budget opt-in and save it through the restricted endpoint',async()=>{
+ for(const id of ['owner','chair'])for(const enabled of [false,true]){
+  const role={id,name:id==='owner'?'회장':'부회장',revision:3,permissions:[...permissions,...(enabled?[]:['budget'])],assigned:1};
+  const {ctx}=context({roles:[role]});
+  const saved=[],api=ctx.api;
+  ctx.api=async(op,data)=>{if(op==='setRoleBudget'){saved.push(data);return data;}return api(op,data);};
+  ctx.render=async()=>{};ctx.toast=()=>{};
+  const page=await at('/admin/roles',()=>renderAdmin(ctx));
+  assert.match(main(page),new RegExp('data-action="role-edit"[^>]*data-id="'+id+'"'));
+  await at('/admin/roles',()=>withDialogs(async dialogs=>{
+   await adminAction(ctx,'role-edit',id);
+   const dialog=dialogs[0],form=dialog.querySelector('form');
+   assert.match(dialog.innerHTML,/예산 업무 설정/);
+   assert.match(dialog.innerHTML,/name="permission-budget"/);
+   assert.doesNotMatch(dialog.innerHTML,/name="(?:name|permission-(?:admins|finance|events|members|inventory|settings|audit))"/);
+   form.entries=enabled?[['permission-budget','on']]:[];
+   await form.listeners.get('submit')({preventDefault(){}});
+   assert.deepEqual(saved,[{id,revision:3,enabled}]);
+   assert.equal(dialog.open,false);
   }));
  }
 });

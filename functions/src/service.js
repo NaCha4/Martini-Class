@@ -10,6 +10,7 @@ import { createDecisionCategories } from './decision-categories.js';
 import { createMemberPortal } from './member-portal.js';
 import { createCoupons } from './coupons.js';
 import { createOnTheRock } from './on-the-rock.js';
+import { createBudgetPlanner } from './budget-planner.js';
 import { Timestamp, FieldValue } from 'firebase-admin/firestore';
 import { schemas, parse, fail, ensureScope, hash, secret, identity, normalizePhone, validateEvent, allocate, changeStock, stockTotal, matches, publicEvent, requireRevision, occupied, idSchema, roles } from './domain.js';
 const PREFIX='martini_v2_';
@@ -22,10 +23,11 @@ export function createService(db,clock=Date.now){
  const roster=createRoster(col);
  const snapshot=snap=>snap.exists&&!snap.data().deletedAt?{...snap.data(),id:snap.id}:null;
  const clean=record=>{const {linkHash,receiptHash,identityHash,memberIdentityHash,isStaff,staffFee,staffFeeRevision,pricingRevision,...safe}=record;return safe;};
+ function protectedRole(builtin,stored){return {...builtin,permissions:[...builtin.permissions,...(!stored?.deletedAt&&Array.isArray(stored?.permissions)&&stored.permissions.includes('budget')?['budget']:[])],revision:stored?.revision||0};}
  async function roleDefinition(id,tx){
   const builtin=defaultRoles.find(r=>r.id===id);
-  if(['owner','chair'].includes(id))return {...builtin,revision:0};
   const ref=col('roles').doc(id),doc=tx?await tx.get(ref):await ref.get();
+  if(['owner','chair'].includes(id))return protectedRole(builtin,doc.data());
   return doc.exists?(doc.data().deletedAt?null:{...doc.data(),id,system:!!builtin}):builtin?{...builtin,revision:0}:null;
  }
  async function admin(ctx){
@@ -48,6 +50,7 @@ export function createService(db,clock=Date.now){
  const decisionCategories=createDecisionCategories({db,col,clock,now,audit});
  const staffPricing=createStaffPricing({db,col,clock,now,audit});
  const onTheRock=createOnTheRock({db,col,now,audit});
+ const budgetPlanner=createBudgetPlanner({db,col,clock,now,audit});
  // Serialize hot-event transactions within an instance; Firestore still guards cross-instance capacity.
  const eventQueues=new Map(),queueSizes=new Map();
  function serializeEvent(id,run){
@@ -391,6 +394,8 @@ export function createService(db,clock=Date.now){
   if(op==='clubRequestReceipt')return memberPortal.getReceipt(data,ctx);
   if(op==='cancelClubRequest')return memberPortal.cancel(data,ctx);
   const who=await admin(ctx);
+  if(op==='budgetPlanner')return budgetPlanner.read(data,who);
+  if(op==='saveBudgetPlanner')return budgetPlanner.save(data,who);
   if(['onTheRockBoard','saveOnTheRockGroup','recordOnTheRockMission','updateOnTheRockRecord','voidOnTheRockRecord'].includes(op))return onTheRock(op,data,who);
   if(op==='clubRequests')return memberPortal.list(data,who);
   if(op==='clubRequestCommand')return memberPortal.command(data,who);
@@ -413,8 +418,18 @@ export function createService(db,clock=Date.now){
    ensureScope(who,'admins',clock());
    const stored=await col('roles').get(),assigned=await col('admins').get();
    const map=new Map(defaultRoles.map(r=>[r.id,{...r,revision:0}]));
-   stored.docs.forEach(doc=>{if(['owner','chair'].includes(doc.id))return;if(doc.data().deletedAt)map.delete(doc.id);else map.set(doc.id,{...doc.data(),id:doc.id,system:defaultRoles.some(r=>r.id===doc.id)});});
+   stored.docs.forEach(doc=>{if(['owner','chair'].includes(doc.id)){map.set(doc.id,protectedRole(defaultRoles.find(role=>role.id===doc.id),doc.data()));return;}if(doc.data().deletedAt)map.delete(doc.id);else map.set(doc.id,{...doc.data(),id:doc.id,system:defaultRoles.some(r=>r.id===doc.id)});});
    return {rows:[...map.values()].map(r=>({...r,assigned:assigned.docs.filter(a=>a.data().role===r.id).length}))};
+  }
+  if(op==='setRoleBudget'){
+   ensureScope(who,'admins',clock());
+   const input=parse(z.object({id:z.enum(['owner','chair']),revision:z.number().int().min(0),enabled:z.boolean()}).strict(),data);
+   return db.runTransaction(async tx=>{
+    const old=await roleDefinition(input.id,tx);requireRevision(old,input.revision);
+    const builtin=defaultRoles.find(role=>role.id===input.id);
+    const next={id:input.id,name:builtin.name,permissions:[...builtin.permissions,...(input.enabled?['budget']:[])],revision:old.revision+1,updatedAt:now()};
+    tx.set(col('roles').doc(input.id),next);audit(tx,who,'roles',input.id,'예산 업무 권한 '+(input.enabled?'허용':'해제'));return next;
+   });
   }
   if(op==='saveRole'){
    ensureScope(who,'admins',clock());const input=parse(schemas.role,data),id=input.id||col('roles').doc().id;

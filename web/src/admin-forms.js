@@ -119,6 +119,9 @@ async function settingsEdit(ctx){
 async function roleEdit(ctx,id){
  if(!hasPermission(ctx.state.profile,'admins'))throw Error('역할 관리 권한이 없습니다.');
  const r=id?(await ctx.api('listRoles')).rows.find(role=>role.id===id):null;
+ if(r&&['owner','chair'].includes(r.id)){
+  modal(r.name+' · 예산 업무 설정',field('permission-budget','예산 업무',r.permissions.includes('budget'),{type:'checkbox',wide:true})+'<p class="wide help">체크하면 독립 예산 페이지를 조회하고 수정할 수 있습니다. 기존 필수 관리 권한은 유지됩니다.</p>',async f=>save(ctx,'setRoleBudget',{id:r.id,revision:r.revision,enabled:f.has('permission-budget')}));return;
+ }
  modal(r?'역할 수정':'역할 만들기',field('name','역할 이름',r?.name,{required:true,wide:true,maxLength:50})+'<fieldset class="wide role-permissions"><legend>사용할 수 있는 업무</legend>'+Object.entries(permissionLabels).filter(([key])=>!['meetings','decisions','content'].includes(key)).map(([key,title])=>field('permission-'+key,key==='finance'?'행사 참가비 관리':title,r?.permissions.includes(key)||false,{type:'checkbox'})).join('')+'</fieldset><p class="wide help">선택한 업무만 사용할 수 있습니다. 행사 참가비 관리는 납부·환불 확인 담당 역할에만 선택하세요.</p>',async f=>{
   const retired=['meetings','decisions','content'];
   const permissions=[...Object.keys(permissionLabels).filter(key=>!retired.includes(key)&&f.has('permission-'+key)),...(r?.permissions||[]).filter(key=>retired.includes(key))];
