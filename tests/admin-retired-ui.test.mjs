@@ -87,6 +87,7 @@ async function withDialogs(run){
      if(!tag)return null;
      const control=element(),wrapper=element();
      control.value=tag.match(/\bvalue="([^"]*)"/)?.[1]??dialog.innerHTML.match(new RegExp('<select\\b[^>]*name="'+name+'"[^>]*>[\\s\\S]*?<option value="([^"]*)" selected'))?.[1]??'';
+     control.checked=/\bchecked\b/.test(tag);
      control.closest=()=>wrapper;parts.set(selector,control);return control;
     }
     return null;
@@ -174,13 +175,13 @@ test('event preparation keeps its inventory workflow without meetings, tasks, pu
  noRetiredLinks(html);
 });
 
-test('new and existing event editors open all sections and save a complete event through the real action',async()=>{
- for(const existing of [false,true]){
-  const current=event({revision:4,sequence:1,questions:['준비물 확인']});
+test('new, legacy, and private event editors preserve visibility defaults and save an explicit public flag',async()=>{
+ for(const {existing,storedVisible,submitVisible} of [{existing:false,submitVisible:true},{existing:true,submitVisible:true},{existing:true,storedVisible:false,submitVisible:false},{existing:false,submitVisible:false}]){
+  const current=event({revision:4,sequence:1,questions:['준비물 확인'],...(storedVisible===undefined?{}:{memberVisible:storedVisible})});
   const {ctx}=context();
   if(existing)ctx.state.data.events={[current.id]:current};
   const saved=[];let rendered=0;
-  ctx.api=async(op,data)=>{assert.equal(op,'saveEvent');saved.push(data);return {saved:true};};
+  ctx.api=async(op,data)=>{assert.equal(op,'saveEvent');saved.push(data);return {saved:true,...(!submitVisible?{linkKey:'legacy-private-link'}:{})};};
   ctx.render=async()=>{rendered++;};ctx.toast=()=>{};
   await at('/admin/events'+(existing?'/'+current.id:''),()=>withDialogs(async dialogs=>{
    await adminAction(ctx,'event-edit',existing?current.id:undefined);
@@ -193,6 +194,8 @@ test('new and existing event editors open all sections and save a complete event
     assert.match(html,new RegExp('<(?:input|textarea)\\b[^>]*name="'+name+'"[^>]*\\brequired\\b'),name+' must be editable and required');
    }
    assert.equal(dialog.querySelector('[name=status]').value,existing?'open':'draft');
+   assert.equal(dialog.querySelector('[name=memberVisible]').checked,storedVisible!==false);
+   assert.match(html,/부원에게 공개/);assert.match(html,/체크를 해제하면 부원 라운지와 행사 신청 링크에서 숨겨지며/);
    assert.equal(dialog.querySelector('[name=confirmCancellation]').disabled,true);
    assert.equal(dialog.querySelector('[type=submit]').textContent,'행사 저장');
    if(existing){
@@ -200,14 +203,37 @@ test('new and existing event editors open all sections and save a complete event
     assert.equal(dialog.querySelector('[data-existing-applications]').hidden,true);
    }
    const dates={startsAt:'2026-11-10T18:00',endsAt:'2026-11-10T20:00',opensAt:'2026-11-01T09:00',closesAt:'2026-11-09T18:00',cancelUntil:'2026-11-09T18:00'};
-   const values={title:'  새 칵테일 교육  ',type:'class',semester:'2026-2',description:'잔을 준비해 주세요.',location:'교육실',owner:'교육부',...dates,capacity:'24',fee:'5000',status:'open',waitlist:'on',questions:'준비물 확인\n\n기타 요청',policy:'취소 마감 전 환불 가능',accountNumber:'000-000',bankName:'테스트은행',accountHolder:'테스트동아리'};
+   const values={title:'  새 칵테일 교육  ',type:'class',semester:'2026-2',description:'잔을 준비해 주세요.',location:'교육실',owner:'교육부',...dates,capacity:'24',fee:'5000',status:'open',...(submitVisible?{memberVisible:'on'}:{}),waitlist:'on',questions:'준비물 확인\n\n기타 요청',policy:'취소 마감 전 환불 가능',accountNumber:'000-000',bankName:'테스트은행',accountHolder:'테스트동아리'};
    const form=dialog.querySelector('form');form.entries=Object.entries(values);
    await form.listeners.get('submit')({preventDefault(){}});
-   assert.deepEqual(saved,[{...(existing?{id:current.id,revision:4}:{revision:0}),...values,title:'새 칵테일 교육',...Object.fromEntries(Object.entries(dates).map(([key,value])=>[key,new Date(value).toISOString()])),capacity:24,fee:5000,waitlist:true,questions:['준비물 확인','기타 요청']}]);
+   assert.deepEqual(saved,[{...(existing?{id:current.id,revision:4}:{revision:0}),...values,title:'새 칵테일 교육',...Object.fromEntries(Object.entries(dates).map(([key,value])=>[key,new Date(value).toISOString()])),capacity:24,fee:5000,memberVisible:submitVisible,waitlist:true,questions:['준비물 확인','기타 요청']}]);
    assert.equal(rendered,1);
    assert.equal(dialog.open,false);
+   if(!submitVisible){await new Promise(resolve=>setTimeout(resolve,0));assert.equal(dialogs.length,1,'Private event saves must not open a share dialog even if an older response contains a link');}
   }));
  }
+});
+
+test('private events remain in admin cards and details with a clear label and editable settings, without invite controls',async()=>{
+ for(const memberVisible of [undefined,true,false]){
+  const current=event(memberVisible===undefined?{}:{memberVisible}),{ctx}=context({rows:{events:[current]}});
+  const list=main(await at('/admin/events',()=>renderAdmin(ctx)));
+  assert.match(list,memberVisible===false?/event-term[^>]*>[^<]*운영진 전용/:/event-term[^>]*>[^<]*부원 공개/);
+  assert.ok(hrefs(list).includes('/admin/events/event-a'));
+  const detail=main(await at('/admin/events/event-a',()=>renderAdmin(ctx)));
+  assert.match(detail,/data-action="event-edit"/);
+  assert.match(detail,memberVisible===false?/<span class="badge">운영진 전용<\/span>/:/<span class="badge">부원 공개<\/span>/);
+  if(memberVisible===false){assert.doesNotMatch(detail,/data-action="event-link"|신청 링크를 복사해서/);assert.match(detail,/공개 설정을 변경해 주세요/);}
+  else assert.match(detail,/data-action="event-link"/);
+ }
+});
+
+test('private event link actions do not open the share workflow or request a new link',async()=>{
+ const {ctx,calls}=context(),messages=[];ctx.state.data.events={'event-a':event({memberVisible:false})};ctx.toast=message=>messages.push(message);
+ await at('/admin/events/event-a',()=>withDialogs(async dialogs=>{
+  await adminAction(ctx,'event-link','event-a');assert.equal(dialogs.length,0);
+ }));
+ assert.deepEqual(calls,[]);assert.match(messages[0],/운영진 전용 행사/);
 });
 
 test('finance permission still opens event participants and existing event payment controls',async()=>{

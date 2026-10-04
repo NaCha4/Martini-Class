@@ -83,14 +83,14 @@ export function createMemberPortal({db,col,clock,now,roster,throttle,audit}){
    const events=await tx.get(col('events').where('semester','==',member.semester));
    const requests=await tx.get(col('clubRequests').where('memberScope','==',scope(member)).orderBy('createdAt','desc').limit(100));
    return {member:{name:member.name,semester:member.semester},expiresAt,
-    events:events.docs.map(doc=>({...doc.data(),id:doc.id})).filter(event=>!event.deletedAt&&['open','closed'].includes(event.status)&&Date.parse(event.endsAt)>clock()).sort((a,b)=>a.startsAt.localeCompare(b.startsAt)).map(event=>({...publicEvent(event),eventId:event.id})),
+    events:events.docs.map(doc=>({...doc.data(),id:doc.id})).filter(event=>!event.deletedAt&&event.memberVisible!==false&&['open','closed'].includes(event.status)&&Date.parse(event.endsAt)>clock()).sort((a,b)=>a.startsAt.localeCompare(b.startsAt)).map(event=>({...publicEvent(event),eventId:event.id})),
     requests:requests.docs.filter(doc=>!doc.data().deletedAt&&!doc.data().anonymizedAt&&requestFingerprint(doc.data())===fingerprint(member)).map(doc=>safeRequest({...doc.data(),id:doc.id}))};
   },{readOnly:true});
  }
  async function verifyEvent(eventId,sessionKey,tx){
   const verified=await authenticate(sessionKey,tx),doc=await read(tx).get(col('events').doc(eventId));
   const event=doc.exists?{...doc.data(),id:doc.id}:null;
-  if(!event||event.deletedAt||event.semester!==verified.member.semester||!['open','closed'].includes(event.status)||Date.parse(event.endsAt)<=clock())fail('not-found','현재 학기의 진행 중인 행사를 확인해 주세요.');
+  if(!event||event.deletedAt||event.memberVisible===false||event.semester!==verified.member.semester||!['open','closed'].includes(event.status)||Date.parse(event.endsAt)<=clock())fail('not-found','현재 학기의 진행 중인 행사를 확인해 주세요.');
   return {...verified,event};
  }
  async function eventAccess(data,ctx){

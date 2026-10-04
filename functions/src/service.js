@@ -69,7 +69,7 @@ export function createService(db,clock=Date.now){
  const memberCoupons=createCoupons({db,authenticate:memberPortal.authenticate,throttle});
  async function verifyEvent(eventId,key,tx){
   const ref=col('events').doc(eventId),s=tx?await tx.get(ref):await ref.get(),e=snapshot(s);
-  if(!e||!matches(key,e.linkHash)||e.status==='draft')fail('not-found','유효한 행사 링크를 확인해 주세요.');
+  if(!e||e.memberVisible===false||!matches(key,e.linkHash)||e.status==='draft')fail('not-found','유효한 행사 링크를 확인해 주세요.');
   return e;
  }
  async function save(kind,schema,data,who,scope){
@@ -95,6 +95,8 @@ export function createService(db,clock=Date.now){
    }
    if(kind==='budgets'){if(old?.status==='executed')fail('failed-precondition','집행 완료한 계획은 수정할 수 없습니다.');next.status='planned';}
    if(kind==='events'){
+    // Cached editors that omit visibility must not make a private event public.
+    next.memberVisible=input.memberVisible??(old?.memberVisible!==false);
     for(const key of ['staffFee','staffFeeRevision'])if(old?.[key]!==undefined)next[key]=old[key];
     for(const key of ['accountNumber','bankName','accountHolder'])next[key]=input[key]??old?.[key]??'';
     validateEvent(input,old?.registered||0);
@@ -281,7 +283,7 @@ export function createService(db,clock=Date.now){
     if(!memberPortal.ownsApplication(record,member))continue;
     if(!events.has(record.eventId))events.set(record.eventId,snapshot(await tx.get(col('events').doc(record.eventId))));
     const event=events.get(record.eventId);
-    if(event&&event.semester===member.semester)applications.push(memberApplicationView(record,event));
+    if(event&&event.memberVisible!==false&&event.semester===member.semester)applications.push(memberApplicationView(record,event));
    }
    applications.sort((a,b)=>(b.application.createdAt||'').localeCompare(a.application.createdAt||'')||a.application.id.localeCompare(b.application.id));
    return {applications:applications.slice(0,500),expiresAt,legacyAccessRequiresReceipt:true,...(rows.size>500?{truncated:true}:{})};
@@ -295,7 +297,7 @@ export function createService(db,clock=Date.now){
    const ref=col('applications').doc(input.id),record=snapshot(await tx.get(ref));
    if(!memberPortal.ownsApplication(record,member))fail('not-found','신청 내역을 확인해 주세요.');
    const event=snapshot(await tx.get(col('events').doc(record.eventId)));
-   if(!event||event.semester!==member.semester)fail('not-found','행사를 찾을 수 없습니다.');
+   if(!event||event.memberVisible===false||event.semester!==member.semester)fail('not-found','행사를 찾을 수 없습니다.');
    const result=await applicationAction(tx,ref,record,event,input.action);
    return memberApplicationView(result.record,result.event);
   });
@@ -377,7 +379,7 @@ export function createService(db,clock=Date.now){
    await throttle(ctx,'resolve-link:'+input.kind+':'+(parseInt(secret().slice(0,4),16)%16),100);
    const rows=await col(input.kind==='e'?'events':'applications').where(input.kind==='e'?'linkHash':'receiptHash','==',hash(input.key)).limit(2).get();
    const record=rows.size===1?snapshot(rows.docs[0]):null;
-   if(!record||record.anonymizedAt)fail('not-found','링크를 확인해 주세요.');
+   if(!record||record.anonymizedAt||(input.kind==='e'&&record.memberVisible===false))fail('not-found','링크를 확인해 주세요.');
    return {id:rows.docs[0].id};
   }
   if(op==='eventAccess'){const input=parse(z.object({eventId:idSchema,key:token}).strict(),data);await throttle(ctx,'event:'+input.eventId+':'+(parseInt(secret().slice(0,4),16)%16),100);return publicEvent(await verifyEvent(input.eventId,input.key));}

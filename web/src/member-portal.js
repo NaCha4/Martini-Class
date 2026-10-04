@@ -97,12 +97,12 @@ async function loadPortal(ctx){
  }
  if(!current())return {status:'stale'};
  if(!portal.member||typeof portal.member.name!=='string'){clearIdentity(ctx);return {status:'login',message:'부원 정보를 확인할 수 없습니다. 다시 로그인해 주세요.'};}
- view.member=portal.member;view.events=portal.events||[];view.requests=portal.requests||[];refreshMemberSession(ctx,portal.expiresAt);
+ view.member=portal.member;view.events=(portal.events||[]).filter(event=>event.memberVisible!==false);view.requests=portal.requests||[];refreshMemberSession(ctx,portal.expiresAt);
  if(!current())return {status:'stale'};
  try{
   const result=await ctx.api('memberApplications',{sessionKey});
   if(!current())return {status:'stale'};
-  view.applications=result.applications||[];refreshMemberSession(ctx,result.expiresAt);
+  view.applications=(result.applications||[]).filter(row=>row.event?.memberVisible!==false);refreshMemberSession(ctx,result.expiresAt);
  }catch(error){
   if(!current())return {status:'stale'};
   if(isMemberAccessError(error)){clearIdentity(ctx);return {status:'login',message:'로그인이 만료되었거나 부원 정보가 변경되었습니다. 다시 로그인해 주세요.'};}

@@ -130,6 +130,18 @@ test('the lounge renders exactly three popup card buttons with every application
  assert.doesNotMatch(html,/<nav\b|<details\b|<summary\b|data-action="member-(?:section|inquiry)"|운영진에게 문의|member-home-grid|member-home-notices|member-home-coupon|member-coupons|data-coupon-state|준비 중|학기|지금 확인할 신청|다음 행사|href="\/notices"|private guest/);
  assert.deepEqual(calls.map(call=>call.op),['memberPortal','memberApplications']);
 });
+test('private events stay out of the event popup and application history while legacy public events remain visible',async()=>{
+ const privateApplication=application('private-request');privateApplication.event.memberVisible=false;
+ const {html,ctx}=await view('home',{events:[event('legacy'),event('public',{memberVisible:true}),event('private',{memberVisible:false})],applications:[application('legacy-request'),privateApplication]});
+ const choices=renderMemberEventChoices(ctx);
+ for(const id of ['legacy','public'])assert.match(choices,new RegExp('data-action="member-event-open"[^>]*data-id="'+id+'"'));
+ assert.doesNotMatch(choices,/data-id="private"|행사 private/);
+ assert.match(html,/data-action="member-application-open"[^>]*data-id="legacy-request"/);
+ assert.doesNotMatch(html,/private-request/);
+ assert.deepEqual(memberState(ctx).events.map(row=>row.id),['legacy','public']);
+ assert.deepEqual(memberState(ctx).applications.map(row=>row.application.id),['legacy-request']);
+});
+
 test('event applications and visit requests stay below all service cards without secret links or retired inquiry history',async()=>{
  const requests=[{id:'visit-one',kind:'visit',purpose:'테스트 방문',startsAt:time(1000000),createdAt:time(-10000),guestCount:2,status:'pending'},{id:'inquiry-one',kind:'inquiry',subject:'테스트 문의',createdAt:time(-9000),status:'answered'}];
  const {html}=await view('applications',{requests,applications:[application('event-request')]});
