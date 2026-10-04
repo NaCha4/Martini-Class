@@ -7,6 +7,7 @@ import { handleAdminAction, handleAdminSubmit } from './admin-forms.js';
 import { hasStaffFee, staffCheckbox } from './staff-pricing.js';
 import { renderAdminRequests, adminRequestAction } from './admin-requests.js';
 import { renderOnTheRock, onTheRockAction } from './on-the-rock.js';
+import { renderInventory, inventoryAction } from './inventory.js';
 import { renderBudgetPlanner, budgetPlannerAction } from './budget-planner.js';
 import { renderPartnerAdmin, partnerAdminAction } from './partner-admin.js';
 const navigation=[['','layout-dashboard','오늘의 운영'],['events','calendar-days','행사 · 교육'],['members','users-round','부원 명부'],['inventory','package','재고 관리'],['settings','settings-2','학기 · 운영 설정'],['roles','list-checks','역할 관리'],['admins','shield-check','임원 배정'],['privacy','shield-check','학기말 정보 정리'],['audit','history','변경 이력']];
@@ -94,8 +95,9 @@ export const total=item=>item.unit==='bottle'?item.quantity*item.size+Object.val
 export const unit=item=>item.unit==='bottle'?'mL (추정)':({each:'개',g:'g',ml:'mL',pack:'팩'}[item.unit]||item.unit);
 function previousSemester(term){const [year,half]=String(term).split('-').map(Number);return half===2?year+'-1':(year-1)+'-2';}
 async function list(ctx,kind){
+ if(kind==='inventory')return renderInventory(ctx);
  if(kind==='budget')return renderBudgetPlanner(ctx);
-  if(kind==='partners')return renderPartnerAdmin(ctx);
+ if(kind==='partners')return renderPartnerAdmin(ctx);
  if(kind==='on-the-rock')return renderOnTheRock(ctx);
  if(kind==='requests')return renderAdminRequests(ctx);
  if(kind==='privacy'){
@@ -138,11 +140,6 @@ async function list(ctx,kind){
   (rows.length?table(heads,rows.map(m=>row(m,m.name+' '+m.studentId+' '+m.phone+' '+m.department,[ '<button class="title-button" data-action="member-view" data-id="'+esc(m.id)+'"><strong>'+esc(m.name)+'</strong></button><small>'+esc(m.grade?m.grade+'학년':'')+'</small>',esc(m.college)+'<small>'+esc(m.department)+'</small>',esc(m.studentId)+'<small>'+esc(m.phone)+'</small>','<div class="member-actions"><button type="button" class="icon-button member-edit-button" data-action="member-edit" data-id="'+esc(m.id)+'" aria-label="수정" title="부원 정보 수정">'+icon('wrench')+'</button><button type="button" class="icon-button member-remove-button" data-action="member-remove" data-id="'+esc(m.id)+'" aria-label="명부에서 제거" title="이 학기 명부에서 제거">'+icon('x')+'</button></div>'],heads))):empty('명부가 아직 비어 있습니다','학번과 연락처가 행사 신청 정보와 일치해야 참가 자격을 확인할 수 있습니다.',button('첫 부원 등록','member-edit',{class:'button secondary'})))+next(ctx,kind);
  }
 
- if(kind==='inventory'){
-  const heads=['품목','보관 위치','미개봉 / 수량','개봉 잔량','총 보유량','기록'];
-  return heading('EVERY DROP COUNTS','재고 관리','주류, 재료, 도구를 한곳에서 확인하고 사용 이력을 남깁니다.',button('품목 등록','item-edit',{icon:'plus'}))+toolbar(kind,['spirit','ingredient','supply','tool'])+
-  (rows.length?table(heads,rows.map(i=>row(i,i.name+' '+i.location,[ '<strong>'+esc(i.name)+'</strong><small>'+label(i.category)+(i.size?' · '+i.size+'mL':'')+'</small>',esc(i.location),esc(i.quantity)+(i.unit==='bottle'?'병':' '+unit(i)),Object.values(i.bottles||{}).map(p=>'<span class="bottle-pill">'+p+'%</span>').join('')||'—','<strong>'+total(i).toLocaleString()+' '+unit(i)+'</strong>'+(total(i)<i.minimum?'<small class="warning-text">최소 기준보다 부족</small>':''),'<div class="row-actions">'+button('기록','stock-record',{id:i.id,class:'button small'})+button('상세','item-view',{id:i.id,class:'button small secondary'})+deleteButton('inventory',i.id,'품목')+'</div>'],heads,i.category))):empty('아직 등록된 품목이 없습니다','품목을 등록한 뒤 입고 기록으로 수량을 입력하세요. 주류는 개봉 병의 잔량을 따로 관리합니다.',button('첫 품목 등록','item-edit',{class:'button secondary'})))+next(ctx,kind);
- }
  if(kind==='admins'){
   const roleRows=(await ctx.api('listRoles')).rows,roleName=id=>roleRows.find(r=>r.id===id)?.name||id;
   const heads=['임원','부서 · 권한','임기 종료','상태','관리'];
@@ -191,6 +188,7 @@ export async function renderAdmin(ctx){
  return '<div class="workspace"><aside class="sidebar"><a href="/admin" data-nav class="side-brand"><img src="/assets/logo.png" alt="" width="42" height="42"><span>MARTINI<small>운영실</small></span></a><nav aria-label="운영 메뉴">'+groupedNavigation(ctx,kind)+'</nav><div class="side-footer"><a href="/" data-nav>'+icon('arrow-up-right')+' 홈페이지 보기</a><button data-action="logout">'+icon('log-out')+' 로그아웃</button></div></aside><div class="workspace-main"><header class="workspace-header"><div class="breadcrumb">마티니 <span>/</span> '+esc(navigation.find(([k])=>k===kind)?.[2]||'운영실')+'</div><div class="account-chip"><span class="avatar">'+esc(ctx.state.profile.displayName.slice(0,1))+'</span><div>'+esc(ctx.state.profile.displayName)+'<small>'+esc(ctx.state.profile.roleName||label(ctx.state.profile.role))+'</small></div></div></header>'+(local?'<div class="local-strip">개발 환경 · 가상 데이터</div>':'')+'<main id="main-content" class="workspace-content">'+body+'</main><nav class="mobile-admin-nav" aria-label="빠른 운영 메뉴">'+navigation.filter(([k])=>['','events','members','inventory'].includes(k)&&(!k||can(ctx,k))).map(([key,i,t])=>'<a data-nav href="/admin'+(key?'/'+key:'')+'" class="'+(kind===key?'active':'')+'"'+(kind===key?' aria-current="page"':'')+'>'+icon(i)+'<span>'+t+'</span></a>').join('')+button('전체 메뉴','mobile-menu',{class:'mobile-more',icon:'menu'})+'</nav></div></div>';
 }
 export async function adminAction(ctx,action,id,target){
+ if(action.startsWith('inventory-'))return inventoryAction(ctx,action,id,target);
  if(action.startsWith('partneradmin-'))return partnerAdminAction(ctx,action,id,target);
  if(action.startsWith('budgetplanner-'))return budgetPlannerAction(ctx,action,id,target);
  if(action.startsWith('ontherock-'))return onTheRockAction(ctx,action,id,target);

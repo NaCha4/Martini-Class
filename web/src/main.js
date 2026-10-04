@@ -3,6 +3,7 @@ import { api, auth, onAuthStateChanged } from './firebase.js';
 import { esc, icon, refreshIcons, toast, modal, closeModal, formSignature, captureFocus, restoreFocus, busyControl, showFormError } from './ui.js';
 import { renderScreen, screenAction, screenSubmit, isAdminScreen, isMerchantScreen } from './screen-router.js';
 import { sortMemberRows } from './admin.js';
+import { bindInventoryBoard } from './inventory.js';
 import { filterListRows } from './list-filters.js';
 import { isMemberRoute, getMemberSessionKey, memberStorage, MEMBER_SESSION_CHANNEL } from './member-session.js';
 import { mountMemberDetail } from './member-detail.js';
@@ -187,7 +188,7 @@ export async function render({focus=false,scroll}={}) {
     if(current===renderNumber&&!html&&isMemberRoute())html=await renderScreen(ctx);
     if(current!==renderNumber)return;
     if(isMemberRoute()&&!getMemberSessionKey(ctx))await closeModal({discard:true});
-    app.innerHTML=html;renderedMemberSession=isMemberRoute()?getMemberSessionKey(ctx):'';refreshIcons();
+    app.innerHTML=html;renderedMemberSession=isMemberRoute()?getMemberSessionKey(ctx):'';refreshIcons();bindInventoryBoard(ctx,app);
     currentUrl=location.pathname+location.search+location.hash;
     const search=app.querySelector('[data-search]'),filter=app.querySelector('[data-filter]');
     if(search)search.value=state.search;if(filter)filter.value=state.filter;const type=app.querySelector('[data-event-type]');if(type)type.value=state.eventType;filterRows();

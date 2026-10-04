@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { createPrivacy } from './privacy.js';
 import { createDeletion } from './deletion.js';
 import { createDecisionCategories } from './decision-categories.js';
+import { createInventoryBoard, inventoryCategoryId } from './inventory-board.js';
 import { createMemberPortal } from './member-portal.js';
 import { createPartnerStamps } from './partner-stamps.js';
 import { createOnTheRock } from './on-the-rock.js';
@@ -42,12 +43,14 @@ export function createService(db,clock=Date.now){
   if(kind==='applications'&&hasPermission(who,'finance'))Object.assign(result,{isStaff:!!record.isStaff,staffFee:record.staffFee??record.fee,pricingRevision:record.pricingRevision||0});
   if(kind==='events'&&hasPermission(who,'finance'))Object.assign(result,{staffFee:record.staffFee??null,staffFeeRevision:record.staffFeeRevision||0});
   if(kind==='members'){delete result.duesPaid;delete result.status;}
+  if(kind==='inventory')result.categoryId=inventoryCategoryId(record);
   if(kind==='applications'&&!hasPermission(who,'finance'))for(const key of ['paidAmount','refundAmount','payment'])delete result[key];
   return result;
  }
  function audit(tx,who,kind,id,action,semester){tx.create(col('audit').doc(),{entityType:kind,entityId:id,action,actor:who.uid,actorName:who.displayName,at:now(),updatedAt:now(),...(semester?{semester}:{})});}
  const deleteRecord=createDeletion({db,col,clock,audit});
  const decisionCategories=createDecisionCategories({db,col,clock,now,audit});
+ const inventoryBoard=createInventoryBoard({db,col,clock,now,audit});
  const staffPricing=createStaffPricing({db,col,clock,now,audit});
  const onTheRock=createOnTheRock({db,col,now,audit});
  const budgetPlanner=createBudgetPlanner({db,col,clock,now,audit});
@@ -112,9 +115,15 @@ export function createService(db,clock=Date.now){
     }
    }
    if(kind==='inventory'){
-    if(input.unit==='bottle'&&input.size<=0)fail('invalid-argument','병 규격은 0보다 커야 합니다.');
-    if(old&&stockTotal(old)>0&&(old.unit!==input.unit||old.size!==input.size))fail('failed-precondition','재고가 있는 품목의 단위·규격은 변경할 수 없습니다. 다른 규격은 새 품목으로 등록해 주세요.');
+    if(!old&&input.revision!==0)fail('aborted','품목 목록을 새로고침해 주세요.');
+    const defaults={category:'supply',unit:'each',size:0,location:'',minimum:0,note:'',photo:''};
+    for(const [key,value] of Object.entries(defaults))next[key]=input[key]??old?.[key]??value;
+    next.categoryId=input.categoryId??(old?inventoryCategoryId(old):'');
+    if(next.unit==='bottle'&&next.size<=0)fail('invalid-argument','병 규격은 0보다 커야 합니다.');
+    if(old&&stockTotal(old)>0&&(old.unit!==next.unit||old.size!==next.size))fail('failed-precondition','재고가 있는 품목의 단위·규격은 변경할 수 없습니다. 다른 규격은 새 품목으로 등록해 주세요.');
+    const category=await inventoryBoard.target(tx,next.categoryId);
     next={...next,quantity:old?.quantity||0,bottles:old?.bottles||{}};
+    inventoryBoard.touch(tx,category);
    }
    if(kind==='decisions'){
     // Keep category selection when older clients omit the new field.
@@ -197,7 +206,7 @@ export function createService(db,clock=Date.now){
    if(input.eventId){const event=await tx.get(col('events').doc(input.eventId));if(!snapshot(event))fail('not-found','연결할 행사를 찾을 수 없습니다.');}
    const next={...changeStock(item,input),revision:item.revision+1,updatedAt:now(),updatedBy:who.uid};
    const move={...input,itemId:item.id,itemName:item.name,before:stockTotal(item),after:stockTotal(next),beforeQuantity:item.quantity,afterQuantity:next.quantity,actor:who.displayName,createdAt:now(),updatedAt:now()};
-   tx.set(ref,next);tx.create(moveRef,move);audit(tx,who,'inventory',item.id,input.action);return next;
+   tx.set(ref,next);tx.create(moveRef,move);audit(tx,who,'inventory',item.id,input.action);return visible('inventory',next,who);
   });
  }
  async function finance(data,who){
@@ -405,6 +414,7 @@ export function createService(db,clock=Date.now){
   if(op==='profile')return {uid:who.uid,displayName:who.displayName,role:who.role,roleName:who.roleName,permissions:who.permissions,expiresAt:who.expiresAt};
 
   if(['decisionCategories','createDecisionCategory','deleteDecisionCategory'].includes(op))return decisionCategories(op,data,who);
+  if(['listInventoryCategories','saveInventoryCategory','deleteInventoryCategory','moveInventoryItem'].includes(op))return inventoryBoard.handle(op,data,who);
 
   // Kept for already-open clients during server-first deployment.
   if(op==='decisionEvents'){
