@@ -63,7 +63,7 @@ const nav=(html,label)=>html.match(new RegExp('<nav aria-label="'+label+'">([\\s
 // Browser layout and icon replacement are outside these checks.
 async function withDialogs(run){
  const dialogs=[];
- const element=()=>({innerHTML:'',style:{},listeners:new Map(),setAttribute(){},removeAttribute(){},addEventListener(name,handler){this.listeners.set(name,handler);},focus(){}});
+ const element=()=>({innerHTML:'',style:{},classList:{toggle(){}},listeners:new Map(),setAttribute(){},removeAttribute(){},addEventListener(name,handler){this.listeners.set(name,handler);},focus(){},scrollIntoView(){}});
  const document={
   activeElement:null,
   body:{append:dialog=>dialogs.push(dialog)},
@@ -75,7 +75,21 @@ async function withDialogs(run){
    form.entries=[];
    const error=element();
    form.querySelector=selector=>selector.includes('form-error')?error:null;
-   dialog.querySelector=selector=>parts.get(selector)||null;
+   dialog.querySelector=selector=>{
+    if(parts.has(selector))return parts.get(selector);
+    if(selector==='[type=submit]'||selector==='[data-event-status-help]'||selector==='[data-existing-applications]'){
+     const control=element();parts.set(selector,control);return control;
+    }
+    const name=selector.match(/^\[name=([^\]]+)\]$/)?.[1];
+    if(name){
+     const tag=dialog.innerHTML.match(new RegExp('<(?:input|select|textarea)\\b[^>]*name="'+name+'"[^>]*>'))?.[0];
+     if(!tag)return null;
+     const control=element(),wrapper=element();
+     control.value=tag.match(/\bvalue="([^"]*)"/)?.[1]??dialog.innerHTML.match(new RegExp('<select\\b[^>]*name="'+name+'"[^>]*>[\\s\\S]*?<option value="([^"]*)" selected'))?.[1]??'';
+     control.closest=()=>wrapper;parts.set(selector,control);return control;
+    }
+    return null;
+   };
    dialog.querySelectorAll=()=>[];
    dialog.showModal=()=>{dialog.open=true;};
    dialog.close=()=>{dialog.open=false;};
@@ -157,6 +171,42 @@ test('event preparation keeps its inventory workflow without meetings, tasks, pu
  assert.doesNotMatch(body,/회의록|결정 · 할 일|지출 · 정산|활동 기록/);
  assert.deepEqual(calls.filter(call=>call.op==='read').map(call=>call.data.kind),['settings','events']);
  noRetiredLinks(html);
+});
+
+test('new and existing event editors open all sections and save a complete event through the real action',async()=>{
+ for(const existing of [false,true]){
+  const current=event({revision:4,sequence:1,questions:['준비물 확인']});
+  const {ctx}=context();
+  if(existing)ctx.state.data.events={[current.id]:current};
+  const saved=[];let rendered=0;
+  ctx.api=async(op,data)=>{assert.equal(op,'saveEvent');saved.push(data);return {saved:true};};
+  ctx.render=async()=>{rendered++;};ctx.toast=()=>{};
+  await at('/admin/events'+(existing?'/'+current.id:''),()=>withDialogs(async dialogs=>{
+   await adminAction(ctx,'event-edit',existing?current.id:undefined);
+   assert.equal(dialogs.length,1);
+   const dialog=dialogs[0],html=dialog.innerHTML;
+   assert.equal(dialog.open,true);
+   assert.match(html,new RegExp(existing?'행사 편집':'새 행사 만들기'));
+   for(const title of ['1. 기본 정보','2. 행사 · 신청 일정','3. 정원 · 참가비','4. 모집 상태 확인'])assert.ok(html.includes(title),title);
+   for(const name of ['title','semester','location','startsAt','endsAt','opensAt','closesAt','cancelUntil','capacity','fee','policy']){
+    assert.match(html,new RegExp('<(?:input|textarea)\\b[^>]*name="'+name+'"[^>]*\\brequired\\b'),name+' must be editable and required');
+   }
+   assert.equal(dialog.querySelector('[name=status]').value,existing?'open':'draft');
+   assert.equal(dialog.querySelector('[name=confirmCancellation]').disabled,true);
+   assert.equal(dialog.querySelector('[type=submit]').textContent,'행사 저장');
+   if(existing){
+    assert.match(html,/name="title"[^>]*value="가을 교육"/);
+    assert.equal(dialog.querySelector('[data-existing-applications]').hidden,true);
+   }
+   const dates={startsAt:'2026-11-10T18:00',endsAt:'2026-11-10T20:00',opensAt:'2026-11-01T09:00',closesAt:'2026-11-09T18:00',cancelUntil:'2026-11-09T18:00'};
+   const values={title:'  새 칵테일 교육  ',type:'class',semester:'2026-2',description:'잔을 준비해 주세요.',location:'교육실',owner:'교육부',...dates,capacity:'24',fee:'5000',status:'open',waitlist:'on',questions:'준비물 확인\n\n기타 요청',policy:'취소 마감 전 환불 가능',accountNumber:'000-000',bankName:'테스트은행',accountHolder:'테스트동아리'};
+   const form=dialog.querySelector('form');form.entries=Object.entries(values);
+   await form.listeners.get('submit')({preventDefault(){}});
+   assert.deepEqual(saved,[{...(existing?{id:current.id,revision:4}:{revision:0}),...values,title:'새 칵테일 교육',...Object.fromEntries(Object.entries(dates).map(([key,value])=>[key,new Date(value).toISOString()])),capacity:24,fee:5000,waitlist:true,questions:['준비물 확인','기타 요청']}]);
+   assert.equal(rendered,1);
+   assert.equal(dialog.open,false);
+  }));
+ }
 });
 
 test('finance permission still opens event participants and existing event payment controls',async()=>{
