@@ -242,8 +242,8 @@ test('member QR remains visible after ten seconds, disappears after thirty, and 
 
 test('member partner dialog contains only the Feeling Fine coupon section and closes safely with one header X and no footer',async()=>host(async({hidden,timers})=>{
  const {ctx}=context();memberSignIn(ctx);const dialog=await openMemberPartner(ctx),html=dialog.innerHTML,body=()=>dialog.querySelector('[data-partner-body]').innerHTML;
- assert.match(html,/<section class="partner-coupon-section"[^>]*>[\s\S]*?<h3 id="partner-coupon-title">필링파인<\/h3>[\s\S]*?data-partner-body/);
- assert.doesNotMatch(html,/partner-information|partner-info-card|제휴 혜택|이용 안내|안내 준비 중/);
+ assert.match(html,/<h2 id="modal-title"[^>]*>필링파인<\/h2>/);assert.match(html,/<section class="partner-coupon-section" aria-labelledby="modal-title"><div data-partner-body>/);
+ assert.doesNotMatch(html,/partner-coupon-title|<h3\b|partner-information|partner-info-card|제휴|이용 안내|안내 준비 중/);
  assert.doesNotMatch(html,/<footer\b/);assert.equal((html.match(/\bdata-close\b/g)||[]).length,1);assert.match(html,/<button\b[^>]*data-close[^>]*aria-label="닫기"[^>]*>[\s\S]*?data-lucide="x"/);
  assert.equal(dialog.querySelector('.dialog-actions'),null);assert.equal(dialog.querySelector('.dialog-status'),null);
  assert.doesNotMatch(body(),/data-action="partner-refresh"|방문하고 스탬프를 모아 보세요|매장에서 적립할 때 QR을 표시해 주세요/);

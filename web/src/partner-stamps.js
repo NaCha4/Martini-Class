@@ -69,7 +69,7 @@ async function loadCoupons(ctx,view){
 export async function openMemberPartner(ctx){
  const sessionKey=getMemberSessionKey(ctx);if(!sessionKey||!isMemberRoute())return ctx.render();
  disposeMember(ctx);const view={sessionKey,generation:0,coupons:null,qr:null,disposed:false,error:''};
- const dialog=modal('제휴','<section class="partner-coupon-section" aria-labelledby="partner-coupon-title"><h3 id="partner-coupon-title">필링파인</h3><div data-partner-body>'+memberBody(view)+'</div></section>',null,{contentOnly:true,footer:false,onClose:()=>{if(ctx.state.memberPartner===view)disposeMember(ctx);}});
+ const dialog=modal('필링파인','<section class="partner-coupon-section" aria-labelledby="modal-title"><div data-partner-body>'+memberBody(view)+'</div></section>',null,{contentOnly:true,footer:false,onClose:()=>{if(ctx.state.memberPartner===view)disposeMember(ctx);}});
  dialog.classList.add('member-dialog','member-partners-dialog','partner-dialog');view.dialog=dialog;ctx.state.memberPartner=view;
  const hidden=()=>{if(document.hidden&&(view.qr||view.issuing))expireMemberQr(view);};
  document.addEventListener('visibilitychange',hidden);view.cleanup=()=>document.removeEventListener('visibilitychange',hidden);
