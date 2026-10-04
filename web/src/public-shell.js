@@ -1,6 +1,6 @@
 import { icon } from './ui.js';
 import { isMemberRoute } from './member-session.js';
-const publicLinks=[['/about','소개'],['/activities','활동'],['/notices','공지'],['/join','가입 안내']];
+const publicLinks=[['/join','가입 안내']];
 export function publicHeader(home=false){
  const pathname=location.pathname.replace(/\/+$/,'')||'/';
  const memberPage=isMemberRoute(pathname);
