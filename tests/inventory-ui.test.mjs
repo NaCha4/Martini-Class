@@ -115,26 +115,32 @@ test('inventory board escapes names and retains unassigned records without forci
  assert.doesNotMatch(html,/<img src=x|<script>파티|legacy-spirit|legacy-ingredient|legacy-supply|legacy-tool/);
 });
 
-test('blank board invites name and photo registration and exposes a category creation action',async()=>{
+test('blank board shows item and category creation without photos or onboarding copy',async()=>{
  const {ctx}=context();
  const html=await renderInventory(ctx);
  assert.match(html,/data-action="item-edit"/);
- assert.match(html,/data-action="inventory-category-edit"/);
- assert.match(html,/사진/);
+ assert.equal((html.match(/data-action="inventory-category-edit"/g)||[]).length,1);
+ assert.match(html,/품목 없음/);
  assert.match(html,/미분류/);
- assert.doesNotMatch(html,/한 병 용량|관리 단위|최소 보유량/);
+ assert.doesNotMatch(html,/<img\b|사진|우리 동아리의 재고를 한눈에|먼저 품목을|드래그하세요|옮겨 보세요|한 병 용량|관리 단위|최소 보유량/);
 });
 
-test('unknown categories remain visible in unassigned and unsafe photo sources are not rendered',async()=>{
+test('existing photos never render and unknown categories retain their text cards and actions',async()=>{
  const photos=['javascript:alert(1)','https://images.example/private-photo.jpg','data:image/svg+xml;base64,PHN2Zz4='];
  const rows=photos.map((photo,i)=>item('unsafe-'+i,'안전 확인 '+i,{photo,categoryId:'missing-category'}));
- rows.push(item('safe','사진 품목',{photo:'data:image/jpeg;base64,/9j/2Q=='}));
+ rows.push(item('safe','진',{photo:'data:image/jpeg;base64,/9j/2Q==',quantity:2,unit:'bottle',size:700,bottles:{open:60}}));
  const {ctx}=context({pages:[rows]});
  const html=await renderInventory(ctx);
  assert.equal((html.match(/data-inventory-card=/g)||[]).length,4);
- assert.equal((html.match(/<img\b/g)||[]).length,1);
- assert.match(html,/src="data:image\/jpeg;base64,\/9j\/2Q=="/);
- assert.doesNotMatch(html,/javascript:|images\.example|svg\+xml/);
+ assert.equal((html.match(/data-action="item-view"/g)||[]).length,4);
+ assert.equal((html.match(/data-action="stock-record"/g)||[]).length,4);
+ assert.equal((html.match(/data-action="inventory-move"/g)||[]).length,4);
+ assert.equal((html.match(/data-inventory-category=/g)||[]).length,1);
+ assert.match(html,/미분류/);
+ assert.match(html,/2병 · 개봉 1병/);
+ for(const row of rows)assert.ok(html.includes(row.name));
+ assert.doesNotMatch(html,/<img\b|data:image|javascript:|images\.example|사진을 추가/);
+ assert.equal(ctx.state.data.inventory.safe.photo,rows[3].photo,'Rendering must preserve stored records');
 });
 
 test('move sends only the item revision and target category, without changing stock locally',async()=>{
@@ -198,6 +204,9 @@ test('category editing saves trimmed names and rejects deleting a category conta
  await withDialogs(async dialogs=>{
   await inventoryAction(state.ctx,'inventory-category-edit','party');
   const dialog=dialogs[0],form=dialog.querySelector('form');
+  assert.match(dialog.innerHTML,/name="name"/);
+  assert.match(dialog.innerHTML,/data-action="inventory-category-delete"/);
+  assert.doesNotMatch(dialog.innerHTML,/함께 두고 싶은|자유롭게 묶어/);
   form.entries=[['name','  가을 파티  ']];
   await form.listeners.get('submit')({preventDefault(){}});
   assert.equal(dialog.open,false);
@@ -247,11 +256,12 @@ test('board search filters names and locations while keeping category counters a
  dom.search.value='진 선반';dom.search.listeners.get('input')();
  assert.equal(dom.first.hidden,false);assert.equal(dom.second.hidden,true);
  assert.equal(dom.lanes[0].count.textContent,'1 / 2');
- assert.equal(dom.lanes[1].empty.textContent,'검색된 품목이 없습니다');
+ assert.equal(dom.lanes[1].empty.textContent,'검색 결과 없음');
  assert.equal(dom.results.textContent,'1개 품목 검색됨');
  assert.equal(ctx.state.inventorySearch,'진 선반');
  dom.search.value='';dom.search.listeners.get('input')();
  assert.equal(dom.second.hidden,false);assert.equal(dom.lanes[0].count.textContent,'2');
+ assert.equal(dom.lanes[1].empty.textContent,'품목 없음');
  assert.equal(dom.results.textContent,'');
 });
 

@@ -5,7 +5,7 @@ import { hasPermission, permissionLabels } from '../../functions/src/permissions
 import { openChatUrl } from '../../functions/src/public-links.js';
 import { esc, field, icon, badge, button, date, money, label, modal, textBlock, downloadCSV } from './ui.js';
 import { read,readAll,total,unit,rosterSemester } from './admin.js';
-import { itemEdit, inventoryPhoto } from './inventory-forms.js';
+import { itemEdit } from './inventory-forms.js';
 const uuid=()=>crypto.randomUUID();
 const val=(f,n)=>String(f.get(n)||'').trim(),num=(f,n)=>Number(f.get(n)||0);
 const localTime=v=>{const d=v?new Date(v):new Date();return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,16);};
@@ -64,7 +64,7 @@ async function stockRecord(ctx,id){
  const dialog=modal('재고 기록 · '+r.name,'<div class="wide stock-current">현재 <strong>'+total(r).toLocaleString()+' '+unit(r)+'</strong> · 미개봉/일반 수량 '+r.quantity+'</div>'+field('action','작업 종류','receive',{choices})+field('amount','입고 수량',0,{type:'number',min:1,max:100000,step:r.unit==='g'||r.unit==='ml'?'0.1':'1',required:true})+
  (r.unit==='bottle'?field('bottleId','개봉 병',Object.keys(r.bottles||{})[0]||'',{choices:[['','병 선택'],...Object.entries(r.bottles||{}).map(([id,p],index)=>[id,'개봉 병 '+(index+1)+' · 현재 '+p+'%'])]})+field('percent','사용 후 잔량 (%)',50,{choices:Array.from({length:11},(_,i)=>[i*10,i*10+'%'])}):'')+
  field('location','이동할 위치',r.location,{maxLength:100})+field('eventId','연결 행사','',{choices:[['','행사 연결 안 함'],...events.map(e=>[e.id,e.title])]})+
- field('reason','사유', '',{required:true,wide:true,maxLength:500,hint:'입고·사용·실사 이유를 남겨 주세요. 개봉/잔량/이동 작업은 수량 입력값을 사용하지 않습니다.'}),
+ field('reason','사유', '',{required:true,wide:true,maxLength:500}),
  async f=>save(ctx,'stock',{id:r.id,revision:r.revision,requestId,action:val(f,'action'),amount:num(f,'amount'),...(val(f,'bottleId')?{bottleId:val(f,'bottleId')} : {}),...(r.unit==='bottle'?{percent:num(f,'percent')}:{}),location:val(f,'location'),eventId:val(f,'eventId'),reason:val(f,'reason')}),{wide:true});
  const update=()=>{const action=dialog.querySelector('[name=action]').value,amount=dialog.querySelector('[name=amount]'),quantityAction=['receive','use','count'].includes(action),location=dialog.querySelector('[name=location]');amount.closest('label').hidden=!quantityAction;amount.required=quantityAction;amount.disabled=!quantityAction;amount.min=action==='count'?'0':amount.step;const title=amount.closest('label').querySelector('span');title.textContent={receive:'입고할 수량',use:'사용한 수량',count:'실사 후 남은 수량'}[action]||'수량';location.closest('label').hidden=action!=='move';location.required=action==='move';location.disabled=action!=='move';['bottleId','percent'].forEach(n=>{const el=dialog.querySelector('[name='+n+']');if(el){const visible=['remaining','adjustRemaining'].includes(action);el.closest('label').hidden=!visible;el.required=visible;el.disabled=!visible;}});};dialog.querySelector('[name=action]').onchange=update;update();
 }
@@ -75,8 +75,7 @@ async function linkedRecords(ctx,kind,filter){
 }
 async function itemView(ctx,id){
  const r=await record(ctx,'inventory',id),moves=await linkedRecords(ctx,'stockMoves',{itemId:id});
- const photo=inventoryPhoto(r.photo);
- modal(r.name,(photo?'<div class="wide inventory-detail-photo"><img src="'+esc(photo)+'" alt="'+esc(r.name)+' 사진"></div>':'')+'<div class="wide detail-grid"><p>보유량<br><strong>'+total(r).toLocaleString()+' '+unit(r)+'</strong></p><p>보관 위치<br><strong>'+esc(r.location||'미지정')+'</strong></p></div><div class="wide row-actions">'+button('품목 수정','item-edit',{id,class:'button secondary'})+button('카테고리 이동','inventory-move',{id,class:'button secondary',icon:'folder'})+button('입고 · 사용 · 실사','stock-record',{id})+'</div>'+(r.note?'<div class="wide"><h3>메모</h3>'+textBlock(r.note)+'</div>':'')+'<div class="wide"><h3>최근 변경 이력</h3>'+ (moves.length?moves.map(m=>'<div class="history-entry"><strong>'+esc(m.reason)+'</strong><p>'+m.before+' → '+m.after+' · '+esc(m.actor)+' · '+date(m.createdAt,true)+'</p></div>').join(''):'<p class="help">아직 이 품목의 변경 기록이 없습니다.</p>')+'</div><div class="wide row-actions"><button type="button" class="button danger secondary" data-action="record-delete" data-kind="inventory" data-id="'+esc(id)+'">품목 삭제</button></div>',null,{wide:true});
+ modal(r.name,'<div class="wide detail-grid"><p>보유량<br><strong>'+total(r).toLocaleString()+' '+unit(r)+'</strong></p><p>보관 위치<br><strong>'+esc(r.location||'미지정')+'</strong></p></div><div class="wide row-actions">'+button('품목 수정','item-edit',{id,class:'button secondary'})+button('카테고리 이동','inventory-move',{id,class:'button secondary',icon:'folder'})+button('입고 · 사용 · 실사','stock-record',{id})+'</div>'+(r.note?'<div class="wide"><h3>메모</h3>'+textBlock(r.note)+'</div>':'')+'<div class="wide"><h3>변경 이력</h3>'+ (moves.length?moves.map(m=>'<div class="history-entry"><strong>'+esc(m.reason)+'</strong><p>'+m.before+' → '+m.after+' · '+esc(m.actor)+' · '+date(m.createdAt,true)+'</p></div>').join(''):'<p class="help">기록 없음</p>')+'</div><div class="wide row-actions"><button type="button" class="button danger secondary" data-action="record-delete" data-kind="inventory" data-id="'+esc(id)+'">품목 삭제</button></div>',null,{wide:true});
 }
 async function applicationManage(ctx,id){
  const a=await record(ctx,'applications',id),e=await record(ctx,'events',a.eventId),contact=await ctx.api('participantContact',{id});
