@@ -30,6 +30,7 @@ function memberCurrent(ctx,view){return ctx.state.memberPartner===view&&!view.di
 function stop(view){view.stop?.();view.stop=null;}
 function clearCouponMotion(view){view.couponCleanup?.();view.couponCleanup=null;}
 function memberBody(view){
+ if(!view.revealed)return '<button type="button" class="partner-stamp-reveal" data-action="partner-reveal">내 스탬프 보기'+icon('arrow-right')+'</button>';
  if(view.error)return '<div class="partner-message"><p role="alert">'+esc(view.error)+'</p>'+button('다시 불러오기','partner-refresh',{class:'button secondary'})+'</div>';
  if(!view.coupons)return '<p class="partner-message" role="status">스탬프를 불러오고 있어요.</p>';
  if(!view.coupons.available)return stampCard(count(view.coupons.stampCount),view)+'<p class="partner-message">지금은 스탬프를 적립할 수 없습니다. 모은 스탬프는 유지됩니다.</p>';
@@ -69,18 +70,29 @@ async function loadCoupons(ctx,view){
 }
 export async function openMemberPartner(ctx){
  const sessionKey=getMemberSessionKey(ctx);if(!sessionKey||!isMemberRoute())return ctx.render();
- disposeMember(ctx);const view={sessionKey,generation:0,coupons:null,qr:null,disposed:false,error:''};
+ disposeMember(ctx);const view={sessionKey,generation:0,coupons:null,qr:null,revealed:false,disposed:false,error:''};
  const content='<section class="partner-feelingfine" aria-labelledby="modal-title">'+
-  '<div class="partner-intro"><div class="partner-hero"><img src="/assets/feelingfine-bar-hero.jpg" width="1672" height="941" alt="분위기를 표현한 가상의 바 테이블 이미지" decoding="async" draggable="false"><div class="partner-hero-title"><h2 id="modal-title" tabindex="-1">필링파인</h2></div></div><div class="partner-intro-copy"><p class="partner-intro-tagline">좋은 사람들과, 기분 좋은 한 잔.</p><p class="partner-intro-description">다양한 칵테일과 안주를 함께 즐기는 공간.</p></div></div>'+
+  '<div class="partner-intro"><div class="partner-hero"><img src="/assets/feelingfine-bar-hero.jpg" width="1672" height="941" alt="분위기를 표현한 가상의 바 테이블 이미지" decoding="async" draggable="false"><div class="partner-hero-title"><h2 id="modal-title" tabindex="-1">필링파인</h2><div class="partner-intro-copy"><p class="partner-intro-tagline">좋은 사람들과, 기분 좋은 한 잔.</p><p class="partner-intro-description">다양한 칵테일과 안주를 함께 즐기는 공간.</p></div></div></div></div>'+
+  '<div class="partner-benefits-copy"><p class="partner-benefits-eyebrow">마티니 부원만의 즐거움</p><h3>함께한 한 잔을,<br>차곡차곡 모아보세요.</h3><p class="partner-benefits-description">필링파인에서의 즐거운 시간을<br>부원 전용 스탬프에 담아보세요.</p><p class="partner-benefits-note">간편하게 적립하고, 내 쿠폰에서 한눈에.</p></div>'+
   '<div class="partner-coupon-area"><div data-partner-body>'+memberBody(view)+'</div></div></section>';
  const dialog=modal('필링파인',content,null,{contentOnly:true,bodyTitle:true,footer:false,onClose:()=>{if(ctx.state.memberPartner===view)disposeMember(ctx);}});
  dialog.classList.add('member-dialog','member-partners-dialog','partner-dialog');view.dialog=dialog;ctx.state.memberPartner=view;
  const hidden=()=>{if(document.hidden&&(view.qr||view.issuing))expireMemberQr(view);};
  document.addEventListener('visibilitychange',hidden);view.cleanup=()=>document.removeEventListener('visibilitychange',hidden);
- await loadCoupons(ctx,view);return dialog;
+ return dialog;
 }
 export async function partnerAction(ctx,action){
  const view=ctx.state.memberPartner;if(!view||!memberCurrent(ctx,view))return;
+ if(action==='partner-reveal'){
+  if(view.revealed)return;
+  view.revealed=true;paintMember(view);await loadCoupons(ctx,view);
+  if(memberCurrent(ctx,view)){
+   const card=view.dialog.querySelector('[data-coupon-interactive]');
+   card?.focus?.({preventScroll:true});card?.scrollIntoView?.({block:'nearest',inline:'nearest',behavior:'auto'});
+  }
+  return;
+ }
+ if(!view.revealed)return;
  if(action==='partner-refresh'){expireMemberQr(view);view.expired=false;return loadCoupons(ctx,view);}
  if(action!=='partner-qr'||view.issuing||!view.coupons?.available||count(view.coupons.stampCount)>=CAPACITY)return;
  expireMemberQr(view);view.expired=false;view.issuing=true;paintMember(view);const generation=++view.generation,started=monotonic();

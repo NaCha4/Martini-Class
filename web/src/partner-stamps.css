@@ -7,15 +7,23 @@ dialog.partner-dialog.member-dialog .dialog-content{width:100%;min-width:0;paddi
 .partner-dialog [data-partner-body]{width:100%;min-width:0}
 .partner-feelingfine{min-width:0}
 .partner-intro{text-align:center}
-.partner-hero{position:relative;isolation:isolate;min-height:270px;aspect-ratio:2.35/1;overflow:hidden;background:#171412}
+.partner-hero{position:relative;isolation:isolate;min-height:270px;aspect-ratio:2.45/1;overflow:hidden;background:#171412}
 .partner-hero>img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 47%;z-index:-2}
-.partner-hero::after{content:'';position:absolute;inset:0;z-index:-1;background:linear-gradient(180deg,#0003 0%,transparent 25%,#15151538 50%,var(--surface) 100%);pointer-events:none}
-.partner-hero-title{position:absolute;inset:auto 56px 18px;color:#fff;text-shadow:0 2px 12px #0008}
+.partner-hero::after{content:'';position:absolute;inset:0;z-index:-1;background:linear-gradient(180deg,#101011d9 0%,#10101199 38%,#15151530 66%,var(--surface) 100%);pointer-events:none}
+.partner-hero-title{position:relative;padding:54px 26px 90px;color:#fff;text-shadow:0 2px 12px #000b}
 .partner-hero-title>h2{margin:0;font-size:34px;line-height:1.4;letter-spacing:-.04em}
-.partner-intro-copy{padding:2px 20px 16px}
-.partner-intro-tagline{margin:0;font-size:16px;line-height:1.7;color:var(--text);word-break:keep-all}
-.partner-intro-description{margin:7px 0 0;font-size:13px;line-height:1.9;color:var(--muted);word-break:keep-all}
+.partner-intro-copy{padding:10px 0 0}
+.partner-intro-tagline{margin:0;font-size:15px;line-height:1.7;color:#f1eee8;word-break:keep-all}
+.partner-intro-description{margin:6px 0 0;font-size:12px;line-height:1.9;color:#d1cac1;word-break:keep-all}
+.partner-benefits-copy{max-width:480px;margin:0 auto;padding:12px 28px 26px;text-align:center;word-break:keep-all}
+.partner-benefits-eyebrow{margin:0 0 12px;color:var(--gold);font-size:11px;font-weight:600;letter-spacing:.09em}
+.partner-benefits-copy>h3{margin:0;font-size:25px;line-height:1.55;letter-spacing:-.04em;font-weight:600}
+.partner-benefits-description{margin:16px 0 0;color:var(--muted);font-size:14px;line-height:1.9}
+.partner-benefits-note{margin:13px 0 0;color:var(--muted);font-size:11px;line-height:1.8}
 .partner-coupon-area{min-width:0;padding:0 24px}
+.partner-stamp-reveal{display:flex;align-items:center;justify-content:space-between;gap:24px;width:min(100%,330px);min-height:54px;margin:0 auto 8px;padding:14px 22px;border:1px solid #ddbd8460;border-radius:999px;background:transparent;color:var(--gold);font:inherit;font-size:14px;font-weight:600;cursor:pointer;touch-action:manipulation}
+.partner-stamp-reveal>svg{width:18px;height:18px;flex-shrink:0}
+.partner-stamp-reveal:hover{border-color:var(--gold);color:var(--text)}
 .partner-coupon-area .partner-message{padding:22px 12px}
 .partner-coupon-area .partner-qr-slot{padding-inline:16px}
 
@@ -104,12 +112,16 @@ dialog.partner-dialog.member-dialog .dialog-content{width:100%;min-width:0;paddi
 @keyframes partner-live-pulse{50%{opacity:.35}}
 @media(max-width:600px){
  dialog.partner-dialog.member-dialog .dialog-content{padding-bottom:max(18px,calc(env(safe-area-inset-bottom) + 12px))}
- .partner-hero{min-height:220px;aspect-ratio:1.6/1}
- .partner-hero-title{bottom:16px}
+ .partner-hero{min-height:235px;aspect-ratio:auto}
+ .partner-hero-title{padding:46px 22px 65px}
  .partner-hero-title>h2{font-size:29px}
- .partner-intro-copy{padding:0 18px 14px}
- .partner-intro-tagline{font-size:15px}
- .partner-intro-description{font-size:13px}
+ .partner-intro-copy{padding-top:8px}
+ .partner-intro-tagline{font-size:14px}
+ .partner-intro-description{font-size:12px}
+ .partner-benefits-copy{padding:10px 22px 24px}
+ .partner-benefits-copy>h3{font-size:22px}
+ .partner-benefits-description{font-size:13px;margin-top:13px}
+ .partner-benefits-note{margin-top:10px}
  .partner-coupon-area{padding-inline:14px}
  .partner-coupon-stage{padding:18px 8px 36px}
  .partner-qr-frame{width:min(314px,100%)}

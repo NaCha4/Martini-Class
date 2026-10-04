@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { registerHooks } from 'node:module';
 import { getMerchantSessionKey,setMerchantSession,clearMerchantSession,merchantCookieUnavailable,MERCHANT_SESSION_COOKIE } from '../web/src/merchant-session.js';
-import { setMemberSession } from '../web/src/member-session.js';
+import { setMemberSession,getMemberSessionKey } from '../web/src/member-session.js';
 import { renderPartnerAdmin,partnerAdminAction } from '../web/src/partner-admin.js';
 const hook=registerHooks({load(url,context,next){if(url.endsWith('.css'))return {format:'module',source:'export {};',shortCircuit:true};return next(url,context);}});
 let openMemberPartner,partnerAction,renderMerchant,merchantSubmit,merchantAction,mountPartnerViews,clearPartnerViews,qrLifetime;
@@ -34,6 +34,7 @@ async function host(run,{path='/partners/feelingfine',blocked=false,motion=false
 }
 function signIn(ctx){setMerchantSession(ctx,{sessionKey:merchantKey,expiresAt:future(365*86400000)});}
 function memberSignIn(ctx){setMemberSession(ctx,{sessionKey:memberKey,expiresAt:future(600000),member:{name:'테스트 부원',semester:'2026-2'}});}
+async function openRevealedPartner(ctx){const dialog=await openMemberPartner(ctx);await partnerAction(ctx,'partner-reveal');return dialog;}
 async function withRandom(values,run){
  const previous=Math.random;let index=0;Math.random=()=>values[index++%values.length];
  try{return await run();}finally{Math.random=previous;}
@@ -126,8 +127,54 @@ test('a correction response arriving after the page hides cannot restore names o
  assert.equal(ctx.state.feelingfineMerchant.history,null);assert.equal(ctx.state.feelingfineMerchant.edit,null);assert.equal(ctx.state.feelingfineMerchant.notice,'');assert.doesNotMatch(panel.innerHTML,/PRIVATE LATE MEMBER/);clearPartnerViews(ctx);
 }));
 
+test('opening partner information hides coupon and QR without fetching stamps until a separate reveal',async()=>host(async()=>{
+ const {ctx,calls}=context();memberSignIn(ctx);const dialog=await openMemberPartner(ctx);
+ assert.match(dialog.innerHTML,/class="partner-benefits-copy"/);assert.match(dialog.innerHTML,/data-action="partner-reveal"[^>]*>[\s\S]*내 스탬프 보기/);
+ assert.doesNotMatch(dialog.innerHTML,/FeelingFineCoupon|data-coupon-interactive|class="partner-stamps"|data-action="partner-qr"|data:image/);
+ assert.equal(ctx.state.memberPartner.revealed,false);assert.deepEqual(calls,[]);
+ await partnerAction(ctx,'partner-qr');await partnerAction(ctx,'partner-refresh');assert.deepEqual(calls,[]);assert.equal(ctx.state.memberPartner.revealed,false);
+ await partnerAction(ctx,'partner-reveal');assert.deepEqual(calls.map(call=>call.op),['memberCoupons']);assert.equal(ctx.state.memberPartner.revealed,true);
+ assert.match(dialog.querySelector('[data-partner-body]').innerHTML,/FeelingFineCoupon|data-coupon-interactive/);assert.match(dialog.querySelector('[data-partner-body]').innerHTML,/data-action="partner-qr"/);assert.equal(ctx.state.memberPartner.qr,null);
+},{path:'/members'}));
+
+test('simultaneous reveal taps share one stamp read and do not issue a QR automatically',async()=>host(async()=>{
+ const {ctx,calls}=context(),api=ctx.api,pending=deferred();ctx.api=async(op,data)=>{if(op==='memberCoupons'){calls.push({op,data});return pending.promise;}return api(op,data);};
+ memberSignIn(ctx);const dialog=await openMemberPartner(ctx),first=partnerAction(ctx,'partner-reveal'),second=partnerAction(ctx,'partner-reveal');
+ assert.deepEqual(calls.map(call=>call.op),['memberCoupons']);assert.equal(ctx.state.memberPartner.revealed,true);assert.doesNotMatch(dialog.querySelector('[data-partner-body]').innerHTML,/FeelingFineCoupon|data-action="partner-qr"/);
+ pending.resolve({available:true,stampCount:4,capacity:10,expiresAt:future(600000)});await Promise.all([first,second]);await partnerAction(ctx,'partner-reveal');
+ assert.equal(calls.filter(call=>call.op==='memberCoupons').length,1);assert.equal(calls.filter(call=>call.op==='issueCouponQr').length,0);assert.equal(stampGroups(dialog.querySelector('[data-partner-body]').innerHTML).length,4);
+ await partnerAction(ctx,'partner-qr');assert.equal(calls.filter(call=>call.op==='issueCouponQr').length,1);
+},{path:'/members'}));
+
+test('reopening partner information hides the previous coupon and requires a new reveal',async()=>host(async()=>{
+ const {ctx,calls}=context();memberSignIn(ctx);const first=await openRevealedPartner(ctx);assert.equal(calls.filter(call=>call.op==='memberCoupons').length,1);await first.requestClose(true);
+ const reopened=await openMemberPartner(ctx);assert.equal(ctx.state.memberPartner.revealed,false);assert.equal(ctx.state.memberPartner.coupons,null);assert.match(reopened.innerHTML,/data-action="partner-reveal"/);assert.doesNotMatch(reopened.innerHTML,/FeelingFineCoupon|data-action="partner-qr"/);assert.equal(calls.filter(call=>call.op==='memberCoupons').length,1);
+ await partnerAction(ctx,'partner-reveal');assert.equal(calls.filter(call=>call.op==='memberCoupons').length,2);assert.match(reopened.querySelector('[data-partner-body]').innerHTML,/FeelingFineCoupon/);
+},{path:'/members'}));
+
+test('a late stamp read cannot populate a closed or replacement partner dialog',async()=>host(async()=>{
+ for(const replace of [false,true]){
+  const {ctx,calls}=context(),pending=deferred();ctx.api=async(op,data)=>{calls.push({op,data});assert.equal(op,'memberCoupons');return pending.promise;};memberSignIn(ctx);
+  const old=await openMemberPartner(ctx),oldView=ctx.state.memberPartner,reading=partnerAction(ctx,'partner-reveal');await old.requestClose(true);const replacement=replace?await openMemberPartner(ctx):null;
+  pending.resolve({available:true,stampCount:9,capacity:10,expiresAt:future(600000)});await reading;assert.equal(oldView.coupons,null);assert.doesNotMatch(old.querySelector('[data-partner-body]').innerHTML,/FeelingFineCoupon|data-action="partner-qr"/);
+  if(replacement){assert.equal(ctx.state.memberPartner.coupons,null);assert.equal(ctx.state.memberPartner.revealed,false);assert.doesNotMatch(replacement.innerHTML,/FeelingFineCoupon|data-action="partner-qr"/);await replacement.requestClose(true);}else assert.equal(ctx.state.memberPartner,undefined);
+  assert.equal(calls.length,1);
+ }
+},{path:'/members'}));
+
+test('a rejected member session while revealing closes the dialog and returns to login',async()=>host(async()=>{
+ const {ctx,calls}=context();memberSignIn(ctx);ctx.api=async(op,data)=>{calls.push({op,data});throw Object.assign(Error('로그인이 만료되었습니다.'),{code:'functions/unauthenticated'});};
+ const dialog=await openMemberPartner(ctx);assert.equal(calls.length,0);await partnerAction(ctx,'partner-reveal');assert.equal(dialog.open,false);assert.equal(ctx.state.memberPartner,undefined);assert.equal(getMemberSessionKey(ctx),'');assert.equal(ctx.renders,1);assert.deepEqual(calls.map(call=>call.op),['memberCoupons']);
+},{path:'/members'}));
+
+test('a transient reveal failure offers a deliberate retry without showing cached stamps',async()=>host(async()=>{
+ const {ctx,calls}=context(),api=ctx.api;let failed=false;ctx.api=async(op,data)=>{if(op==='memberCoupons'&&!failed){failed=true;calls.push({op,data});throw Error('일시적인 조회 오류');}return api(op,data);};
+ memberSignIn(ctx);const dialog=await openMemberPartner(ctx);await partnerAction(ctx,'partner-reveal');assert.match(dialog.querySelector('[data-partner-body]').innerHTML,/일시적인 조회 오류/);assert.doesNotMatch(dialog.querySelector('[data-partner-body]').innerHTML,/FeelingFineCoupon|data-action="partner-qr"/);
+ await partnerAction(ctx,'partner-refresh');assert.equal(calls.filter(call=>call.op==='memberCoupons').length,2);assert.match(dialog.querySelector('[data-partner-body]').innerHTML,/FeelingFineCoupon/);assert.equal(getMemberSessionKey(ctx),memberKey);
+},{path:'/members'}));
+
 test('earned stamps use the supplied image with individually randomized angles within eighteen degrees',async()=>host(async()=>withRandom([0,.5,.999999],async()=>{
- const {ctx}=context();memberSignIn(ctx);const dialog=await openMemberPartner(ctx),html=dialog.querySelector('[data-partner-body]').innerHTML,marks=stampGroups(html),angles=stampAngles(html);
+ const {ctx}=context();memberSignIn(ctx);const dialog=await openRevealedPartner(ctx),html=dialog.querySelector('[data-partner-body]').innerHTML,marks=stampGroups(html),angles=stampAngles(html);
  assert.equal(marks.length,3);
  for(const mark of marks){assert.equal((mark.match(/<image\b/g)||[]).length,1);assert.match(mark,/\bhref="\/assets\/stamp\.png\?v=[a-f0-9]+"/);}
  assert.ok(angles.every(angle=>Number.isFinite(angle)&&angle>=-18&&angle<=18));assert.equal(new Set(angles).size,3);assert.ok(angles.some(angle=>angle<0));assert.ok(angles.some(angle=>angle>0));
@@ -136,7 +183,7 @@ test('earned stamps use the supplied image with individually randomized angles w
 test('member refresh preserves existing stamp angles and adds only the newly earned stamp',async()=>host(async()=>withRandom([0,.15,.3,.45,.6,.75,.9],async()=>{
  const {ctx}=context(),api=ctx.api;let total=3;
  ctx.api=async(op,data)=>op==='memberCoupons'?{available:true,stampCount:total,capacity:10,expiresAt:future(600000)}:api(op,data);
- memberSignIn(ctx);const dialog=await openMemberPartner(ctx),html=()=>dialog.querySelector('[data-partner-body]').innerHTML,initial=stampAngles(html());assert.equal(initial.length,3);
+ memberSignIn(ctx);const dialog=await openRevealedPartner(ctx),html=()=>dialog.querySelector('[data-partner-body]').innerHTML,initial=stampAngles(html());assert.equal(initial.length,3);
  await partnerAction(ctx,'partner-refresh');assert.deepEqual(stampAngles(html()),initial);
  total=4;await partnerAction(ctx,'partner-refresh');const updated=stampAngles(html());assert.equal(updated.length,4);assert.deepEqual(updated.slice(0,3),initial);assert.ok(updated[3]>=-18&&updated[3]<=18);
  assert.equal(stampGroups(html()).filter(mark=>mark.includes('/assets/stamp.png')).length,4);
@@ -150,7 +197,7 @@ test('merchant result keeps preview stamp angles while a newly scanned QR starts
 })));
 
 test('coupon rotation contains both supplied faces and front-only stamps while the QR remains outside the card',async()=>host(async()=>{
- const {ctx}=context();memberSignIn(ctx);const dialog=await openMemberPartner(ctx);await partnerAction(ctx,'partner-qr');
+ const {ctx}=context();memberSignIn(ctx);const dialog=await openRevealedPartner(ctx);await partnerAction(ctx,'partner-qr');
  const html=dialog.querySelector('[data-partner-body]').innerHTML,figure=html.match(/<figure\b[^>]*class="partner-coupon"[^>]*>[\s\S]*?<\/figure>/)?.[0];
  assert.ok(figure);assert.match(figure,/data-coupon-interactive\b[^>]*tabindex="0"[^>]*role="button"/);
  const front=figure.match(/<div class="partner-card-face partner-card-front"[^>]*>([\s\S]*?)<\/div>/)?.[1],back=figure.match(/<div class="partner-card-face partner-card-back"[^>]*>([\s\S]*?)<\/div>/)?.[1];
@@ -162,7 +209,7 @@ test('coupon rotation contains both supplied faces and front-only stamps while t
 },{path:'/members'}));
 
 test('member coupon rerenders replace motion listeners and closing resets the card and removes every motion listener',async()=>host(async({windowListenerCount})=>{
- const {ctx}=context();memberSignIn(ctx);const dialog=await openMemberPartner(ctx),body=dialog.querySelector('[data-partner-body]'),stage=()=>body.querySelectorAll('[data-coupon-interactive]')[0];
+ const {ctx}=context();memberSignIn(ctx);const dialog=await openRevealedPartner(ctx),body=dialog.querySelector('[data-partner-body]'),stage=()=>body.querySelectorAll('[data-coupon-interactive]')[0];
  const first=stage();assert.equal(first.listeners.get('keydown')?.size,1);assert.equal(windowListenerCount('pointermove'),1);
  for(const listener of first.listeners.get('keydown'))listener({key:'Enter',preventDefault(){}});
  assert.equal(first.style.getPropertyValue('--coupon-rotate-y'),'180deg');
@@ -312,12 +359,12 @@ test('logout warns if this browser refuses cookie removal and sends server revoc
 }));
 
 test('member partner popup keeps earned stamps when the partnership is disabled',async()=>host(async()=>{
- const {ctx}=context();memberSignIn(ctx);ctx.api=async()=>({available:false,stampCount:6,capacity:10,expiresAt:future(600000)});const dialog=await openMemberPartner(ctx),html=dialog.querySelector('[data-partner-body]').innerHTML;
+ const {ctx}=context();memberSignIn(ctx);ctx.api=async()=>({available:false,stampCount:6,capacity:10,expiresAt:future(600000)});const dialog=await openRevealedPartner(ctx),html=dialog.querySelector('[data-partner-body]').innerHTML;
  assert.ok(dialog.classList.contains('member-partners-dialog'));assert.equal((html.match(/class="is-stamped"/g)||[]).length,6);assert.match(html,/모은 스탬프는 유지/);assert.doesNotMatch(html,/data-action="partner-qr"/);
 },{path:'/members'}));
 
 test('member QR remains visible after ten seconds, disappears after thirty, and is never regenerated or persisted automatically',async()=>host(async({tick,timers,tab,cookies})=>{
- const {ctx,calls}=context();memberSignIn(ctx);const dialog=await openMemberPartner(ctx);await partnerAction(ctx,'partner-qr');let html=dialog.querySelector('[data-partner-body]').innerHTML;
+ const {ctx,calls}=context();memberSignIn(ctx);const dialog=await openRevealedPartner(ctx);await partnerAction(ctx,'partner-qr');let html=dialog.querySelector('[data-partner-body]').innerHTML;
  assert.match(html,/src="data:image\/png;base64,/);assert.match(html,/partner-qr-frame/);assert.match(html,/data-partner-countdown/);assert.doesNotMatch(html,new RegExp(qrToken));
  assert.ok([...tab.values(),...cookies.values()].every(value=>!value.includes(qrToken)));assert.equal(timers.size,1);assert.match(html,/data-partner-countdown>30<\/strong>/);assert.doesNotMatch(html,/직원에게 QR을 보여 주세요|QR은 30초 동안 표시됩니다/);
  assert.deepEqual(dialog.querySelector('.partner-qr-slot').scrolled,{block:'nearest',inline:'nearest',behavior:'auto'});await tick(10001);
@@ -326,12 +373,13 @@ test('member QR remains visible after ten seconds, disappears after thirty, and 
 },{path:'/members'}));
 
 test('member partner dialog places the introduction above the coupon and accessible QR icon with one header X and no footer',async()=>host(async({hidden,timers})=>{
- const {ctx}=context();memberSignIn(ctx);const dialog=await openMemberPartner(ctx),html=dialog.innerHTML,body=()=>dialog.querySelector('[data-partner-body]').innerHTML;
+ const {ctx}=context();memberSignIn(ctx);const dialog=await openRevealedPartner(ctx),html=dialog.innerHTML,body=()=>dialog.querySelector('[data-partner-body]').innerHTML;
  assert.match(html,/<section class="partner-feelingfine" aria-labelledby="modal-title">[\s\S]*?<div class="partner-intro">/);
  const introIndex=html.indexOf('class="partner-intro"'),benefitIndex=html.indexOf('class="partner-coupon-area"');assert.ok(introIndex>=0&&benefitIndex>introIndex);
  assert.match(html.slice(introIndex,benefitIndex),/<h2 id="modal-title" tabindex="-1">필링파인<\/h2>/);
  assert.match(html.slice(benefitIndex),/class="partner-coupon-area"><div data-partner-body>/);
- assert.doesNotMatch(html,/partner-benefit-heading|partner-benefit-title|제휴 혜택|음료 스탬프/);
+ assert.doesNotMatch(html,/partner-benefit-heading|partner-benefit-title/);
+ assert.match(html,/class="partner-benefits-copy"/);assert.ok(html.indexOf('class="partner-benefits-copy"')<benefitIndex);
  assert.match(body(),/<button\b[^>]*class="partner-qr-trigger"[^>]*data-action="partner-qr"[^>]*aria-label="QR 표시"><i data-lucide="qr-code" aria-hidden="true"><\/i><\/button>/);
  assert.equal((html.match(/<h2\b/g)||[]).length,1);assert.equal((html.match(/id="modal-title"/g)||[]).length,1);
  const header=html.match(/<header\b[^>]*>[\s\S]*?<\/header>/)?.[0];assert.ok(header);assert.doesNotMatch(header,/<h2\b/);
@@ -346,7 +394,7 @@ test('member partner dialog places the introduction above the coupon and accessi
 },{path:'/members'}));
 
 test('a QR issuance that returns after the member dialog closes cannot restore a QR',async()=>host(async()=>{
- const {ctx}=context();memberSignIn(ctx);const dialog=await openMemberPartner(ctx),pending=deferred();ctx.api=()=>pending.promise;
+ const {ctx}=context();memberSignIn(ctx);const dialog=await openRevealedPartner(ctx),pending=deferred();ctx.api=()=>pending.promise;
  const issuing=partnerAction(ctx,'partner-qr');dialog.close();pending.resolve({token:qrToken,expiresAt:future(30000),serverNow:future(0)});await issuing;assert.equal(ctx.state.memberPartner,undefined);
 },{path:'/members'}));
 
