@@ -69,7 +69,9 @@ function bindStage(stage){
  listen(win,'pointermove',move,{passive:false});
  listen(win,'pointerup',end);
  listen(win,'pointercancel',end);
- listen(stage,'lostpointercapture',end);
+ // Touch capture can move from a visual child to this stage. Its bubbled loss
+ // belongs to that child, not to the stage that is now handling the drag.
+ listen(stage,'lostpointercapture',event=>{if(event.target===stage)end(event);});
  listen(stage,'keydown',keyDown);
  listen(win,'keyup',keyUp);
  listen(stage,'blur',reset);

@@ -6,7 +6,7 @@ class Events{
  listeners=new Map();
  addEventListener(type,handler,options){const listeners=this.listeners.get(type)||[];listeners.push({handler,options});this.listeners.set(type,listeners);}
  removeEventListener(type,handler){this.listeners.set(type,(this.listeners.get(type)||[]).filter(item=>item.handler!==handler));}
- emit(type,properties={}){const event={type,cancelable:true,defaultPrevented:false,preventDefault(){this.defaultPrevented=true;},...properties};for(const {handler} of [...(this.listeners.get(type)||[])])handler(event);return event;}
+ emit(type,properties={}){const event={type,target:this,currentTarget:this,cancelable:true,defaultPrevented:false,preventDefault(){this.defaultPrevented=true;},...properties};for(const {handler} of [...(this.listeners.get(type)||[])])handler(event);return event;}
  listenerCount(){return [...this.listeners.values()].reduce((count,listeners)=>count+listeners.length,0);}
 }
 function fixture(count=1){
@@ -53,6 +53,19 @@ test('horizontal touch intention captures only after the threshold, while pen su
  const f=fixture();f.down({pointerType:'touch'});assert.equal(f.move(5,1).defaultPrevented,false);
  assert.deepEqual(f.stage.captureCalls,[]);assert.equal(f.move(7,2).defaultPrevented,true);f.flush();assert.notEqual(rotation(f.stage)[1],'0deg');f.up();front(f);
  f.down({pointerType:'pen'});assert.equal(f.move(0,110).defaultPrevented,true);f.flush();assert.deepEqual(rotation(f.stage),['-22deg','0deg']);f.cleanup();front(f);
+});
+
+test('transferring implicit touch capture from a coupon face to its stage does not end the drag',()=>{
+ const f=fixture(),face=new Events();
+ f.down({pointerType:'touch',target:face});f.move(30,2);
+ assert.deepEqual(f.stage.captureCalls,[1]);
+ // Mobile browsers release the originally touched face when its parent captures.
+ // That child's lostpointercapture bubbles through the stage before the next move.
+ f.stage.emit('lostpointercapture',{pointerId:1,target:face});
+ assert.equal(f.stage.classes.has('is-dragging'),true);
+ assert.equal(f.move(300).defaultPrevented,true);f.flush();
+ assert.deepEqual(rotation(f.stage),['0deg','180deg']);
+ f.up();front(f);assert.deepEqual(f.stage.releaseCalls,[1]);f.cleanup();
 });
 
 test('abandoned touch scrolling also releases browser-provided implicit capture',()=>{
