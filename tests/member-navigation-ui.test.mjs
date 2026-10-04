@@ -1,11 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { MEMBER_TABS, memberShell, memberTabForPath, currentMemberTab, activateMemberTab } from '../web/src/member-navigation.js';
+import { MEMBER_TABS, memberShell, memberTabForPath, currentMemberTab, activateMemberTab, activateMemberRequestView } from '../web/src/member-navigation.js';
 
 const ids = ['activity', 'events', 'visits', 'benefits'];
 
 test('member shell exposes four accessible tabs and selects only the requested panel', () => {
   assert.deepEqual(MEMBER_TABS.map(tab => tab.id), ids);
+  assert.equal(MEMBER_TABS.find(tab => tab.id === 'visits').label, '신청');
   for (const activeTab of ids) {
     const content = '<section id="member-panel-' + activeTab + '">내용</section>';
     const html = memberShell(content, { activeTab, memberName: '테스트 부원' });
@@ -25,6 +26,37 @@ test('member shell exposes four accessible tabs and selects only the requested p
     assert.match(header, /테스트 부원/);
     assert.match(header, /data-action="member-forget"[^>]*aria-label="로그아웃"/);
     assert.doesNotMatch(html, /data-id="home"|member-app-profile/);
+  }
+});
+
+test('request menu and visit form switch without replacing the mounted draft', () => {
+  const previous = Object.getOwnPropertyDescriptor(globalThis, 'document'), scrolls = [], focuses = [];
+  const draft = { purpose: '작성 중인 방문 사유', date: '2026-10-07', time: '18:00', guests: 2, consent: true };
+  const views = ['menu', 'visit'].map(view => ({ dataset: { memberRequestView: view }, hidden: view !== 'menu', draft, focus: options => focuses.push({ view, options }) }));
+  const panels = ids.map(id => ({ dataset: { memberPanel: id }, hidden: id !== 'activity', focus() {} }));
+  const buttons = ids.map(id => ({ dataset: { id }, setAttribute() {}, removeAttribute() {} }));
+  const app = {
+    querySelector: selector => views.find(view => selector === '[data-member-request-view="' + view.dataset.memberRequestView + '"]') || null,
+    querySelectorAll: selector => selector === '[data-member-panel]' ? panels : selector === '[data-member-request-view]' ? views : buttons,
+  };
+  const ctx = { state: { memberAppTab: 'activity' }, api: () => assert.fail('request view must not query the API'), render: () => assert.fail('request view must not rerender'), navigate: () => assert.fail('request view must not navigate') };
+  Object.defineProperty(globalThis, 'document', { configurable: true, value: { querySelector: () => app, defaultView: { scrollY: 180, scrollTo: options => scrolls.push(options) } } });
+  try {
+    assert.equal(activateMemberRequestView(ctx, 'visit'), true);
+    assert.equal(ctx.state.memberAppTab, 'visits');assert.equal(ctx.state.memberRequestView, 'visit');
+    assert.deepEqual(views.filter(view => !view.hidden).map(view => view.dataset.memberRequestView), ['visit']);
+    assert.deepEqual(panels.filter(panel => !panel.hidden).map(panel => panel.dataset.memberPanel), ['visits']);
+    assert.equal(focuses.at(-1).view, 'visit');assert.equal(focuses.at(-1).options.preventScroll, true);assert.equal(scrolls.at(-1).top, 0);
+    assert.equal(activateMemberRequestView(ctx, 'menu'), true);assert.equal(ctx.state.memberRequestView, 'menu');
+    assert.deepEqual(views.filter(view => !view.hidden).map(view => view.dataset.memberRequestView), ['menu']);
+    assert.equal(focuses.at(-1).view, 'menu');assert.equal(scrolls.at(-1).top, 0);
+    assert.equal(activateMemberRequestView(ctx, 'visit'), true);assert.equal(views[1].draft, draft);
+    assert.deepEqual(draft, { purpose: '작성 중인 방문 사유', date: '2026-10-07', time: '18:00', guests: 2, consent: true });
+    const scrollCount = scrolls.length;assert.equal(activateMemberRequestView(ctx, 'visit'), true);assert.equal(scrolls.length, scrollCount);
+    assert.equal(activateMemberRequestView(ctx, 'unknown'), false);assert.equal(ctx.state.memberRequestView, 'visit');
+    views.splice(0, 1);assert.equal(activateMemberRequestView(ctx, 'menu'), false);assert.equal(ctx.state.memberRequestView, 'visit');
+  } finally {
+    if (previous) Object.defineProperty(globalThis, 'document', previous); else delete globalThis.document;
   }
 });
 

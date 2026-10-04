@@ -84,8 +84,17 @@ main.member-public-page.member-app-page{width:100%;max-width:680px;min-height:10
 .member-app-shell :is(.member-inline-message,.member-history-warning,.member-quiet-empty){font-size:13px;line-height:1.8;word-break:keep-all;overflow-wrap:anywhere}
 .member-app-shell .member-connection-note{margin:0 0 18px;border-radius:15px}
 
-/* The visit tab opens directly into a single-column request form. */
-.member-app-shell #member-panel-visits>.member-app-intro p{margin-top:6px;color:var(--app-muted);font-size:13px;line-height:1.8;word-break:keep-all}
+/* The request menu leads to a single-column visit form without losing its draft. */
+.member-app-shell [data-member-request-view]:focus{outline:none}
+.member-app-shell .member-request-option{display:grid;grid-template-columns:44px minmax(0,1fr) 18px;align-items:center;gap:14px;width:100%;min-height:96px;margin:0;padding:18px 16px;border:1px solid #ddbd842b;border-radius:15px;background:var(--app-surface);color:var(--text);font:inherit;text-align:left;cursor:pointer}
+.member-app-shell .member-request-option-icon{display:grid;place-items:center;width:44px;height:44px;border-radius:12px;background:#ddbd840b;color:var(--app-accent)}
+.member-app-shell .member-request-option-icon>svg{width:23px;height:23px;stroke-width:1.6}
+.member-app-shell .member-request-option-copy{display:grid;gap:5px;min-width:0}
+.member-app-shell .member-request-option-copy>strong{font-size:16px;font-weight:600;line-height:1.5}
+.member-app-shell .member-request-option-copy>small{color:var(--app-muted);font-size:12px;line-height:1.7;word-break:keep-all}
+.member-app-shell .member-request-option>svg{width:18px;height:18px;color:var(--app-accent)}
+.member-app-shell .member-request-back{justify-content:flex-start;margin:-12px 0 10px;padding-right:12px}
+.member-app-shell #member-panel-visits .member-app-intro p{margin-top:6px;color:var(--app-muted);font-size:13px;line-height:1.8;word-break:keep-all}
 .member-app-shell .member-visit-form{min-width:0}
 .member-app-shell .member-visit-form>.member-form-intro{display:none}
 .member-app-shell .member-visit-form .visit-layout{grid-template-columns:minmax(0,1fr);gap:28px;margin-bottom:0}
@@ -143,6 +152,7 @@ main.member-public-page.member-app-page{width:100%;max-width:680px;min-height:10
  .member-app-shell .member-app-logout:hover{background:#ffffff07;color:#e1d3bc}
  .member-app-shell .member-bottom-button:hover{color:#e7d4b1}
  .member-app-shell .member-benefit-feature:hover{border-color:#ddbd8470}
+ .member-app-shell .member-request-option:hover{border-color:#ddbd8470}
  .member-app-shell .member-app-link:hover{color:#f1dcb5}
  .member-app-shell .member-application-row.needs-action:hover{border-color:#c5a26999;background:#302b21}
 }

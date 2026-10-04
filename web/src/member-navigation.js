@@ -3,7 +3,7 @@ import { esc, icon } from './ui.js';
 export const MEMBER_TABS = [
   { id: 'activity', label: '내 현황', icon: 'clipboard-list' },
   { id: 'events', label: '행사', icon: 'calendar-days' },
-  { id: 'visits', label: '출입', icon: 'door-open' },
+  { id: 'visits', label: '신청', icon: 'notebook-pen' },
   { id: 'benefits', label: '혜택', icon: 'ticket' },
 ];
 const validTab = tab => MEMBER_TABS.some(item => item.id === tab);
@@ -43,6 +43,27 @@ export function activateMemberTab(ctx, tab) {
   }
   panel.focus?.({ preventScroll: true });
   if (previous !== tab) win?.scrollTo?.({ top: ctx.state.memberAppScroll?.[tab] || 0, behavior: 'instant' });
+  return true;
+}
+
+// Menu and form stay mounted so returning to the menu keeps an unfinished draft.
+export function activateMemberRequestView(ctx, view) {
+  if (!['menu', 'visit'].includes(view)) return false;
+  const doc = globalThis.document, app = doc?.querySelector('[data-member-app]');
+  const menu = app?.querySelector('[data-member-request-view="menu"]');
+  const form = app?.querySelector('[data-member-request-view="visit"]');
+  if (!menu || !form) return false;
+  const changed = (view === 'visit' ? form : menu).hidden;
+  if (!activateMemberTab(ctx, 'visits')) return false;
+  ctx.state.memberRequestView = view;
+  menu.hidden = view !== 'menu';
+  form.hidden = view !== 'visit';
+  (view === 'visit' ? form : menu).focus?.({ preventScroll: true });
+  if (changed) {
+    ctx.state.memberAppScroll ??= {};
+    ctx.state.memberAppScroll.visits = 0;
+    (doc.defaultView || globalThis.window)?.scrollTo?.({ top: 0, behavior: 'instant' });
+  }
   return true;
 }
 
