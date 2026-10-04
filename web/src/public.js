@@ -66,7 +66,7 @@ function currentPrivacyNotice(){
 
 
 function partnerPrivacyNotice(){
- return '<section class="privacy-content"><h2>필링파인 제휴 스탬프</h2><p>제휴 스탬프는 부원 확인 정보와 연결된 식별값, 적립 개수와 처리 이력을 저장합니다. 학기가 바뀌어도 기존 적립은 유지됩니다. 부원이 QR을 표시하고 매장에서 스캔하면, 로그인한 제휴처에 부원 이름과 적립 개수가 표시됩니다. QR은 10초 동안 한 번만 적립할 수 있으며 QR 자체에 이름이나 학번을 넣지 않습니다.</p><p>매장 로그인은 해당 기기의 쿠키로 최대 1년 유지하며, 쿠키에는 임의 인증값과 만료 시각만 저장합니다. 매장 코드 변경·적립 중지·로그아웃·만료 시 서버가 접근을 제한합니다. 보관 기록의 조회·정정·삭제 요청은 운영진 카카오톡으로 문의해 주세요.</p></section>';
+ return '<section class="privacy-content"><h2>필링파인 제휴 스탬프</h2><p>제휴 스탬프는 부원 확인 정보와 연결된 식별값, 적립 개수와 처리 이력을 저장합니다. 학기가 바뀌어도 기존 적립은 유지됩니다. 부원이 QR을 표시하고 매장에서 스캔하면, 로그인한 제휴처에 부원 이름과 적립 개수가 표시됩니다. 각 QR은 한 번만 적립할 수 있으며 QR 자체에 이름이나 학번을 넣지 않습니다.</p><p>매장 로그인은 해당 기기의 쿠키로 최대 1년 유지하며, 쿠키에는 임의 인증값과 만료 시각만 저장합니다. 매장 코드 변경·적립 중지·로그아웃·만료 시 서버가 접근을 제한합니다. 보관 기록의 조회·정정·삭제 요청은 운영진 카카오톡으로 문의해 주세요.</p></section>';
 }
 export async function publicSubmit(ctx,form,data,node){
  if(form.startsWith('member-'))return memberPortalSubmit(ctx,form,data,node);

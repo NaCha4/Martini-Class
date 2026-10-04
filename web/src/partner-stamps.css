@@ -69,25 +69,29 @@ dialog.partner-dialog{width:min(740px,calc(100% - 32px));max-width:calc(100% - 3
 .merchant-panel .form-error:empty{display:none}
 @keyframes partner-live-ring{to{transform:rotate(360deg)}}
 @keyframes partner-live-pulse{50%{opacity:.35}}
+@media(max-width:600px){
+ .partner-dialog.member-dialog .dialog-content{padding-bottom:max(24px,calc(env(safe-area-inset-bottom) + 16px))}
+ .partner-information{grid-template-columns:1fr;gap:8px;margin-bottom:20px}
+ .partner-info-card{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:center;gap:12px;min-height:64px;padding:16px}
+ .partner-info-card h3{margin:0;font-size:15px;overflow-wrap:anywhere}
+ .partner-info-card p{font-size:14px;text-align:right;overflow-wrap:anywhere}
+ .partner-coupon-section{padding-top:20px}
+ .partner-coupon-section>h3{margin-bottom:12px;font-size:17px}
+ .partner-qr-slot{margin-top:16px;padding:16px 0 0}
+ .partner-qr-slot>.button{display:flex;min-width:0;width:100%;min-height:52px;font-size:16px}
+ .partner-qr-frame{width:min(314px,100%)}
+ .partner-qr-paper img{width:100%}
+ .partner-qr-timer{margin-top:14px;font-size:15px}
+ .partner-qr-help{font-size:14px}
+}
 @media(max-width:540px){
  .partner-admin-card{padding:20px;gap:16px}
  .partner-admin-actions{width:100%}
  .partner-history-dialog .dialog-content{padding:18px 16px}
- dialog.partner-dialog{width:calc(100% - 24px);max-width:calc(100% - 24px)}
- .partner-dialog header{padding:20px}
- .partner-dialog .dialog-content{padding:14px 16px 22px}
- .partner-information{gap:10px;margin-bottom:20px}
- .partner-info-card{min-height:116px;padding:16px}
- .partner-info-card h3{font-size:14px;margin-bottom:10px}
- .partner-coupon-section{padding-top:20px}
- .partner-qr-slot{margin-top:16px;padding-top:16px}
  .merchant-page{padding:32px 16px 22px}
  .merchant-panel{padding:22px 18px}
 }
 @media(max-width:360px){
- .partner-dialog .dialog-content{padding-inline:12px}
- .partner-information{grid-template-columns:1fr}
- .partner-info-card{min-height:96px}
  .merchant-panel{padding:20px 12px}
 }
 @media(prefers-reduced-motion:reduce){.partner-qr-frame::before,.partner-live-dot{animation-duration:4s}}

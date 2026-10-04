@@ -31,7 +31,7 @@ function memberBody(view){
  if(!view.coupons)return '<p class="partner-message" role="status">스탬프를 불러오고 있어요.</p>';
  if(!view.coupons.available)return stampCard(count(view.coupons.stampCount),view)+'<p class="partner-message">지금은 스탬프를 적립할 수 없습니다. 모은 스탬프는 유지됩니다.</p>';
  const full=count(view.coupons.stampCount)>=CAPACITY;
- return stampCard(count(view.coupons.stampCount),view)+(!full?'<section class="partner-qr-slot" aria-label="스탬프 적립 QR">'+(view.qr?'<div class="partner-qr-frame"><div class="partner-qr-paper"><img src="'+esc(view.qr.image)+'" width="280" height="280" alt="필링파인 매장에서 스캔할 일회용 적립 QR 코드"></div></div><p class="partner-qr-timer"><span class="partner-live-dot" aria-hidden="true"></span>남은 시간 <strong data-partner-countdown>'+Math.ceil(Math.max(0,view.qr.deadline-monotonic())/1000)+'</strong>초</p><p class="partner-qr-help">직원에게 QR을 보여 주세요. QR은 30초 동안 표시됩니다.</p>':view.issuing?'<p class="partner-qr-help" role="status">QR을 만들고 있어요.</p>':(view.expired?'<p class="partner-qr-help" role="status">QR 표시가 종료되었습니다. 필요하면 새 QR을 표시해 주세요.</p>':'')+button(view.expired?'새 QR 표시':'QR 표시','partner-qr',{icon:'ticket'}))+'</section>':'');
+ return stampCard(count(view.coupons.stampCount),view)+(!full?'<section class="partner-qr-slot" aria-label="스탬프 적립 QR">'+(view.qr?'<div class="partner-qr-frame"><div class="partner-qr-paper"><img src="'+esc(view.qr.image)+'" width="280" height="280" alt="필링파인 매장에서 스캔할 일회용 적립 QR 코드"></div></div><p class="partner-qr-timer"><span class="partner-live-dot" aria-hidden="true"></span>남은 시간 <strong data-partner-countdown>'+Math.ceil(Math.max(0,view.qr.deadline-monotonic())/1000)+'</strong>초</p>':view.issuing?'<p class="partner-qr-help" role="status">QR을 만들고 있어요.</p>':(view.expired?'<p class="partner-qr-help" role="status">QR 표시가 종료되었습니다. 필요하면 새 QR을 표시해 주세요.</p>':'')+button(view.expired?'새 QR 표시':'QR 표시','partner-qr',{icon:'ticket'}))+'</section>':'');
 }
 function paintMember(view){const body=view.dialog?.querySelector('[data-partner-body]');if(body){body.innerHTML=memberBody(view);refreshIcons();}}
 function expireMemberQr(view){stop(view);view.qr=null;view.issuing=false;view.expired=true;view.generation++;if(!view.disposed)paintMember(view);}
@@ -88,6 +88,7 @@ export async function partnerAction(ctx,action){
   if(!memberCurrent(ctx,view)||generation!==view.generation||document.hidden)return;
   if(deadline<=monotonic()){expireMemberQr(view);return;}
   view.issuing=false;view.qr={image,deadline};paintMember(view);watchMemberQr(ctx,view);
+  if(view.qr&&memberCurrent(ctx,view))view.dialog.querySelector('.partner-qr-slot')?.scrollIntoView?.({block:'nearest',inline:'nearest',behavior:'auto'});
  }catch(error){
   if(!memberCurrent(ctx,view)||generation!==view.generation)return;
   if(isMemberAccessError(error)){clearMemberIdentity(ctx);await view.dialog.requestClose(true);await ctx.render();return;}
