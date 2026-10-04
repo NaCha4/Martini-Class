@@ -399,7 +399,7 @@ export function createService(db,clock=Date.now){
   if(op==='memberEventAccess')return memberPortal.eventAccess(data,ctx);
   if(op==='memberApplications')return memberApplications(data,ctx);
   if(op==='memberApplication')return memberApplication(data,ctx);
-  if(['memberCoupons','issueCouponQr','merchantLogin','merchantSession','merchantLogout','merchantCouponPreview','stampCoupon'].includes(op))return partnerStamps[op](data,ctx);
+  if(['memberCoupons','issueCouponQr','merchantLogin','merchantSession','merchantLogout','merchantCouponPreview','stampCoupon','merchantCouponHistory','adjustMerchantCoupon'].includes(op))return partnerStamps[op](data,ctx);
   if(op==='submitClubRequest')return memberPortal.submit(data,ctx);
   if(op==='clubRequestReceipt')return memberPortal.getReceipt(data,ctx);
   if(op==='cancelClubRequest')return memberPortal.cancel(data,ctx);

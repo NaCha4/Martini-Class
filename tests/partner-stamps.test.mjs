@@ -370,9 +370,9 @@ test('stamping consumes one QR atomically and concurrent same-session retries ad
  assert.ok(f.records.get(qrPath(qr.token)).consumedAt);
 });
 
-test('a QR cannot select a different member, merchant, reward, or stamp amount',async()=>{
+test('a QR cannot select a different member, merchant, reward, or invalid stamp amount',async()=>{
  const f=await ready(),qr=await f.qr(),before=clone(f.records.get(couponPath));
- for(const extra of [{amount:2},{stampCount:10},{memberId:'other-member'},{couponId:'other-coupon'},{partner:'other-store'},{action:'redeem'}]){
+ for(const extra of [{amount:0},{amount:11},{amount:-1},{amount:1.5},{amount:'2'},{amount:null},{stampCount:10},{memberId:'other-member'},{couponId:'other-coupon'},{partner:'other-store'},{action:'redeem'}]){
   await assert.rejects(f.handle({op:'stampCoupon',sessionKey:f.merchant.sessionKey,token:qr.token,...extra}),errorCode('invalid-argument'));
  }
  assert.deepEqual(f.records.get(couponPath),before);
@@ -574,4 +574,173 @@ test('history contains only committed single accruals, including existing receip
  const before=clone([...f.records]),writes=f.writes.length;
  assert.deepEqual((await history(f)).items,[{memberName:member.name,at:new Date(START).toISOString(),stampCount:1}]);
  assert.deepEqual([...f.records],before);assert.equal(f.writes.length,writes);
+});
+
+const merchantHistory=(f,cursor,sessionKey=f.merchant.sessionKey)=>f.handle({op:'merchantCouponHistory',sessionKey,...(cursor?{cursor}:{})});
+const stampAmount=(f,qr,amount)=>f.handle({op:'stampCoupon',sessionKey:f.merchant.sessionKey,token:qr.token,amount});
+const adjust=(f,receiptId,stampCount,expectedRevision,sessionKey=f.merchant.sessionKey)=>f.handle({op:'adjustMerchantCoupon',sessionKey,receiptId,stampCount,expectedRevision});
+
+test('merchant-selected amounts are atomic, bounded by ten, and replayable only with the same amount',async()=>{
+ const f=await ready(),qr=await f.qr();
+ assert.equal((await stampAmount(f,qr,3)).stampCount,3);
+ assert.equal(f.records.get(qrPath(qr.token)).amount,3);
+ assert.equal((await stampAmount(f,qr,3)).duplicate,true);
+ for(const amount of [1,2,4,10])await assert.rejects(stampAmount(f,qr,amount),errorCode('already-exists'));
+ await assert.rejects(stamp(f,qr.token),errorCode('already-exists'));
+ const second=await f.qr(),before=clone(f.records.get(qrPath(second.token)));
+ await assert.rejects(stampAmount(f,second,8),errorCode('failed-precondition'));
+ assert.deepEqual(f.records.get(qrPath(second.token)),before);
+ assert.equal((await stampAmount(f,second,7)).stampCount,10);
+ assert.equal((await f.coupons()).revision,2);
+});
+
+test('omitted amounts preserve old-client behavior and legacy consumed receipts remain idempotent',async()=>{
+ const f=await ready(),qr=await f.qr();await stamp(f,qr.token);
+ const stored=f.records.get(qrPath(qr.token));delete stored.amount;
+ assert.equal((await stamp(f,qr.token)).duplicate,true);
+ assert.equal((await stampAmount(f,qr,1)).duplicate,true);
+ await assert.rejects(stampAmount(f,qr,2),errorCode('already-exists'));
+ const listed=(await merchantHistory(f)).items[0];
+ assert.equal(listed.amount,1);assert.equal(listed.stampCount,1);assert.equal(listed.currentStampCount,1);
+});
+
+test('merchant history exposes only receipt labels and the safely linked current coupon',async()=>{
+ const f=await ready(),first=await f.qr();await stampAmount(f,first,2);f.advance(1);
+ const second=await f.qr();await stampAmount(f,second,3);
+ const before=clone([...f.records].filter(([path])=>!path.startsWith('martini_v2_rateLimits/'))),result=await merchantHistory(f);
+ assert.deepEqual(result.items.map(item=>({id:item.id,amount:item.amount,stampCount:item.stampCount,current:item.currentStampCount})),[
+  {id:hash(second.token),amount:3,stampCount:5,current:5},{id:hash(first.token),amount:2,stampCount:2,current:5}
+ ]);
+ for(const item of result.items){
+  assert.deepEqual(Object.keys(item).sort(),['adjustable','amount','at','currentStampCount','id','memberName','revision','stampCount']);
+  assert.equal(item.memberName,member.name);assert.equal(item.revision,2);assert.equal(item.adjustable,true);
+ }
+ for(const privateValue of [member.id,member.studentId,member.phone,memberSession,f.merchant.sessionKey,first.token,second.token,fingerprint])assert.ok(!JSON.stringify(result).includes(privateValue));
+ assert.deepEqual([...f.records].filter(([path])=>!path.startsWith('martini_v2_rateLimits/')),before);
+ assert.deepEqual((await history(f)).items.map(row=>Object.keys(row).sort()),[['at','memberName','stampCount'],['at','memberName','stampCount']]);
+});
+
+test('merchant history uses bounded stable pages even when its prior cursor receipt disappears',async()=>{
+ const f=await ready();f.records.set(couponPath,{stampCount:4,revision:8});
+ for(let index=1;index<=65;index++)receipt(f,index);
+ const first=await merchantHistory(f);assert.equal(first.items.length,30);
+ const position=JSON.parse(Buffer.from(first.nextCursor,'base64url').toString('utf8'));
+ f.records.delete('martini_v2_partnerCouponQrs/'+position.id);
+ receipt(f,99,{consumedAt:new Date(START+1000).toISOString()});
+ const second=await merchantHistory(f,first.nextCursor),third=await merchantHistory(f,second.nextCursor);
+ assert.equal(second.items.length,30);assert.equal(third.items.length,5);assert.equal(third.nextCursor,null);
+ assert.equal(new Set([...first.items,...second.items,...third.items].map(item=>item.id)).size,65);
+ assert.ok([...first.items,...second.items,...third.items].every(item=>item.adjustable&&item.currentStampCount===4&&item.revision===8&&item.amount===1));
+ assert.ok(f.queries.filter(query=>query.path==='martini_v2_partnerCouponQrs').every(query=>query.maximum===31));
+});
+
+test('merchant history and adjustments require a live merchant, independently of administrator or member access',async()=>{
+ const f=await ready(),qr=await f.qr();await stamp(f,qr.token);
+ for(const sessionKey of [memberSession,otherMemberSession,unknownToken]){
+  await assert.rejects(f.handle({op:'merchantCouponHistory',sessionKey},owner),errorCode('unauthenticated'));
+  await assert.rejects(f.handle({op:'adjustMerchantCoupon',sessionKey,receiptId:hash(qr.token),stampCount:0,expectedRevision:1},owner),errorCode('unauthenticated'));
+ }
+ await f.handle({op:'merchantLogout',sessionKey:f.merchant.sessionKey});
+ await assert.rejects(merchantHistory(f),errorCode('unauthenticated'));
+ await assert.rejects(adjust(f,hash(qr.token),0,1),errorCode('unauthenticated'));
+ assert.equal(f.records.get(couponPath).stampCount,1);
+});
+
+test('merchant history and adjustment inputs reject selectors, malformed cursors, and out-of-range balances',async()=>{
+ const f=await ready(),qr=await f.qr();await stamp(f,qr.token);
+ for(const input of [{cursor:'invalid+cursor'},{cursor:historyCursor({at:'invalid',id:unknownToken})},{limit:1000},{memberId:member.id},{partner:'other'},{couponId:'other'}])await assert.rejects(f.handle({op:'merchantCouponHistory',sessionKey:f.merchant.sessionKey,...input}),errorCode('invalid-argument'));
+ const base={op:'adjustMerchantCoupon',sessionKey:f.merchant.sessionKey,receiptId:hash(qr.token),stampCount:0,expectedRevision:1};
+ for(const input of [{receiptId:'../settings'},{receiptId:member.id},{stampCount:-1},{stampCount:11},{stampCount:1.5},{stampCount:'1'},{expectedRevision:-1},{expectedRevision:1.5},{amount:1},{memberId:'other'},{couponId:'other'},{partner:'other'}])await assert.rejects(f.handle({...base,...input}),errorCode('invalid-argument'));
+ assert.equal(f.records.get(couponPath).stampCount,1);
+});
+
+test('adjustments change the current balance without rewriting receipts and allow all balances zero through ten',async()=>{
+ const f=await ready(),qr=await f.qr();await stampAmount(f,qr,3);
+ const before=clone(f.records.get(qrPath(qr.token))),receiptId=hash(qr.token);
+ for(const [stampCount,revision] of [[0,1],[10,2],[4,3]])assert.deepEqual(await adjust(f,receiptId,stampCount,revision),{stampCount,revision:revision+1,memberName:member.name});
+ assert.deepEqual(f.records.get(qrPath(qr.token)),before);
+ assert.equal((await f.coupons()).stampCount,4);
+ const adjustments=[...f.records].filter(([path])=>path.startsWith('martini_v2_partnerCouponAdjustments/')).map(([,record])=>record);
+ assert.deepEqual(adjustments.map(record=>[record.previousStampCount,record.stampCount,record.delta]),[[3,0,-3],[0,10,10],[10,4,-6]]);
+ assert.ok(adjustments.every(record=>record.receiptId===receiptId&&record.partner==='feelingfine'));
+ assert.ok(adjustments.every(record=>!('name' in record)&&!('studentId' in record)&&!('phone' in record)&&!('sessionKey' in record)));
+ assert.equal((await merchantHistory(f)).items[0].stampCount,3);
+ assert.equal((await merchantHistory(f)).items[0].currentStampCount,4);
+ assert.equal((await history(f)).items[0].stampCount,3);
+ const writes=f.businessWrites().length;
+ assert.deepEqual(await adjust(f,receiptId,4,4),{stampCount:4,revision:4,memberName:member.name});
+ assert.equal(f.businessWrites().length,writes,'Saving an unchanged balance is a no-op');
+});
+
+test('merchant correction does not depend on an expired member login or the current semester',async()=>{
+ const f=await ready(),qr=await f.qr();await stamp(f,qr.token);
+ await f.handle({op:'memberLogout',sessionKey:memberSession});
+ f.records.set('martini_v2_settings/club',{semester:'2027-1'});f.advance(8*DAY);
+ const listed=(await merchantHistory(f)).items[0];assert.equal(listed.adjustable,true);
+ assert.deepEqual(await adjust(f,listed.id,3,listed.revision),{stampCount:3,revision:2,memberName:member.name});
+});
+
+test('deleted, anonymized, replaced, and inactive members cannot be adjusted through old receipts',async()=>{
+ const changes=[null,{deletedAt:'removed'},{removedAt:'removed'},{anonymizedAt:'removed'},{name:'다른 이름'},{studentId:'TEST-200'},{phone:'01000000001'},{status:'inactive'},{active:false}];
+ for(const change of changes){
+  const f=await ready(),qr=await f.qr();await stamp(f,qr.token);f.memberChange(change);
+  const before=clone(f.records.get(couponPath)),item=(await merchantHistory(f)).items[0];
+  assert.equal(item.adjustable,false);
+  if(change===null||change.deletedAt||change.removedAt||change.anonymizedAt){assert.equal(item.memberName,'삭제된 부원');assert.equal(item.currentStampCount,null);assert.equal(item.revision,null);}
+  if(change?.name||change?.studentId||change?.phone){assert.equal(item.memberName,'확인할 수 없는 부원');assert.equal(item.currentStampCount,null);}
+  await assert.rejects(adjust(f,hash(qr.token),0,1),errorCode('failed-precondition'));
+  assert.deepEqual(f.records.get(couponPath),before);
+ }
+});
+
+test('receipt and coupon deletion markers, wrong partners, and unsafe links cannot authorize adjustments',async()=>{
+ for(const patch of [{partner:'other'},{deletedAt:'removed'},{anonymizedAt:'removed'},{consumedAt:undefined},{couponId:'a'.repeat(64)},{identityHash:undefined},{memberId:'../settings',semester:'bad'}]){
+  const f=await ready(),qr=await f.qr();await stamp(f,qr.token);
+  f.records.set(qrPath(qr.token),{...f.records.get(qrPath(qr.token)),...patch});
+  const before=clone(f.records.get(couponPath));
+  await assert.rejects(adjust(f,hash(qr.token),0,1),errorCode('not-found','failed-precondition'));
+  assert.deepEqual(f.records.get(couponPath),before);
+  assert.ok(f.reads.every(path=>!path.includes('../')));
+ }
+ for(const patch of [null,{deletedAt:'removed'},{anonymizedAt:'removed'}]){
+  const f=await ready(),qr=await f.qr();await stamp(f,qr.token);
+  if(patch)f.records.set(couponPath,{...f.records.get(couponPath),...patch});else f.records.delete(couponPath);
+  assert.equal((await merchantHistory(f)).items[0].adjustable,false);
+  await assert.rejects(adjust(f,hash(qr.token),0,1),errorCode('not-found'));
+ }
+});
+
+test('legacy member lookup is readable and adjustable but cannot bypass a private current roster record',async()=>{
+ const f=await ready(),qr=await f.qr();await stamp(f,qr.token);
+ const memberPath='martini_v2_semesters/'+member.semester+'/members/'+member.id;
+ f.records.delete(memberPath);f.records.set('martini_v2_members/'+member.id,{...member});
+ assert.equal((await merchantHistory(f)).items[0].adjustable,true);
+ assert.equal((await adjust(f,hash(qr.token),2,1)).stampCount,2);
+ f.records.set(memberPath,{...member,anonymizedAt:'removed'});
+ assert.equal((await merchantHistory(f)).items[0].memberName,'삭제된 부원');
+ await assert.rejects(adjust(f,hash(qr.token),0,2),errorCode('failed-precondition'));
+});
+
+test('stale or simultaneous balance edits never overwrite a newer correction or accrual',async()=>{
+ const f=await ready(),qr=await f.qr();await stamp(f,qr.token);
+ const id=hash(qr.token),edits=await Promise.allSettled([adjust(f,id,4,1),adjust(f,id,0,1)]);
+ assert.equal(edits.filter(result=>result.status==='fulfilled').length,1);
+ assert.equal(edits.find(result=>result.status==='rejected').reason.code,'aborted');
+ assert.equal(f.records.get(couponPath).stampCount,4);assert.equal(f.records.get(couponPath).revision,2);
+ const next=await f.qr();await stampAmount(f,next,2);
+ await assert.rejects(adjust(f,id,0,2),errorCode('aborted'));
+ assert.equal(f.records.get(couponPath).stampCount,6);
+ const revised=await adjust(f,id,1,3);assert.equal(revised.revision,4);
+ const last=await f.qr();assert.equal((await stampAmount(f,last,3)).stampCount,4);
+});
+
+test('adjustment ledger, immutable receipt and audit remain atomic when any write fails',async()=>{
+ const f=await ready(),qr=await f.qr();await stamp(f,qr.token);
+ const before=clone([...f.records].filter(([path])=>!path.startsWith('martini_v2_rateLimits/')));
+ for(const prefix of ['martini_v2_partnerCoupons/','martini_v2_partnerCouponAdjustments/','martini_v2_audit/']){
+  f.failWrites(write=>write.path.startsWith(prefix));
+  await assert.rejects(adjust(f,hash(qr.token),5,1),/Synthetic transaction write failure/);
+  assert.deepEqual([...f.records].filter(([path])=>!path.startsWith('martini_v2_rateLimits/')),before);
+ }
+ f.failWrites(null);assert.equal((await adjust(f,hash(qr.token),5,1)).stampCount,5);
 });

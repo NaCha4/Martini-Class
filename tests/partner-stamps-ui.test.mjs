@@ -10,7 +10,7 @@ try{({openMemberPartner,partnerAction,renderMerchant,merchantSubmit,merchantActi
 const merchantKey='a'.repeat(64),memberKey='b'.repeat(64),qrToken='c'.repeat(64),otherKey='d'.repeat(64);
 const future=offset=>new Date(Date.now()+offset).toISOString();
 const deferred=()=>{let resolve;const promise=new Promise(yes=>{resolve=yes;});return {promise,resolve};};
-function context(){const calls=[],toasts=[],ctx={state:{},renders:0,render:async()=>{ctx.renders++;},toast:message=>toasts.push(message),api:async(op,data)=>{calls.push({op,data});if(op==='merchantSession')return {expiresAt:future(86400000),partnerName:'필링파인'};if(op==='merchantCouponPreview')return {memberName:'테스트 부원',stampCount:3,capacity:10,expiresAt:future(30000),serverNow:future(0)};if(op==='stampCoupon')return {stampCount:4,capacity:10};if(op==='merchantLogout')return {ok:true};if(op==='merchantLogin')return {sessionKey:merchantKey,expiresAt:future(365*86400000)};if(op==='memberCoupons')return {available:true,stampCount:3,capacity:10,revision:1,expiresAt:future(600000)};if(op==='issueCouponQr')return {token:qrToken,expiresAt:future(30000),serverNow:future(0)};throw Error('Unexpected op '+op);}};return {ctx,calls,toasts};}
+function context(){const calls=[],toasts=[],ctx={state:{},renders:0,render:async()=>{ctx.renders++;},toast:message=>toasts.push(message),api:async(op,data)=>{calls.push({op,data});if(op==='merchantSession')return {expiresAt:future(86400000),partnerName:'필링파인'};if(op==='merchantCouponPreview')return {memberName:'테스트 부원',stampCount:3,capacity:10,expiresAt:future(30000),serverNow:future(0)};if(op==='stampCoupon')return {stampCount:3+(data.amount||1),amount:data.amount||1,capacity:10};if(op==='merchantCouponHistory')return {items:[],nextCursor:null};if(op==='adjustMerchantCoupon')return {stampCount:data.stampCount,revision:data.expectedRevision+1,memberName:'테스트 부원'};if(op==='merchantLogout')return {ok:true};if(op==='merchantLogin')return {sessionKey:merchantKey,expiresAt:future(365*86400000)};if(op==='memberCoupons')return {available:true,stampCount:3,capacity:10,revision:1,expiresAt:future(600000)};if(op==='issueCouponQr')return {token:qrToken,expiresAt:future(30000),serverNow:future(0)};throw Error('Unexpected op '+op);}};return {ctx,calls,toasts};}
 async function host(run,{path='/partners/feelingfine',blocked=false,motion=false}={}){
  const keys=['document','window','location','history','sessionStorage','performance','setInterval','clearInterval','CSS'],previous=new Map(keys.map(key=>[key,Object.getOwnPropertyDescriptor(globalThis,key)]));
  const cookies=new Map(),writes=[],dialogs=[],timers=new Map(),tab=new Map(),docListeners=new Map(),winListeners=new Map();let now=1000,timerId=0,rejectCookies=blocked;
@@ -40,6 +40,91 @@ async function withRandom(values,run){
 }
 const stampGroups=html=>[...html.matchAll(/<g\b[^>]*class="is-stamped"[^>]*>[\s\S]*?<\/g>/g)].map(match=>match[0]);
 const stampAngles=html=>stampGroups(html).map(group=>Number(group.match(/\brotate\(([-\d.]+)\)/)?.[1]));
+const merchantReceipt=(id='receipt-one',overrides={})=>({id,memberName:'테스트 부원',at:'2026-10-05T04:05:00.000Z',amount:2,stampCount:5,currentStampCount:5,revision:8,adjustable:true,...overrides});
+
+test('merchant chooses a quantity, confirms once, and returns to the credited member history',async()=>host(async({panel})=>{
+ const {ctx,calls}=context(),api=ctx.api;let historyReads=0;
+ ctx.api=async(op,data)=>{if(op==='merchantCouponHistory'){historyReads++;calls.push({op,data});return {items:[merchantReceipt()],nextCursor:null};}return api(op,data);};
+ ctx.render=async()=>{ctx.renders++;panel.innerHTML=await renderMerchant(ctx);};
+ signIn(ctx);location.hash='#qr='+qrToken;const preview=await renderMerchant(ctx);
+ assert.match(preview,/data-form="merchant-stamp"/);assert.match(preview,/name="amount"[^>]*min="1"[^>]*max="7"[^>]*type="number" value="1"/);
+ assert.equal(historyReads,0);assert.equal(calls.filter(call=>call.op==='stampCoupon').length,0);
+ await merchantSubmit(ctx,'merchant-stamp',new Map([['amount','3']]));
+ assert.deepEqual(calls.find(call=>call.op==='stampCoupon').data,{sessionKey:merchantKey,token:qrToken,amount:3});
+ assert.match(panel.innerHTML,/스탬프 3개를 적립했습니다/);assert.match(panel.innerHTML,/data-action="merchant-main"/);assert.equal(ctx.state.feelingfineMerchant.result.stampCount,6);
+ await merchantSubmit(ctx,'merchant-stamp',new Map([['amount','3']]));assert.equal(calls.filter(call=>call.op==='stampCoupon').length,1);
+ await merchantAction(ctx,'merchant-main');assert.equal(historyReads,1);assert.match(panel.innerHTML,/적립 내역/);assert.match(panel.innerHTML,/테스트 부원/);assert.match(panel.innerHTML,/2026\. 10\. 5\. 13:05/);assert.match(panel.innerHTML,/\+2개 적립/);assert.doesNotMatch(panel.innerHTML,/merchant-stamp-form|merchant-result/);
+}));
+
+test('merchant quantities reject empty, fractional, negative, and over-capacity values without a write',async()=>host(async()=>{
+ const {ctx,calls}=context();signIn(ctx);location.hash='#qr='+qrToken;await renderMerchant(ctx);
+ for(const amount of ['', '0', '-1', '1.5', '8', 'not-a-number'])await assert.rejects(merchantSubmit(ctx,'merchant-stamp',new Map([['amount',amount]])),/1~7.*정수/);
+ assert.equal(calls.filter(call=>call.op==='stampCoupon').length,0);
+ await merchantSubmit(ctx,'merchant-stamp',new Map([['amount','7']]));assert.equal(calls.find(call=>call.op==='stampCoupon').data.amount,7);assert.equal(ctx.state.feelingfineMerchant.result.stampCount,10);
+}));
+
+test('merchant history escapes member names and separates earned amounts from current balances',async()=>host(async()=>{
+ const {ctx}=context(),api=ctx.api;ctx.api=async(op,data)=>op==='merchantCouponHistory'?{items:[merchantReceipt('receipt-one',{memberName:'<img src=x>',stampCount:2,currentStampCount:8}),merchantReceipt('deleted',{memberName:'삭제된 부원',currentStampCount:null,revision:null,adjustable:false})],nextCursor:null}:api(op,data);
+ signIn(ctx);const html=await renderMerchant(ctx);assert.match(html,/&lt;img src=x&gt;/);assert.doesNotMatch(html,/<img src=x>|NaN|Invalid Date/);assert.match(html,/현재 <strong>8개/);assert.match(html,/\+2개 적립/);assert.match(html,/현재 <strong>확인 불가/);assert.match(html,/data-id="receipt-one"/);assert.doesNotMatch(html,/data-id="deleted"/);assert.doesNotMatch(html,new RegExp(merchantKey));
+}));
+
+test('merchant corrections use the opening revision, allow zero, and reload every member balance',async()=>host(async({panel})=>{
+ const {ctx,calls}=context(),api=ctx.api;let balance=5,revision=8;
+ ctx.api=async(op,data)=>{
+  if(op==='merchantCouponHistory'){calls.push({op,data});return {items:[merchantReceipt('receipt-one',{currentStampCount:balance,revision}),merchantReceipt('receipt-two',{amount:1,currentStampCount:balance,revision})],nextCursor:null};}
+  if(op==='adjustMerchantCoupon'){calls.push({op,data});balance=data.stampCount;revision++;return {stampCount:balance,revision,memberName:'테스트 부원'};}return api(op,data);
+ };
+ ctx.render=async()=>{ctx.renders++;panel.innerHTML=await renderMerchant(ctx);};signIn(ctx);await ctx.render();await merchantAction(ctx,'merchant-edit','receipt-one');
+ assert.match(panel.innerHTML,/data-form="merchant-adjust"/);assert.match(panel.innerHTML,/name="stampCount"[^>]*min="0"[^>]*max="10"/);
+ for(const stampCount of ['', '-1', '11', '.5'])await assert.rejects(merchantSubmit(ctx,'merchant-adjust',new Map([['stampCount',stampCount]])),/0~10.*정수/);
+ await merchantSubmit(ctx,'merchant-adjust',new Map([['stampCount','0']]));
+ assert.deepEqual(calls.find(call=>call.op==='adjustMerchantCoupon').data,{sessionKey:merchantKey,receiptId:'receipt-one',stampCount:0,expectedRevision:8});
+ assert.equal(calls.filter(call=>call.op==='merchantCouponHistory').length,2);assert.deepEqual(ctx.state.feelingfineMerchant.history.map(row=>row.currentStampCount),[0,0]);assert.deepEqual(ctx.state.feelingfineMerchant.history.map(row=>row.amount),[2,1]);assert.match(panel.innerHTML,/스탬프를 0개로 수정했습니다/);assert.doesNotMatch(panel.innerHTML,/data-form="merchant-adjust"/);
+}));
+
+test('merchant cannot open unavailable corrections and cancelling does not write',async()=>host(async()=>{
+ const {ctx,calls}=context(),api=ctx.api;ctx.api=async(op,data)=>op==='merchantCouponHistory'?{items:[merchantReceipt(),merchantReceipt('deleted',{adjustable:false,currentStampCount:null,revision:null})],nextCursor:null}:api(op,data);signIn(ctx);await renderMerchant(ctx);
+ for(const id of ['deleted','missing']){await merchantAction(ctx,'merchant-edit',id);assert.equal(ctx.state.feelingfineMerchant.edit,null);}
+ await merchantAction(ctx,'merchant-edit','receipt-one');assert.ok(ctx.state.feelingfineMerchant.edit);await merchantAction(ctx,'merchant-edit-cancel');assert.equal(ctx.state.feelingfineMerchant.edit,null);
+ await merchantSubmit(ctx,'merchant-adjust',new Map([['stampCount','0']]));assert.equal(calls.filter(call=>call.op==='adjustMerchantCoupon').length,0);
+}));
+
+test('a stale correction reloads current balances and requires reopening the edit',async()=>host(async({panel})=>{
+ const {ctx}=context(),api=ctx.api;let reads=0;
+ ctx.api=async(op,data)=>{
+  if(op==='merchantCouponHistory')return {items:[merchantReceipt('receipt-one',{currentStampCount:++reads===1?5:7,revision:reads===1?8:9})],nextCursor:null};
+  if(op==='adjustMerchantCoupon')throw Object.assign(Error('스탬프가 변경되었습니다. 다시 확인해 주세요.'),{code:'aborted'});return api(op,data);
+ };
+ ctx.render=async()=>{ctx.renders++;panel.innerHTML=await renderMerchant(ctx);};signIn(ctx);await ctx.render();await merchantAction(ctx,'merchant-edit','receipt-one');await merchantSubmit(ctx,'merchant-adjust',new Map([['stampCount','4']]));
+ assert.equal(reads,2);assert.equal(ctx.state.feelingfineMerchant.edit,null);assert.match(panel.innerHTML,/현재 <strong>7개/);assert.match(panel.innerHTML,/스탬프가 변경되었습니다/);await merchantAction(ctx,'merchant-edit','receipt-one');assert.equal(ctx.state.feelingfineMerchant.edit.revision,9);
+}));
+
+test('merchant history pagination preserves existing rows after failure and avoids duplicate receipts',async()=>host(async()=>{
+ const {ctx,calls}=context(),api=ctx.api;let reads=0;
+ ctx.api=async(op,data)=>{if(op==='merchantCouponHistory'){calls.push({op,data});reads++;if(reads===2)throw Error('연결 오류');return reads===1?{items:[merchantReceipt()],nextCursor:'older'}:{items:[merchantReceipt(),merchantReceipt('receipt-two')],nextCursor:null};}return api(op,data);};
+ signIn(ctx);await renderMerchant(ctx);await merchantAction(ctx,'merchant-history-more');assert.equal(ctx.state.feelingfineMerchant.history.length,1);assert.equal(ctx.state.feelingfineMerchant.nextCursor,'older');assert.match(ctx.state.feelingfineMerchant.error,/연결 오류/);
+ await merchantAction(ctx,'merchant-history-more');assert.deepEqual(ctx.state.feelingfineMerchant.history.map(row=>row.id),['receipt-one','receipt-two']);assert.equal(ctx.state.feelingfineMerchant.nextCursor,null);assert.deepEqual(calls.filter(call=>call.op==='merchantCouponHistory').map(call=>call.data.cursor),[undefined,'older','older']);
+}));
+
+test('late merchant history responses are discarded after navigation, account replacement, or hiding',async()=>host(async({hidden})=>{
+ for(const change of [()=>{location.pathname='/';},ctx=>setMerchantSession(ctx,{sessionKey:otherKey,expiresAt:future(60000)}),()=>hidden(true)]){
+  await hidden(false);location.pathname='/partners/feelingfine';const {ctx}=context(),api=ctx.api,pending=deferred();ctx.api=async(op,data)=>op==='merchantCouponHistory'?pending.promise:api(op,data);signIn(ctx);
+  const rendering=renderMerchant(ctx);await Promise.resolve();await change(ctx);pending.resolve({items:[merchantReceipt('private',{memberName:'PRIVATE MEMBER'})],nextCursor:null});assert.equal(await rendering,'');assert.equal(ctx.state.feelingfineMerchant.history,null);clearPartnerViews(ctx);
+ }
+}));
+
+test('hiding or replacing a merchant session removes history, open edits, and private DOM',async()=>host(async({hidden,cookies,tick,panel})=>{
+ for(const change of [()=>hidden(true),async()=>{cookies.delete(MERCHANT_SESSION_COOKIE);await tick(100);}]){
+  await hidden(false);const {ctx}=context(),api=ctx.api;ctx.api=async(op,data)=>op==='merchantCouponHistory'?{items:[merchantReceipt('private',{memberName:'PRIVATE MEMBER'})],nextCursor:null}:api(op,data);signIn(ctx);panel.innerHTML=await renderMerchant(ctx);await merchantAction(ctx,'merchant-edit','private');mountPartnerViews(ctx);assert.match(panel.innerHTML,/PRIVATE MEMBER/);
+  await change();assert.equal(ctx.state.feelingfineMerchant.history,null);assert.equal(ctx.state.feelingfineMerchant.edit,null);assert.doesNotMatch(panel.innerHTML,/PRIVATE MEMBER/);clearPartnerViews(ctx);
+ }
+}));
+
+test('a correction response arriving after the page hides cannot restore names or edit state',async()=>host(async({hidden,panel})=>{
+ const {ctx}=context(),api=ctx.api,pending=deferred();ctx.api=async(op,data)=>op==='merchantCouponHistory'?{items:[merchantReceipt()],nextCursor:null}:op==='adjustMerchantCoupon'?pending.promise:api(op,data);signIn(ctx);panel.innerHTML=await renderMerchant(ctx);await merchantAction(ctx,'merchant-edit','receipt-one');mountPartnerViews(ctx);
+ const saving=merchantSubmit(ctx,'merchant-adjust',new Map([['stampCount','2']]));await hidden(true);pending.resolve({memberName:'PRIVATE LATE MEMBER',stampCount:2,revision:9});await saving;
+ assert.equal(ctx.state.feelingfineMerchant.history,null);assert.equal(ctx.state.feelingfineMerchant.edit,null);assert.equal(ctx.state.feelingfineMerchant.notice,'');assert.doesNotMatch(panel.innerHTML,/PRIVATE LATE MEMBER/);clearPartnerViews(ctx);
+}));
 
 test('earned stamps use the supplied image with individually randomized angles within eighteen degrees',async()=>host(async()=>withRandom([0,.5,.999999],async()=>{
  const {ctx}=context();memberSignIn(ctx);const dialog=await openMemberPartner(ctx),html=dialog.querySelector('[data-partner-body]').innerHTML,marks=stampGroups(html),angles=stampAngles(html);
@@ -131,14 +216,14 @@ test('a scanned QR is removed from the URL before the login form and performs no
 
 test('authenticated scans only preview until the merchant explicitly confirms one stamp',async()=>host(async()=>{
  const {ctx,calls}=context();signIn(ctx);location.hash='#qr='+qrToken;const html=await renderMerchant(ctx);
- assert.deepEqual(calls.map(call=>call.op),['merchantSession','merchantCouponPreview']);assert.match(html,/테스트 부원/);assert.match(html,/data-action="merchant-stamp"/);
+ assert.deepEqual(calls.map(call=>call.op),['merchantSession','merchantCouponPreview']);assert.match(html,/테스트 부원/);assert.match(html,/data-form="merchant-stamp"/);
  await merchantAction(ctx,'merchant-stamp');assert.equal(calls.filter(call=>call.op==='stampCoupon').length,1);assert.equal(ctx.state.feelingfineMerchant.token,'');assert.equal(ctx.state.feelingfineMerchant.result.stampCount,4);
  await merchantAction(ctx,'merchant-stamp');assert.equal(calls.filter(call=>call.op==='stampCoupon').length,1);
 }));
 
 test('full stamp cards have no add action or invented reward reset',async()=>host(async()=>{
  const {ctx}=context(),api=ctx.api;signIn(ctx);location.hash='#qr='+qrToken;ctx.api=async(op,data)=>op==='merchantCouponPreview'?{memberName:'부원',stampCount:10,capacity:10,expiresAt:future(10000),serverNow:future(0)}:api(op,data);
- const html=await renderMerchant(ctx);assert.match(html,/10개가 모두 채워져/);assert.doesNotMatch(html,/data-action="merchant-stamp"|초기화|보상|무료/);
+ const html=await renderMerchant(ctx);assert.match(html,/10개가 모두 채워져/);assert.doesNotMatch(html,/data-form="merchant-stamp"|초기화|보상|무료/);
 }));
 
 test('merchant login trims the code, persists only the session, and discards late login replies after navigation',async()=>host(async({writes})=>{
@@ -176,9 +261,9 @@ test('late merchant preview responses do not populate another account or route',
 test('authenticated merchant preview and stamp action remain available after thirty seconds without a countdown',async()=>host(async({tick,timers,panel})=>{
  const {ctx,calls}=context();signIn(ctx);location.hash='#qr='+qrToken;panel.innerHTML=await renderMerchant(ctx);mountPartnerViews(ctx);assert.equal(timers.size,1);
  assert.doesNotMatch(panel.innerHTML,/data-merchant-countdown|QR 유효시간/);
- await tick(30001);assert.equal(ctx.state.feelingfineMerchant.token,qrToken);assert.equal(ctx.state.feelingfineMerchant.preview.memberName,'테스트 부원');assert.match(panel.innerHTML,/data-action="merchant-stamp"/);
+ await tick(30001);assert.equal(ctx.state.feelingfineMerchant.token,qrToken);assert.equal(ctx.state.feelingfineMerchant.preview.memberName,'테스트 부원');assert.match(panel.innerHTML,/data-form="merchant-stamp"/);
  assert.equal(calls.filter(call=>call.op==='stampCoupon').length,0);
- await merchantAction(ctx,'merchant-stamp');assert.deepEqual(calls.filter(call=>call.op==='stampCoupon'),[{op:'stampCoupon',data:{sessionKey:merchantKey,token:qrToken}}]);assert.equal(ctx.state.feelingfineMerchant.result.stampCount,4);clearPartnerViews(ctx);
+ await merchantAction(ctx,'merchant-stamp');assert.deepEqual(calls.filter(call=>call.op==='stampCoupon'),[{op:'stampCoupon',data:{sessionKey:merchantKey,token:qrToken,amount:1}}]);assert.equal(ctx.state.feelingfineMerchant.result.stampCount,4);clearPartnerViews(ctx);
 }));
 
 test('a merchant can finish login after thirty seconds and stamp a preview carrying an elapsed display timestamp',async()=>host(async({tick})=>{
@@ -186,7 +271,7 @@ test('a merchant can finish login after thirty seconds and stamp a preview carry
  ctx.api=async(op,data)=>{if(op==='merchantCouponPreview'){calls.push({op,data});return {memberName:'로그인 뒤 확인한 부원',stampCount:3,capacity:10,expiresAt:future(-60000),serverNow:future(0)};}return api(op,data);};
  location.hash='#qr='+qrToken;assert.match(await renderMerchant(ctx),/data-form="merchant-login"/);await tick(30001);
  await merchantSubmit(ctx,'merchant-login',{get:()=> 'synthetic-store-code'});const html=await renderMerchant(ctx);
- assert.match(html,/로그인 뒤 확인한 부원/);assert.match(html,/data-action="merchant-stamp"/);assert.doesNotMatch(html,/data-merchant-countdown|QR이 만료/);
+ assert.match(html,/로그인 뒤 확인한 부원/);assert.match(html,/data-form="merchant-stamp"/);assert.doesNotMatch(html,/data-merchant-countdown|QR이 만료/);
  await merchantAction(ctx,'merchant-stamp');assert.equal(calls.filter(call=>call.op==='stampCoupon').length,1);assert.equal(ctx.state.feelingfineMerchant.result.stampCount,4);
 }));
 
@@ -194,14 +279,14 @@ test('hiding the merchant tab or leaving the page still erases preview tokens an
  for(const leave of [()=>hidden(true),pagehide]){
   await hidden(false);const {ctx}=context();signIn(ctx);location.hash='#qr='+qrToken;panel.innerHTML=await renderMerchant(ctx);mountPartnerViews(ctx);
   await tick(30001);assert.match(panel.innerHTML,/테스트 부원/);await leave();
-  assert.equal(ctx.state.feelingfineMerchant.token,'');assert.equal(ctx.state.feelingfineMerchant.preview,null);assert.doesNotMatch(panel.innerHTML,/테스트 부원|data-action="merchant-stamp"/);assert.equal(timers.size,0);clearPartnerViews(ctx);
+  assert.equal(ctx.state.feelingfineMerchant.token,'');assert.equal(ctx.state.feelingfineMerchant.preview,null);assert.doesNotMatch(panel.innerHTML,/테스트 부원|data-form="merchant-stamp"/);assert.equal(timers.size,0);clearPartnerViews(ctx);
  }
 }));
 
 test('a merchant session replaced in another tab clears an open preview and cannot stamp its old token',async()=>host(async({cookies,tick,panel,timers})=>{
  const {ctx,calls}=context();signIn(ctx);location.hash='#qr='+qrToken;panel.innerHTML=await renderMerchant(ctx);mountPartnerViews(ctx);
  cookies.set(MERCHANT_SESSION_COOKIE,encodeURIComponent(JSON.stringify({sessionKey:otherKey,expiresAt:future(60000)})));await tick(100);
- assert.equal(ctx.state.feelingfineMerchant.token,'');assert.equal(ctx.state.feelingfineMerchant.preview,null);assert.doesNotMatch(panel.innerHTML,/테스트 부원|data-action="merchant-stamp"/);assert.equal(timers.size,0);
+ assert.equal(ctx.state.feelingfineMerchant.token,'');assert.equal(ctx.state.feelingfineMerchant.preview,null);assert.doesNotMatch(panel.innerHTML,/테스트 부원|data-form="merchant-stamp"/);assert.equal(timers.size,0);
  await merchantAction(ctx,'merchant-stamp');assert.equal(calls.filter(call=>call.op==='stampCoupon').length,0);clearPartnerViews(ctx);
 }));
 
