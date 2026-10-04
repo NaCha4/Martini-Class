@@ -31,6 +31,11 @@ function memberPanels(html,active='activity'){
  const nav=html.match(/<nav\b[^>]*class="member-bottom-nav"[^>]*>([\s\S]*?)<\/nav>/)?.[1];assert.ok(nav);
  assert.deepEqual([...nav.matchAll(/data-action="member-tab" data-id="([^"]+)"/g)].map(match=>match[1]),Object.keys(panels));
  assert.equal((nav.match(/aria-current="page"/g)||[]).length,1);assert.match(nav,new RegExp('data-id="'+active+'"[^>]*aria-current="page"'));
+ const dock=html.slice(html.indexOf('<div class="member-bottom-dock"')),visitActions=dock.match(/<div\b[^>]*data-member-visit-actions[^>]*>/)?.[0];
+ assert.ok(visitActions);assert.equal(/\shidden(?:\s|=|>)/.test(visitActions),active!=='visits');
+ assert.equal((html.match(/data-action="member-visit"/g)||[]).length,1);assert.match(dock,/data-action="member-visit"[^>]*aria-haspopup="dialog"/);
+ assert.ok(dock.indexOf('data-action="member-visit"')<dock.indexOf('<nav'));
+ for(const panel of Object.values(panels))assert.doesNotMatch(panel,/data-action="member-visit"/);
  return panels;
 }
 function route(path){const url=new URL(path,'https://martini.test');Object.assign(location,{pathname:url.pathname,search:url.search,hash:url.hash,href:url.href,origin:url.origin});}
@@ -43,7 +48,7 @@ function sectionDocument(){
  const sections=Object.fromEntries(['home','events','applications','coupons','more','detail'].map(id=>['member-'+id,{scrollIntoView:options=>scrolls.push({id,options}),focus:()=>focuses.push(id),setAttribute:()=>{},getAttribute:()=>'-1'}]));
  const panels=['activity','events','visits','benefits'].map(id=>({dataset:{memberPanel:id},hidden:id!=='activity',focus:()=>focuses.push(id)}));
  const buttons=panels.map(panel=>({dataset:{id:panel.dataset.memberPanel},classList:{toggle:()=>{}},setAttribute:()=>{},removeAttribute:()=>{}}));
- const app={querySelectorAll:selector=>selector==='[data-member-panel]'?panels:buttons};
+ const visitActions={hidden:true},app={querySelector:selector=>selector==='[data-member-visit-actions]'?visitActions:null,querySelectorAll:selector=>selector==='[data-member-panel]'?panels:buttons};
  globalThis.document={getElementById:id=>sections[id]||null,querySelector:selector=>selector==='[data-member-app]'?app:selector.startsWith('#')?sections[selector.slice(1)]||null:null,querySelectorAll:()=>buttons};
  return {scrolls,focuses,panels,restore:()=>{if(previous)Object.defineProperty(globalThis,'document',previous);else delete globalThis.document;}};
 }
@@ -131,7 +136,7 @@ test('the member app mounts four management panels without a separate welcome or
  const choices=panels.events;
  for(const id of ['one','two','three','four'])assert.match(choices,new RegExp('data-action="member-event-open"[^>]*data-id="'+id+'"'));
  assert.ok(choices.indexOf('data-id="one"')<choices.indexOf('data-id="two"'));
- assert.match(panels.visits,/data-action="member-visit"/);assert.doesNotMatch(panels.activity,/data-action="member-forget"/);
+ assert.match(panels.visits,/신청 현황/);assert.doesNotMatch(panels.activity,/data-action="member-forget"/);
  assert.match(panels.benefits,/data-action="member-partners"[^>]*aria-haspopup="dialog"/);
  const records=panels.activity;
  assert.match(records,/data-action="member-request" data-id="visit-one"/);
@@ -163,7 +168,7 @@ test('activity groups applications and visits without secret links or retired in
 });
 test('empty member panels retain their actions and refresh reloads server status',async()=>{
  const {html,ctx,calls}=await view('applications',{events:[]});
- const panels=memberPanels(html,'activity');assert.match(panels.visits,/data-action="member-visit"/);assert.match(panels.events,/행사/);assert.match(panels.benefits,/data-action="member-partners"/);
+ const panels=memberPanels(html,'activity');assert.match(panels.visits,/신청 내역이 없습니다/);assert.match(panels.events,/행사/);assert.match(panels.benefits,/data-action="member-partners"/);
  assert.doesNotMatch(html,/data-action="member-section"|data-action="member-application-open"|data-action="member-request"/);
  assert.doesNotMatch(panels.activity,/data-member-status=/);assert.match(panels.activity,/신청 내역이 없습니다/);
  let renders=0;ctx.render=async()=>{renders++;};
@@ -268,7 +273,7 @@ test('closing a receipt confirmation restores its detail popup without losing th
 });
 test('visit and logout remain directly available while the inquiry form and help section are removed',async()=>{
  const {html}=await view('more');
- const panels=memberPanels(html,'activity');assert.match(panels.visits,/data-action="member-visit"/);assert.match(html,/data-action="member-forget"/);
+ memberPanels(html,'activity');assert.match(html,/data-action="member-visit"/);assert.match(html,/data-action="member-forget"/);
  assert.match(html,/테스트 부원/);
  assert.doesNotMatch(html,/href="\/(?:notices|members\/applications)"|data-action="member-(?:section|inquiry)"|운영진에게 문의|id="member-more"|로그인 중|학기/);
 });
@@ -478,7 +483,7 @@ test('successful login retains a legacy inquiry receipt recovery banner without 
  assertLoginGate(await renderMemberPortal(ctx));assert.deepEqual(calls,[]);
  const form=new FormData();form.set('name','테스트 부원');form.set('studentId','2026001');await memberPortalSubmit(ctx,'member-login',form);
  assert.deepEqual(navigations,[]);assert.equal(location.pathname,'/members');
- const html=await renderMemberPortal(ctx,{section:'applications'});assert.match(html,/개인 확인 링크의 신청을 불러왔습니다/);assert.match(html,/data-action="member-request" data-id="legacy-request"/);assert.doesNotMatch(html,/기존 문의|data-action="member-inquiry"/);assert.doesNotMatch(html,new RegExp(receiptKey));assert.deepEqual(memberStorage(ctx).receipts,[{id:'legacy-request',receiptKey}]);
+ const html=await renderMemberPortal(ctx,{section:'applications'});assert.match(html,/신청 내역을 불러왔습니다/);assert.match(html,/data-action="member-request" data-id="legacy-request"/);assert.doesNotMatch(html,/기존 문의|data-action="member-inquiry"/);assert.doesNotMatch(html,new RegExp(receiptKey));assert.deepEqual(memberStorage(ctx).receipts,[{id:'legacy-request',receiptKey}]);
  assert.equal(memberState(ctx).receiptRows[0]?.subject,'기존 문의');
  assert.ok(calls.findIndex(call=>call.op==='memberPortal')<calls.findIndex(call=>call.op==='clubRequestReceipt'));
 });
