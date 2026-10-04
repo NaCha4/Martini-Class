@@ -240,12 +240,15 @@ test('member QR remains visible after ten seconds, disappears after thirty, and 
  html=dialog.querySelector('[data-partner-body]').innerHTML;assert.doesNotMatch(html,/data:image/);assert.match(html,/새 QR 표시/);assert.equal(timers.size,0);assert.equal(calls.filter(call=>call.op==='issueCouponQr').length,1);
 },{path:'/members'}));
 
-test('member partner dialog contains only the Feeling Fine coupon section and closes safely with one header X and no footer',async()=>host(async({hidden,timers})=>{
+test('member partner dialog places the Feeling Fine introduction above stamp benefits and closes safely with one header X and no footer',async()=>host(async({hidden,timers})=>{
  const {ctx}=context();memberSignIn(ctx);const dialog=await openMemberPartner(ctx),html=dialog.innerHTML,body=()=>dialog.querySelector('[data-partner-body]').innerHTML;
- assert.match(html,/<section class="partner-coupon-section" aria-labelledby="modal-title"><h2 id="modal-title" tabindex="-1">필링파인<\/h2><div data-partner-body>/);
+ assert.match(html,/<section class="partner-feelingfine" aria-labelledby="modal-title">[\s\S]*?<div class="partner-intro">/);
+ const introIndex=html.indexOf('class="partner-intro"'),benefitIndex=html.indexOf('class="partner-coupon-section"');assert.ok(introIndex>=0&&benefitIndex>introIndex);
+ assert.match(html.slice(introIndex,benefitIndex),/<h2 id="modal-title" tabindex="-1">필링파인<\/h2>/);
+ assert.match(html.slice(benefitIndex),/aria-labelledby="partner-benefit-title">[\s\S]*?class="partner-benefit-heading"[\s\S]*?<h3 id="partner-benefit-title">[^<]+<\/h3>[\s\S]*?data-partner-body/);
  assert.equal((html.match(/<h2\b/g)||[]).length,1);assert.equal((html.match(/id="modal-title"/g)||[]).length,1);
  const header=html.match(/<header\b[^>]*>[\s\S]*?<\/header>/)?.[0];assert.ok(header);assert.doesNotMatch(header,/<h2\b/);
- assert.doesNotMatch(html,/partner-coupon-title|<h3\b|partner-information|partner-info-card|제휴|이용 안내|안내 준비 중/);
+ assert.doesNotMatch(html,/partner-coupon-title|partner-information|partner-info-card|안내 준비 중/);
  assert.doesNotMatch(html,/<footer\b/);assert.equal((html.match(/\bdata-close\b/g)||[]).length,1);assert.match(html,/<button\b[^>]*data-close[^>]*aria-label="닫기"[^>]*>[\s\S]*?data-lucide="x"/);
  assert.equal(dialog.querySelector('.dialog-actions'),null);assert.equal(dialog.querySelector('.dialog-status'),null);
  assert.doesNotMatch(body(),/data-action="partner-refresh"|방문하고 스탬프를 모아 보세요|매장에서 적립할 때 QR을 표시해 주세요/);
