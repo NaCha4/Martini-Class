@@ -1,9 +1,12 @@
 dialog.partner-dialog{width:min(740px,calc(100% - 32px));max-width:calc(100% - 32px);border-radius:18px}
-.partner-dialog>.dialog-frame{display:flex;flex-direction:column;max-height:inherit;min-height:0}
-.partner-dialog>.dialog-frame>header{border-bottom:0;padding-bottom:8px}
-.partner-dialog .dialog-content{width:100%;min-width:0;padding:0 26px 28px}
+.partner-dialog>.dialog-frame{position:relative;display:flex;flex-direction:column;max-height:inherit;min-height:0}
+.partner-dialog.member-dialog>.dialog-frame>header{position:absolute;inset:8px 12px auto auto;z-index:1;justify-content:flex-end;padding:0;border:0;background:transparent}
+.partner-dialog>.dialog-frame>header>.icon-button{width:48px;height:48px;border:0;background:transparent;box-shadow:none;color:var(--muted)}
+.partner-dialog>.dialog-frame>header>.icon-button:hover{color:var(--text)}
+.partner-dialog .dialog-content{width:100%;min-width:0;padding:28px 26px}
 .partner-dialog [data-partner-body]{width:100%;min-width:0}
 .partner-coupon-section{min-width:0}
+.partner-coupon-section>h2{margin:0 0 8px;padding:0 40px;text-align:center;font-size:22px;line-height:1.5}
 
 /* Preserve the original rectangular artwork and its 3000 × 1650 stamp positions. */
 .partner-coupon{margin:0;min-width:0}
@@ -79,7 +82,8 @@ dialog.partner-dialog{width:min(740px,calc(100% - 32px));max-width:calc(100% - 3
 @keyframes partner-live-ring{to{transform:rotate(360deg)}}
 @keyframes partner-live-pulse{50%{opacity:.35}}
 @media(max-width:600px){
- .partner-dialog.member-dialog .dialog-content{padding-top:0;padding-bottom:max(24px,calc(env(safe-area-inset-bottom) + 16px))}
+ .partner-dialog.member-dialog .dialog-content{padding-top:24px;padding-bottom:max(24px,calc(env(safe-area-inset-bottom) + 16px))}
+ .partner-coupon-section>h2{font-size:20px}
  .partner-coupon-stage{padding:18px 8px 36px}
  .partner-qr-slot>.button{max-width:100%;min-height:48px;font-size:15px}
  .partner-qr-frame{width:min(314px,100%)}
