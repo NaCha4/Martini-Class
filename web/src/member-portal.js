@@ -174,7 +174,7 @@ function activityPanel(ctx){
   records+='<section class="member-app-section member-status-section" data-member-status="'+group+'" aria-labelledby="member-status-'+group+'"><div class="member-app-section-heading"><h2 id="member-status-'+group+'">'+title+'</h2><span class="member-section-count">'+rows.length+'</span></div><div class="member-record-list">'+rows.map(row=>row.html).join('')+'</div></section>';
  }
  const errors=connectionMessage(view.applicationsError)+(view.receiptErrors?connectionMessage('일부 신청 내역을 불러오지 못했습니다.'):'');
- return appIntro('내 현황')+receiptMessages(ctx)+receiptMessages(ctx,{legacy:true})+errors+'<div id="member-records">'+(records||(!errors?appEmpty('clipboard-list','신청 내역이 없습니다.') :''))+'</div><footer class="member-account-links"><a href="/privacy" data-nav>개인정보 안내</a><a href="/" data-nav>홈페이지</a></footer>';
+ return appIntro('내 현황')+receiptMessages(ctx)+receiptMessages(ctx,{legacy:true})+errors+'<div id="member-records">'+(records||(!errors?appEmpty('clipboard-list','신청 내역이 없습니다.') :''))+'</div>';
 }
 function activeApplication(row){
  const a=row.application,e=row.event;if(!a||!e)return false;

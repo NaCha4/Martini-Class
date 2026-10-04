@@ -94,9 +94,6 @@ main.member-public-page.member-app-page{width:100%;max-width:680px;min-height:10
 .member-app-shell .member-benefit-title{display:block;margin:0;color:#f2ece0;font-size:20px;font-weight:600;line-height:1.5;letter-spacing:-.025em}
 .member-app-shell .member-benefit-cta{display:flex;align-items:center;justify-content:space-between;gap:9px;min-height:44px;color:#e2c58f;font-size:13px;font-weight:500;line-height:1.6}
 .member-app-shell .member-benefit-cta>svg{width:18px;height:18px;flex-shrink:0}
-.member-app-shell .member-account-links{display:flex;align-items:center;flex-wrap:wrap;gap:0 18px;margin-top:24px;padding-top:10px;border-top:1px solid var(--app-line)}
-.member-app-shell .member-account-links>a{display:inline-flex;align-items:center;gap:6px;min-height:44px;color:#928c82;font-size:11px;line-height:1.6}
-.member-app-shell .member-account-links svg{width:13px;height:13px;flex-shrink:0}
 
 @media(min-width:700px){
  .member-shell.member-app-shell{border-inline:1px solid #ffffff07;box-shadow:0 0 80px #00000014}
@@ -121,7 +118,6 @@ main.member-public-page.member-app-page{width:100%;max-width:680px;min-height:10
  .member-app-shell .member-bottom-button:hover{color:#e7d4b1}
  .member-app-shell .member-benefit-feature:hover{border-color:#ddbd8470}
  .member-app-shell .member-app-link:hover{color:#f1dcb5}
- .member-app-shell .member-account-links>a:hover{color:#d3c2a5}
  .member-app-shell .member-application-row.needs-action:hover{border-color:#c5a26999;background:#302b21}
 }
 @media(prefers-reduced-motion:reduce){
