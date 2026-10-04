@@ -6,9 +6,9 @@ dialog.partner-dialog{width:min(740px,calc(100% - 32px));max-width:calc(100% - 3
 .partner-heading p{color:var(--muted);font-size:14px;line-height:1.7}
 .partner-heading .button{flex:none;font-size:12px;padding:10px 12px}
 
-/* Keep the original artwork and the stamp overlay in the same 3000 × 1650 space. */
-.partner-coupon{margin:0;min-width:0;padding:8px;overflow:hidden;border:1px solid #95826655;border-radius:18px;background:var(--raised);box-shadow:inset 0 1px 0 #ffffff06,0 4px 10px #00000020}
-.partner-card{position:relative;width:100%;overflow:hidden;border-radius:10px;line-height:0}
+/* Preserve the original rectangular artwork and its 3000 × 1650 stamp positions. */
+.partner-coupon{margin:0;min-width:0;overflow:hidden;border:1px solid var(--line)}
+.partner-card{position:relative;width:100%;line-height:0}
 .partner-card-art{display:block;width:100%;height:auto}
 .partner-stamps{position:absolute;inset:0;width:100%;height:100%;color:#a34c43;pointer-events:none}
 
@@ -75,8 +75,6 @@ dialog.partner-dialog{width:min(740px,calc(100% - 32px));max-width:calc(100% - 3
  .partner-dialog footer{padding:14px 20px}
  .partner-heading{gap:10px;margin-bottom:12px}
  .partner-heading p{font-size:13px}
- .partner-coupon{padding:6px;border-radius:15px}
- .partner-card{border-radius:9px}
  .partner-qr-slot{margin-top:16px;padding-top:16px}
  .merchant-page{padding:32px 16px 22px}
  .merchant-panel{padding:22px 18px}
