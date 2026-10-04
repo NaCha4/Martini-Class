@@ -1,5 +1,5 @@
-import { createIcons, ArrowRight, ArrowUpRight, ArrowLeft, Check, X, CircleX, CalendarDays, UsersRound, Package, NotebookPen, ListChecks, Wallet, Settings2, ShieldCheck, History, LayoutDashboard, LogOut, Sprout, Search, Inbox, Plus, Pencil, Copy, Download, UserPlus, GraduationCap, Users, Sparkles, Martini, MapPin, List, Link, LoaderCircle, Menu, Megaphone, Folder, Wrench, DoorOpen, MessageCircle, RefreshCw, House, ClipboardList, Ticket, QrCode } from 'lucide';
-const icons={ArrowRight, ArrowUpRight, ArrowLeft, Check, X, CircleX, CalendarDays, UsersRound, Package, NotebookPen, ListChecks, Wallet, Settings2, ShieldCheck, History, LayoutDashboard, LogOut, Sprout, Search, Inbox, Plus, Pencil, Copy, Download, UserPlus, GraduationCap, Users, Sparkles, Martini, MapPin, List, Link, LoaderCircle, Menu, Megaphone, Folder, Wrench, DoorOpen, MessageCircle, RefreshCw, House, ClipboardList, Ticket, QrCode};
+import { createIcons, ArrowRight, ArrowUpRight, ArrowLeft, Check, X, CircleX, CalendarDays, UsersRound, Package, NotebookPen, ListChecks, Wallet, Settings2, ShieldCheck, History, LayoutDashboard, LogOut, Sprout, Search, Inbox, Plus, Pencil, Copy, Download, UserPlus, GraduationCap, Users, Sparkles, Martini, MapPin, List, Link, LoaderCircle, Menu, Megaphone, Folder, Wrench, DoorOpen, MessageCircle, RefreshCw, House, ClipboardList, Ticket, QrCode, UserRound } from 'lucide';
+const icons={ArrowRight, ArrowUpRight, ArrowLeft, Check, X, CircleX, CalendarDays, UsersRound, Package, NotebookPen, ListChecks, Wallet, Settings2, ShieldCheck, History, LayoutDashboard, LogOut, Sprout, Search, Inbox, Plus, Pencil, Copy, Download, UserPlus, GraduationCap, Users, Sparkles, Martini, MapPin, List, Link, LoaderCircle, Menu, Megaphone, Folder, Wrench, DoorOpen, MessageCircle, RefreshCw, House, ClipboardList, Ticket, QrCode, UserRound};
 export const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 export const icon = name => '<i data-lucide="' + name + '" aria-hidden="true"></i>';
 export const money = n => Number(n || 0).toLocaleString('ko-KR') + '원';
@@ -42,9 +42,9 @@ export function restoreFocus(saved,{fallback=true}={}) {
   if(!visible(target)&&saved) {
     target=saved.search?document.querySelector('[data-search]'):saved.filter?document.querySelector('[data-filter]'):saved.id?document.getElementById(saved.id):null;
     if(!visible(target))target=Array.from(document.querySelectorAll('button,a,input,select,textarea')).find(e=>
-      saved.action?e.dataset.action===saved.action&&e.dataset.id===saved.record:saved.name?e.getAttribute('name')===saved.name:saved.href?e.getAttribute('href')===saved.href:false);
+      visible(e)&&(saved.action?e.dataset.action===saved.action&&e.dataset.id===saved.record:saved.name?e.getAttribute('name')===saved.name:saved.href?e.getAttribute('href')===saved.href:false));
   }
-  if(!visible(target)&&fallback)target=document.querySelector('#app h1')||document.querySelector('#app main');
+  if(!visible(target)&&fallback)target=document.querySelector('#app [data-member-panel]:not([hidden]) h1')||document.querySelector('#app h1')||document.querySelector('#app main');
   if(!visible(target))return;
   if(!target.matches('button,a,input,select,textarea,[tabindex]'))target.tabIndex=-1;
   target.focus({preventScroll:true});

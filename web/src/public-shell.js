@@ -23,6 +23,7 @@ export function publicFooter(){
 }
 
 export function publicShell(body){
+ if(isMemberRoute()&&String(body).includes('data-member-app'))return '<a class="skip-link" href="#main-content">본문으로 건너뛰기</a><main id="main-content" class="member-public-page member-app-page">'+body+'</main>';
  if(isMemberRoute())return publicHeader()+'<main id="main-content" class="public-page member-public-page">'+body+'</main><footer class="member-footer"><a href="/privacy" data-nav>개인정보 안내</a></footer>';
  return publicHeader()+'<main id="main-content" class="public-page">'+body+'</main>'+publicFooter();
 }
