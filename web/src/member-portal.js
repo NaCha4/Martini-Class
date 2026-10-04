@@ -150,7 +150,7 @@ function receiptMessages(ctx,{legacy=false}={}){
  return output;
 }
 function appLink(title,tab){return '<button type="button" class="member-app-link" data-action="member-tab" data-id="'+tab+'">'+esc(title)+icon('arrow-right')+'</button>';}
-function appIntro(title){return '<header class="member-app-intro"><h1>'+title+'</h1></header>';}
+function appIntro(title){return '<h1 class="sr-only" tabindex="-1">'+title+'</h1>';}
 function appPanel(id,title,content,activeTab){return '<section class="member-app-panel" id="member-panel-'+id+'" data-member-panel="'+id+'" aria-label="'+title+'" tabindex="-1"'+(activeTab===id?'':' hidden')+'>'+content+'</section>';}
 function appEmpty(symbol,message){return '<div class="member-app-empty">'+icon(symbol)+'<p>'+message+'</p></div>';}
 function visitsPanel(ctx){
