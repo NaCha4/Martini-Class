@@ -85,7 +85,12 @@ main.member-public-page.member-app-page{width:100%;max-width:680px;min-height:10
 .member-app-shell .member-connection-note{margin:0 0 18px;border-radius:15px}
 
 /* Direct entry points keep the existing visit and coupon dialogs. */
-.member-app-shell [data-member-panel=visits]>.button{width:100%;min-height:48px;margin:0 0 20px;border-radius:11px;font-size:14px}
+.member-app-shell .member-visit-create{display:flex;align-items:center;gap:14px;width:100%;min-height:74px;margin:0;padding:16px;border:1px solid #ddbd842e;border-radius:15px;background:var(--app-surface);color:var(--text);font:inherit;text-align:left;cursor:pointer;transition:background .15s,border-color .15s}
+.member-app-shell .member-visit-create-icon{display:grid;place-items:center;flex-shrink:0;width:40px;height:40px;border-radius:12px;background:#ddbd840c;color:#d7b580}
+.member-app-shell .member-visit-create-icon>svg{width:21px;height:21px;stroke-width:1.6}
+.member-app-shell .member-visit-create-label{flex:1;min-width:0;font-size:15px;font-weight:600;line-height:1.6}
+.member-app-shell .member-visit-create>svg{flex-shrink:0;width:18px;height:18px;color:#c5ac82;stroke-width:1.6}
+.member-app-shell .member-visit-create:active{background:#2a2823;border-color:#ddbd8460}
 .member-app-shell .member-benefit-feature{display:block;width:100%;overflow:hidden;margin:0;padding:0;border:1px solid #ddbd842b;border-radius:16px;background:var(--app-surface);color:var(--text);font:inherit;text-align:left;cursor:pointer;transition:border-color .15s}
 .member-app-shell .member-benefit-photo{position:relative;display:block;width:100%;height:154px;overflow:hidden;background:#28201a}
 .member-app-shell .member-benefit-photo>img{display:block;width:100%;height:100%;object-fit:cover;object-position:center 48%}
@@ -118,6 +123,7 @@ main.member-public-page.member-app-page{width:100%;max-width:680px;min-height:10
  .member-app-shell .member-bottom-button:hover{color:#e7d4b1}
  .member-app-shell .member-benefit-feature:hover{border-color:#ddbd8470}
  .member-app-shell .member-app-link:hover{color:#f1dcb5}
+ .member-app-shell .member-visit-create:hover{background:#262523;border-color:#ddbd8455}
  .member-app-shell .member-application-row.needs-action:hover{border-color:#c5a26999;background:#302b21}
 }
 @media(prefers-reduced-motion:reduce){
