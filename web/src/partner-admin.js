@@ -60,7 +60,7 @@ export async function renderPartnerAdmin(ctx){
  const settings=await ctx.api('couponSettings',{});
  if(!current(ctx,view))return '';
  view.settings=settings;
- return '<div class="page-heading"><div><h1 id="page-title" tabindex="-1">제휴 관리</h1></div>'+button('설정','partneradmin-edit',{icon:'settings-2'})+'</div><section class="panel padded"><h2>필링파인</h2><div class="detail-grid"><p>스탬프 적립<br><strong>'+(settings.enabled&&settings.configured?'사용 중':'사용 중지')+'</strong></p><p>사장님 로그인 코드<br><strong>'+(settings.configured?'설정됨':'미설정')+'</strong></p><p>로그인 유지<br><strong>1년</strong></p></div>'+button('적립 기록','partneradmin-history',{class:'button secondary',icon:'history'})+'</section>';
+ return '<div class="page-heading"><h1 id="page-title" tabindex="-1">제휴 관리</h1></div><section class="panel partner-admin-card" aria-labelledby="partner-admin-title"><div class="partner-admin-summary"><h2 id="partner-admin-title">필링파인</h2><p>'+(settings.enabled&&settings.configured?'적립 사용 중':'적립 중지')+' · 코드 '+(settings.configured?'설정됨':'미설정')+'</p></div><div class="partner-admin-actions">'+button('적립 기록','partneradmin-history',{class:'button secondary',icon:'history'})+button('설정','partneradmin-edit',{icon:'settings-2'})+'</div></section>';
 }
 
 export async function partnerAdminAction(ctx,action){

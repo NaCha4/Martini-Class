@@ -1,20 +1,14 @@
-dialog.partner-dialog{--surface:#f1f1f1;--text:#292725;--muted:#69645e;--line:#d8d5cf;--raised:#e5e2dc;width:min(740px,calc(100% - 32px));max-width:calc(100% - 32px);border-radius:18px;border-color:#d8d5cf;background:var(--surface);color:var(--text);color-scheme:light}
-dialog.partner-dialog :is(a,button,summary):focus-visible{outline-color:#765626}
+dialog.partner-dialog{width:min(740px,calc(100% - 32px));max-width:calc(100% - 32px);border-radius:18px}
 .partner-dialog>.dialog-frame{display:flex;flex-direction:column;max-height:inherit;min-height:0}
 .partner-dialog .dialog-content{width:100%;min-width:0;padding:16px 26px 24px}
 .partner-dialog [data-partner-body]{width:100%;min-width:0}
-.partner-dialog footer{background:var(--surface)}
-.partner-dialog .button.secondary{border-color:#bdb7ad}
-.partner-dialog .button.secondary:hover,.partner-dialog .icon-button:hover{background:var(--raised);border-color:#aaa294}
-.partner-dialog .partner-coupon{border-color:transparent}
-.partner-dialog .partner-qr-timer strong{color:#765626}
 .partner-heading{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:0 0 12px}
 .partner-heading p{color:var(--muted);font-size:14px;line-height:1.7}
 .partner-heading .button{flex:none;font-size:12px;padding:10px 12px}
 
 /* Keep the original artwork and the stamp overlay in the same 3000 × 1650 space. */
-.partner-coupon{margin:0;min-width:0;overflow:hidden;border:1px solid #d5d5d5;border-radius:16px;background:#f1f1f1;color:#383838}
-.partner-card{position:relative;width:100%;line-height:0}
+.partner-coupon{margin:0;min-width:0;padding:8px;overflow:hidden;border:1px solid #95826655;border-radius:18px;background:var(--raised);box-shadow:inset 0 1px 0 #ffffff06,0 4px 10px #00000020}
+.partner-card{position:relative;width:100%;overflow:hidden;border-radius:10px;line-height:0}
 .partner-card-art{display:block;width:100%;height:auto}
 .partner-stamps{position:absolute;inset:0;width:100%;height:100%;color:#a34c43;pointer-events:none}
 
@@ -31,6 +25,13 @@ dialog.partner-dialog :is(a,button,summary):focus-visible{outline-color:#765626}
 .partner-qr-help{font-size:13px;line-height:1.8;color:var(--muted);margin-top:12px}
 .partner-message{padding:22px 0;font-size:14px;color:var(--muted);line-height:1.8}
 .partner-message .button{margin-top:18px}
+
+.partner-admin-card{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:20px;padding:24px 28px}
+.partner-admin-summary{min-width:0}
+.partner-admin-summary h2{margin:0 0 6px;font-size:20px;line-height:1.5;letter-spacing:-.03em}
+.partner-admin-summary p{margin:0;color:var(--muted);font-size:13px;line-height:1.7}
+.partner-admin-actions{display:flex;justify-content:flex-end;flex-wrap:wrap;gap:8px;max-width:100%;margin-left:auto}
+.partner-admin-actions .button{min-height:44px;white-space:nowrap}
 
 .partner-history-dialog>.dialog-frame{display:flex;flex-direction:column;max-height:inherit;min-height:0}
 .partner-history-dialog .dialog-content{padding:22px 26px;min-width:0}
@@ -67,6 +68,8 @@ dialog.partner-dialog :is(a,button,summary):focus-visible{outline-color:#765626}
 @keyframes partner-live-ring{to{transform:rotate(360deg)}}
 @keyframes partner-live-pulse{50%{opacity:.35}}
 @media(max-width:540px){
+ .partner-admin-card{padding:20px;gap:16px}
+ .partner-admin-actions{width:100%}
  .partner-history-dialog .dialog-content{padding:18px 16px}
  dialog.partner-dialog{width:calc(100% - 24px);max-width:calc(100% - 24px)}
  .partner-dialog header{padding:20px}
@@ -74,7 +77,8 @@ dialog.partner-dialog :is(a,button,summary):focus-visible{outline-color:#765626}
  .partner-dialog footer{padding:14px 20px}
  .partner-heading{gap:10px;margin-bottom:12px}
  .partner-heading p{font-size:13px}
- .partner-coupon{border-radius:12px}
+ .partner-coupon{padding:6px;border-radius:15px}
+ .partner-card{border-radius:9px}
  .partner-qr-slot{margin-top:16px;padding-top:16px}
  .merchant-page{padding:32px 16px 22px}
  .merchant-panel{padding:22px 18px}
