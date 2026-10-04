@@ -129,7 +129,7 @@ test('coupon settings require operating-settings authority and never disclose me
 
 test('settings reject malformed codes and stale changes without replacing the current configuration',async()=>{
  const f=fixture();
- for(const code of ['short','x'.repeat(129),123,null])await assert.rejects(f.handle({op:'saveCouponSettings',revision:0,enabled:true,code},owner),errorCode('invalid-argument'));
+ for(const code of ['',123,null])await assert.rejects(f.handle({op:'saveCouponSettings',revision:0,enabled:true,code},owner),errorCode('invalid-argument'));
  await f.config();
  const before=clone(f.records.get(settingsPath)),writes=f.businessWrites().length;
  await assert.rejects(f.handle({op:'saveCouponSettings',revision:0,enabled:true,code:ROTATED_CODE},owner),errorCode('aborted'));
@@ -147,9 +147,55 @@ test('merchant codes use independent random salts and a scrypt verifier instead 
  assert.notEqual(one.codeSalt,two.codeSalt);assert.notEqual(one.codeHash,two.codeHash);
 });
 
+test('merchant settings and login accept a one-character code and codes beyond the former length limits',async()=>{
+ for(const code of ['7','synthetic-long-code-'.repeat(20)]){
+  const f=fixture();
+  const settings=await f.handle({op:'saveCouponSettings',revision:0,code},owner);
+  assert.equal(settings.enabled,true);assert.equal(settings.configured,true);safeResponse(settings);
+  const stored=f.records.get(settingsPath);
+  assert.equal(stored.codeHash,scryptSync(code,stored.codeSalt,64).toString('hex'));
+  const login=await f.login(code);
+  assert.match(login.sessionKey,/^[a-f0-9]{64}$/);
+  await assert.rejects(f.login(code+'incorrect'),errorCode('unauthenticated'));
+  assert.equal((await f.coupons()).available,true);
+ }
+});
+
+test('saving settings without an enable flag requires an initial code and keeps existing credentials when code is omitted',async()=>{
+ const f=fixture();
+ await assert.rejects(f.handle({op:'saveCouponSettings',revision:0},owner),errorCode('failed-precondition'));
+ assert.equal(f.records.has(settingsPath),false);
+ await f.handle({op:'saveCouponSettings',revision:0,code:STORE_CODE},owner);
+ const login=await f.login(),before=clone(f.records.get(settingsPath));
+ const saved=await f.handle({op:'saveCouponSettings',revision:1},owner),after=f.records.get(settingsPath);
+ assert.equal(saved.enabled,true);assert.equal(saved.revision,2);
+ assert.equal(after.codeSalt,before.codeSalt);assert.equal(after.codeHash,before.codeHash);assert.equal(after.credentialVersion,before.credentialVersion);
+ assert.equal(milliseconds((await f.handle({op:'merchantSession',sessionKey:login.sessionKey})).expiresAt),START+365*DAY);
+});
+
+test('previously disabled settings stay disabled until saving without an enable flag, which never restores old sessions',async()=>{
+ const f=await ready(),qr=await f.qr();
+ await f.handle({op:'saveCouponSettings',revision:1,enabled:false},owner);
+ const disabled=clone(f.records.get(settingsPath));
+ assert.equal((await f.handle({op:'couponSettings'},owner)).enabled,false);
+ assert.equal((await f.coupons()).available,false);
+ await assert.rejects(f.login(),errorCode('unauthenticated'));
+ const saved=await f.handle({op:'saveCouponSettings',revision:2},owner),enabled=f.records.get(settingsPath);
+ assert.equal(saved.enabled,true);assert.equal((await f.coupons()).available,true);
+ assert.equal(enabled.codeSalt,disabled.codeSalt);assert.equal(enabled.codeHash,disabled.codeHash);
+ assert.equal(enabled.credentialVersion,disabled.credentialVersion+1);
+ await assert.rejects(f.handle({op:'merchantSession',sessionKey:f.merchant.sessionKey}),errorCode('unauthenticated'));
+ const fresh=await f.login();
+ await assert.rejects(stamp(f,qr.token,fresh.sessionKey),errorCode('failed-precondition'));
+ assert.equal((await stamp(f,(await f.qr()).token,fresh.sessionKey)).stampCount,1);
+});
+
 test('settings and merchant login normalize surrounding code whitespace and reject blank codes',async()=>{
  const f=fixture();
- await assert.rejects(f.handle({op:'saveCouponSettings',revision:0,enabled:true,code:' '.repeat(12)},owner),errorCode('invalid-argument'));
+ for(const code of ['', ' ', '\t\r\n']){
+  await assert.rejects(f.handle({op:'saveCouponSettings',revision:0,code},owner),errorCode('invalid-argument'));
+  await assert.rejects(f.handle({op:'merchantLogin',code}),errorCode('invalid-argument'));
+ }
  await f.handle({op:'saveCouponSettings',revision:0,enabled:true,code:'  '+STORE_CODE+'  '},owner);
  const exact=await f.login(),padded=await f.login('  '+STORE_CODE+'  ');
  assert.match(exact.sessionKey,/^[a-f0-9]{64}$/);assert.match(padded.sessionKey,/^[a-f0-9]{64}$/);

@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { registerHooks } from 'node:module';
 import { defaultRoles, hasPermission, permissionLabels } from '../functions/src/permissions.js';
+import { field } from '../web/src/ui.js';
 
 // Load the actual renderer and form handlers without initializing Firebase.
 // In particular, these checks never load the app's Firebase configuration.
@@ -121,7 +122,8 @@ test('partner management requires settings permission and reads only safe dedica
  }
 });
 
-test('partner code editor starts empty and saves a new confirmed code without keeping it in view state',async()=>{
+test('partner code editor has no enable control or length limits and saves confirmed short and long codes',async()=>{
+ for(const code of ['7','synthetic-long-code-'.repeat(20)]){
  const {ctx}=context(),api=ctx.api,payloads=[];
  ctx.render=async()=>{};ctx.toast=()=>{};
  ctx.api=async(op,data)=>{if(op==='couponSettings')return {revision:0,configured:false,enabled:false};if(op==='saveCouponSettings'){payloads.push(data);return {revision:1,configured:true,enabled:true};}return api(op,data);};
@@ -129,28 +131,52 @@ test('partner code editor starts empty and saves a new confirmed code without ke
   await renderAdmin(ctx);
   await withDialogs(async dialogs=>{
    await adminAction(ctx,'partneradmin-edit');const dialog=dialogs[0],form=dialog.querySelector('form');
-   assert.match(dialog.innerHTML,/name="code"[^>]*required[^>]*minlength="12"[^>]*type="password"[^>]*value=""/);
-   assert.match(dialog.innerHTML,/name="codeConfirmation"/);
-   const code='Synthetic-code-for-test';
-   form.entries=[['enabled','on'],['code',code],['codeConfirmation',code]];
+   assert.doesNotMatch(dialog.innerHTML,/name="enabled"|스탬프 적립 사용/);
+   for(const name of ['code','codeConfirmation']){
+    const input=dialog.innerHTML.match(new RegExp('<input\\b[^>]*name="'+name+'"[^>]*>'))?.[0];
+    assert.ok(input);assert.match(input,/\brequired\b/);assert.match(input,/type="password"[^>]*value=""/);assert.doesNotMatch(input,/\b(?:minlength|maxlength)=/);
+   }
+   form.entries=[['code',code],['codeConfirmation',code]];
    await form.listeners.get('submit')({preventDefault(){}});
-   assert.deepEqual(payloads,[{revision:0,enabled:true,code}]);assert.equal(dialog.open,false);
-   assert.doesNotMatch(JSON.stringify(ctx.state),new RegExp(code));
+   assert.deepEqual(payloads,[{revision:0,code}]);assert.equal(dialog.open,false);
+   assert.equal(Object.hasOwn(ctx.state.partnerAdminView||{},'code'),false);
+   if(code.length>1)assert.ok(!JSON.stringify(ctx.state).includes(code));
   });
  });
+ }
+});
+
+test('partner code editor still requires a nonblank initial code and matching confirmation',async()=>{
+ for(const [code,confirmation] of [['',''],['  ','  '],['7','8'],['synthetic-long-code-'.repeat(20),'different']]){
+  const {ctx}=context(),api=ctx.api,payloads=[];ctx.render=async()=>{};ctx.toast=()=>{};
+  ctx.api=async(op,data)=>{if(op==='couponSettings')return {revision:0,configured:false,enabled:false};if(op==='saveCouponSettings'){payloads.push(data);return {revision:1,configured:true,enabled:true};}return api(op,data);};
+  await at('/admin/partners',async()=>{
+   await renderAdmin(ctx);
+   await withDialogs(async dialogs=>{
+    await adminAction(ctx,'partneradmin-edit');const dialog=dialogs[0],form=dialog.querySelector('form');form.entries=[['code',code],['codeConfirmation',confirmation]];
+    await form.listeners.get('submit')({preventDefault(){}});
+    assert.deepEqual(payloads,[]);assert.equal(dialog.open,true);assert.ok(form.querySelector('.form-error').textContent);
+   });
+  });
+ }
+});
+
+test('ordinary fields retain their existing default length limits',()=>{
+ assert.match(field('title','제목'),/maxlength="200"/);
+ assert.match(field('description','내용','',{type:'textarea'}),/maxlength="12000"/);
 });
 
 test('partner settings can retain a configured code and cannot submit after permission removal',async()=>{
  for(const revoked of [false,true]){
   const {ctx}=context(),api=ctx.api,payloads=[];ctx.render=async()=>{};ctx.toast=()=>{};
-  ctx.api=async(op,data)=>{if(op==='couponSettings')return {revision:3,configured:true,enabled:true};if(op==='saveCouponSettings'){payloads.push(data);return {revision:4,configured:true,enabled:false};}return api(op,data);};
+  ctx.api=async(op,data)=>{if(op==='couponSettings')return {revision:3,configured:true,enabled:true};if(op==='saveCouponSettings'){payloads.push(data);return {revision:4,configured:true,enabled:true};}return api(op,data);};
   await at('/admin/partners',async()=>{
    await renderAdmin(ctx);
    await withDialogs(async dialogs=>{
     await adminAction(ctx,'partneradmin-edit');const form=dialogs[0].querySelector('form');form.entries=[['code',''],['codeConfirmation','']];
     if(revoked)ctx.state.profile={...ctx.state.profile,permissions:[]};
     await form.listeners.get('submit')({preventDefault(){}});
-    assert.deepEqual(payloads,revoked?[]:[{revision:3,enabled:false}]);
+    assert.deepEqual(payloads,revoked?[]:[{revision:3}]);
     if(revoked)assert.match(form.querySelector('.form-error').textContent,/계정이나 권한이 변경/);
    });
   });

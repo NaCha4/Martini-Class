@@ -80,6 +80,24 @@ test('merchant login trims the code, persists only the session, and discards lat
  const logging=merchantSubmit(late.ctx,'merchant-login',{get:()=> 'testing-store-code'});location.pathname='/';pending.resolve({sessionKey:otherKey,expiresAt:future(60000)});await logging;assert.equal(getMerchantSessionKey(late.ctx),'');assert.equal(late.ctx.renders,0);
 }));
 
+test('merchant login accepts single-character and long codes without HTML or submit length limits',async()=>host(async()=>{
+ for(const code of ['7','synthetic-long-code-'.repeat(20)]){
+  const {ctx,calls}=context(),html=await renderMerchant(ctx),input=html.match(/<input\b[^>]*name="code"[^>]*>/)?.[0];
+  assert.ok(input);assert.match(input,/\brequired\b/);assert.match(input,/type="password"/);assert.doesNotMatch(input,/\b(?:minlength|maxlength)=/);
+  await merchantSubmit(ctx,'merchant-login',{get:()=>code});
+  assert.deepEqual(calls,[{op:'merchantLogin',data:{code}}]);assert.equal(getMerchantSessionKey(ctx),merchantKey);
+  clearMerchantSession(ctx);
+ }
+}));
+
+test('merchant login still rejects an empty or whitespace-only code before calling the server',async()=>host(async()=>{
+ for(const code of ['', '   ']){
+  const {ctx,calls}=context();await renderMerchant(ctx);
+  await assert.rejects(merchantSubmit(ctx,'merchant-login',{get:()=>code}),/매장 코드를 입력/);
+  assert.deepEqual(calls,[]);assert.equal(getMerchantSessionKey(ctx),'');
+ }
+}));
+
 test('late merchant preview responses do not populate another account or route',async()=>host(async()=>{
  for(const change of [ctx=>setMerchantSession(ctx,{sessionKey:otherKey,expiresAt:future(60000)}),()=>{location.pathname='/';}]){
   location.pathname='/partners/feelingfine';const {ctx}=context();signIn(ctx);location.hash='#qr='+qrToken;const pending=deferred();ctx.api=async op=>op==='merchantSession'?{}:pending.promise;

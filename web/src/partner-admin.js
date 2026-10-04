@@ -71,17 +71,16 @@ export async function partnerAdminAction(ctx,action){
  if(action==='partneradmin-history')return openHistory(ctx,view);
  const settings=view.settings;
  const dialog=modal('필링파인 설정',
-  field('enabled','스탬프 적립 사용',settings.enabled,{type:'checkbox',wide:true})+
-  field('code',settings.configured?'새 로그인 코드':'사장님 로그인 코드','',{type:'password',required:!settings.configured,minLength:12,maxLength:128,autocomplete:'new-password',wide:true,hint:settings.configured?'변경할 때만 12자 이상 입력하세요. 비워 두면 기존 코드를 유지합니다.':'12자 이상으로 정하고 사장님에게 직접 전달해 주세요.'})+
-  field('codeConfirmation','로그인 코드 다시 입력','',{type:'password',required:!settings.configured,minLength:12,maxLength:128,autocomplete:'new-password',wide:true})+
-  '<p class="wide help">코드를 변경하거나 적립을 중지하면 사장님이 다시 로그인해야 합니다. 기존 스탬프는 유지됩니다.</p>',
+  field('code',settings.configured?'새 로그인 코드':'사장님 로그인 코드','',{type:'password',required:!settings.configured,maxLength:null,autocomplete:'new-password',wide:true,hint:settings.configured?'변경할 때만 입력하세요. 비워 두면 기존 코드를 유지합니다.':'코드를 정하고 사장님에게 직접 전달해 주세요.'})+
+  field('codeConfirmation','로그인 코드 다시 입력','',{type:'password',required:!settings.configured,maxLength:null,autocomplete:'new-password',wide:true})+
+  '<p class="wide help">코드를 변경하면 사장님이 다시 로그인해야 합니다. 기존 스탬프는 유지됩니다.</p>',
   async(data,node)=>{
    if(!current(ctx,view))throw new Error('계정이나 권한이 변경되었습니다. 제휴 관리 페이지를 다시 열어 주세요.');
    const code=String(data.get('code')||'').trim(),confirmation=String(data.get('codeConfirmation')||'').trim();
-   if((!settings.configured||code)&& (code.length<12||code.length>128))throw new Error('로그인 코드는 12자 이상 128자 이하로 입력해 주세요.');
+   if(!settings.configured&&!code)throw new Error('사장님 로그인 코드를 입력해 주세요.');
    if(code!==confirmation)throw new Error('로그인 코드가 서로 다릅니다. 다시 확인해 주세요.');
    try{
-    await ctx.api('saveCouponSettings',{revision:settings.revision,enabled:data.has('enabled'),...(code?{code}:{})});
+    await ctx.api('saveCouponSettings',{revision:settings.revision,...(code?{code}:{})});
    }catch(error){
     if(['functions/permission-denied','permission-denied','functions/unauthenticated','unauthenticated'].includes(error.code)){
      delete ctx.state.partnerAdminView;

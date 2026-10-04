@@ -21,7 +21,7 @@ export const field = (name, title, value = '', options = {}) => {
   else if(options.type==='textarea') input='<textarea'+attrs+' rows="'+(options.rows||4)+'" maxlength="'+(options.maxLength||12000)+'">'+esc(value)+'</textarea>';
   else if(options.type==='checkbox') input='<input type="checkbox"'+attrs+(value?' checked':'')+'>';
   else {
-    input='<input'+attrs+' type="'+esc(options.type||'text')+'" value="'+esc(value)+'" maxlength="'+(options.maxLength||200)+'">';
+    input='<input'+attrs+' type="'+esc(options.type||'text')+'" value="'+esc(value)+'"'+(options.maxLength===null?'':' maxlength="'+(options.maxLength||200)+'"')+'>';
     if(options.type==='password') input='<div class="input-with-action">'+input+'<button type="button" class="password-toggle" data-password-toggle aria-controls="'+esc(id)+'" aria-pressed="false">표시<span class="sr-only">: 비밀번호</span></button></div>';
   }
   return '<label for="'+esc(id)+'" class="field '+(options.wide?'wide ':'')+(options.type==='checkbox'?'check-field':'')+'"><span>'+esc(title)+(options.required?' <b aria-label="필수">*</b>':'')+'</span>'+input+(options.hint?'<small id="'+esc(id)+'-hint">'+esc(options.hint)+'</small>':'')+'</label>';

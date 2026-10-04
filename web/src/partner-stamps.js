@@ -97,7 +97,7 @@ function captureQr(view){
 }
 function merchantCurrent(ctx,view,sessionKey,request){return isMerchantRoute()&&ctx.state.feelingfineMerchant===view&&getMerchantSessionKey(ctx)===sessionKey&&(!request||view.request===request);}
 function merchantShell(body,authenticated=false){return '<main id="main-content" class="merchant-page"><header><span class="merchant-brand">FEELING FINE</span><h1 id="page-title" tabindex="-1">필링파인 스탬프</h1><p>매장용 적립 화면</p></header>'+body+(authenticated?'<footer>'+button('로그아웃','merchant-logout',{class:'button ghost'})+'</footer>':'')+'</main>';}
-function loginHtml(view){return merchantShell('<section class="merchant-panel"><h2>매장 로그인</h2><p>운영진에게 전달받은 매장 코드를 입력해 주세요.</p>'+(view.token?'<p class="merchant-note">로그인 후 스캔한 QR을 확인합니다. 시간이 지나면 부원에게 새 QR을 요청해 주세요.</p>':'')+'<form data-form="merchant-login">'+field('code','매장 코드','',{type:'password',required:true,minLength:12,maxLength:128,autocomplete:'off',spellcheck:false})+'<p class="form-error" role="alert">'+esc(view.error)+'</p><button type="submit" class="button full">로그인</button></form><p class="merchant-note">이 기기에서 최대 1년간 로그인 상태가 유지됩니다.</p></section>');}
+function loginHtml(view){return merchantShell('<section class="merchant-panel"><h2>매장 로그인</h2><p>운영진에게 전달받은 매장 코드를 입력해 주세요.</p>'+(view.token?'<p class="merchant-note">로그인 후 스캔한 QR을 확인합니다. 시간이 지나면 부원에게 새 QR을 요청해 주세요.</p>':'')+'<form data-form="merchant-login">'+field('code','매장 코드','',{type:'password',required:true,maxLength:null,autocomplete:'off',spellcheck:false})+'<p class="form-error" role="alert">'+esc(view.error)+'</p><button type="submit" class="button full">로그인</button></form><p class="merchant-note">이 기기에서 최대 1년간 로그인 상태가 유지됩니다.</p></section>');}
 function merchantHtml(ctx,view){
  let body='';
  if(view.result)body='<section class="merchant-panel merchant-result">'+icon('check')+'<h2>'+(view.result.duplicate?'이미 적립된 QR입니다':'스탬프를 적립했습니다')+'</h2>'+(view.result.memberName?'<p>'+esc(view.result.memberName)+' 님</p>':'')+stampCard(count(view.result.stampCount))+'<p class="merchant-note">다음 부원의 QR을 휴대전화 카메라로 스캔해 주세요.</p></section>';
@@ -134,7 +134,7 @@ export async function renderMerchant(ctx){
 export async function merchantSubmit(ctx,form,data,node){
  if(form!=='merchant-login'||!isMerchantRoute())return;
  const view=merchantView(ctx),request=Symbol(),before=getMerchantSessionKey(ctx);view.request=request;
- const code=String(data.get('code')||'').trim();if(code.length<12||code.length>128)throw new Error('매장 코드를 확인해 주세요.');
+ const code=String(data.get('code')||'').trim();if(!code)throw new Error('매장 코드를 입력해 주세요.');
  const result=await ctx.api('merchantLogin',{code});
  if(!isMerchantRoute()||ctx.state.feelingfineMerchant!==view||view.request!==request||getMerchantSessionKey(ctx)!==before)return;
  setMerchantSession(ctx,result);view.sessionKey=result.sessionKey;view.error='';node?.reset?.();await ctx.render();
