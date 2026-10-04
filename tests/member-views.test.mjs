@@ -168,7 +168,7 @@ test('event and partner service buttons open dialogs without navigation or histo
   assert.ok(events.open);assert.ok(events.classList.contains('member-events-dialog'));assert.match(events.innerHTML,/data-action="member-event-open"/);assert.doesNotMatch(events.innerHTML,/member-application-row|member-request-row/);
   await events.requestClose();assert.equal(events.open,false);
   await publicAction(ctx,'member-partners');const partners=dialogs.at(-1);
-  assert.ok(partners.open);assert.ok(partners.classList.contains('partner-dialog'));assert.match(partners.innerHTML,/제휴 혜택/);assert.match(partners.querySelector('[data-partner-body]').innerHTML,/QR 표시/);assert.doesNotMatch(partners.innerHTML,/member-application-row|member-request-row|data-action="member-event-open"/);
+  assert.ok(partners.open);assert.ok(partners.classList.contains('partner-dialog'));assert.match(partners.innerHTML,/<h3 id="partner-coupon-title">필링파인<\/h3>/);assert.match(partners.querySelector('[data-partner-body]').innerHTML,/QR 표시/);assert.doesNotMatch(partners.innerHTML,/partner-information|제휴 혜택|이용 안내|안내 준비 중|member-application-row|member-request-row|data-action="member-event-open"/);
   await partners.requestClose();assert.equal(partners.open,false);
  });
  assert.equal(calls.length,initialCalls+1);assert.equal(calls.at(-1).op,'memberCoupons');assert.deepEqual(navigations,[]);assert.equal(location.pathname,'/members');

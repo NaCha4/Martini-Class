@@ -211,8 +211,8 @@
  .member-shell .receipt-card,:is(.member-shell,.member-detail-dialog) .apply-card{padding:22px 18px}
  :is(.member-shell,.member-detail-dialog) .event-public-detail>:is(h1,h2),:is(.member-shell,.member-detail-dialog) .receipt-card>:is(h1,h2){font-size:25px}
 
- /* Only member popups become edge-to-edge sheets; admin dialogs keep their layout. */
- dialog.member-dialog[open]{inset:auto 0 0;margin:0;width:100%;max-width:100%;max-height:calc(100dvh - max(12px,env(safe-area-inset-top)));border-radius:18px 18px 0 0;border-bottom:0}
+ /* Keep member popups floating, with room around the panel on small screens. */
+ dialog.member-dialog[open]{inset:0;margin:auto;width:calc(100% - 24px);max-width:calc(100% - 24px);max-height:calc(100dvh - 32px - env(safe-area-inset-top) - env(safe-area-inset-bottom));border-radius:18px}
  dialog.member-dialog>:is(form,.dialog-frame){display:flex;flex-direction:column;max-height:inherit;min-height:0;overflow:hidden}
  dialog.member-dialog>:is(form,.dialog-frame)>header{flex:none;gap:12px;padding:10px max(16px,env(safe-area-inset-right)) 10px max(16px,env(safe-area-inset-left))}
  dialog.member-dialog>:is(form,.dialog-frame)>header>div{min-width:0}

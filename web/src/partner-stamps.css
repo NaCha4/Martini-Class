@@ -2,18 +2,26 @@ dialog.partner-dialog{width:min(740px,calc(100% - 32px));max-width:calc(100% - 3
 .partner-dialog>.dialog-frame{display:flex;flex-direction:column;max-height:inherit;min-height:0}
 .partner-dialog .dialog-content{width:100%;min-width:0;padding:16px 26px 24px}
 .partner-dialog [data-partner-body]{width:100%;min-width:0}
-.partner-information{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-bottom:28px}
-.partner-info-card{min-width:0;min-height:136px;padding:22px;border:1px solid var(--line);border-radius:12px;background:var(--raised)}
-.partner-info-card h3{margin:0 0 14px;font-size:16px;line-height:1.5}
-.partner-info-card p{margin:0;color:var(--muted);font-size:13px;line-height:1.8}
-.partner-coupon-section{padding-top:24px;border-top:1px solid var(--line)}
+.partner-coupon-section{min-width:0}
 .partner-coupon-section>h3{margin:0 0 16px;font-size:18px;line-height:1.5}
 
 /* Preserve the original rectangular artwork and its 3000 × 1650 stamp positions. */
-.partner-coupon{margin:0;min-width:0;overflow:hidden;border:1px solid var(--line)}
-.partner-card{position:relative;width:100%;line-height:0}
-.partner-card-art{display:block;width:100%;height:auto}
+.partner-coupon{margin:0;min-width:0}
+.partner-coupon-stage{position:relative;padding:16px 12px 28px;perspective:1100px;cursor:grab;touch-action:pan-y;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent}
+.partner-coupon-stage:focus-visible{outline:2px solid var(--gold);outline-offset:2px;border-radius:8px}
+.partner-coupon-stage::before{content:'';position:absolute;inset:auto 12% 8px;height:20px;border-radius:50%;background:rgba(0,0,0,.4);filter:blur(10px);pointer-events:none;animation:coupon-shadow 5.5s ease-in-out infinite}
+.partner-coupon-float{position:relative;transform-style:preserve-3d;animation:coupon-float 5.5s ease-in-out infinite}
+/* Clip each face separately: clipping the rotating card would flatten its back. */
+.partner-card{position:relative;width:100%;aspect-ratio:20/11;line-height:0;transform-style:preserve-3d;transform:rotateX(var(--coupon-rotate-x,0deg)) rotateY(var(--coupon-rotate-y,0deg));transition:transform .65s cubic-bezier(.2,.8,.2,1)}
+.partner-card-face{position:absolute;inset:0;overflow:hidden;backface-visibility:hidden;-webkit-backface-visibility:hidden;box-shadow:0 1px 2px rgba(0,0,0,.22),0 14px 24px rgba(0,0,0,.18)}
+.partner-card-front{transform:translateZ(.6px)}
+.partner-card-back{transform:rotateY(180deg) translateZ(.6px)}
+.partner-card-face::after{content:'';position:absolute;inset:0;background:linear-gradient(120deg,transparent 28%,rgba(255,255,255,.12) 48%,transparent 68%);pointer-events:none}
+.partner-card-art{display:block;width:100%;height:100%;pointer-events:none}
 .partner-stamps{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.partner-coupon-stage.is-dragging{cursor:grabbing}
+.partner-coupon-stage.is-dragging .partner-card{transition:none}
+.partner-coupon-stage.has-interacted .partner-coupon-float,.partner-coupon-stage.has-interacted::before{animation:none}
 
 .partner-qr-slot{text-align:center;margin-top:20px;padding:18px 0 2px;border-top:1px solid var(--line)}
 .partner-qr-slot>.button{min-width:180px;min-height:48px}
@@ -69,14 +77,12 @@ dialog.partner-dialog{width:min(740px,calc(100% - 32px));max-width:calc(100% - 3
 .merchant-panel .form-error:empty{display:none}
 @keyframes partner-live-ring{to{transform:rotate(360deg)}}
 @keyframes partner-live-pulse{50%{opacity:.35}}
+@keyframes coupon-float{0%,100%{transform:translateY(0) rotateX(0) rotateY(-2deg) rotateZ(-.35deg)}50%{transform:translateY(-5px) rotateX(2deg) rotateY(2deg) rotateZ(.35deg)}}
+@keyframes coupon-shadow{50%{opacity:.65;transform:scale(.94)}}
 @media(max-width:600px){
  .partner-dialog.member-dialog .dialog-content{padding-bottom:max(24px,calc(env(safe-area-inset-bottom) + 16px))}
- .partner-information{grid-template-columns:1fr;gap:8px;margin-bottom:20px}
- .partner-info-card{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:center;gap:12px;min-height:64px;padding:16px}
- .partner-info-card h3{margin:0;font-size:15px;overflow-wrap:anywhere}
- .partner-info-card p{font-size:14px;text-align:right;overflow-wrap:anywhere}
- .partner-coupon-section{padding-top:20px}
  .partner-coupon-section>h3{margin-bottom:12px;font-size:17px}
+ .partner-coupon-stage{padding:12px 8px 24px}
  .partner-qr-slot{margin-top:16px;padding:16px 0 0}
  .partner-qr-slot>.button{display:flex;min-width:0;width:100%;min-height:52px;font-size:16px}
  .partner-qr-frame{width:min(314px,100%)}
@@ -95,3 +101,4 @@ dialog.partner-dialog{width:min(740px,calc(100% - 32px));max-width:calc(100% - 3
  .merchant-panel{padding:20px 12px}
 }
 @media(prefers-reduced-motion:reduce){.partner-qr-frame::before,.partner-live-dot{animation-duration:4s}}
+@media(prefers-reduced-motion:reduce){.partner-coupon-float,.partner-coupon-stage::before{animation:none}.partner-card{transition:none}}

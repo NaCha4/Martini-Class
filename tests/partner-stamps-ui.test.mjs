@@ -11,24 +11,25 @@ const merchantKey='a'.repeat(64),memberKey='b'.repeat(64),qrToken='c'.repeat(64)
 const future=offset=>new Date(Date.now()+offset).toISOString();
 const deferred=()=>{let resolve;const promise=new Promise(yes=>{resolve=yes;});return {promise,resolve};};
 function context(){const calls=[],toasts=[],ctx={state:{},renders:0,render:async()=>{ctx.renders++;},toast:message=>toasts.push(message),api:async(op,data)=>{calls.push({op,data});if(op==='merchantSession')return {expiresAt:future(86400000),partnerName:'필링파인'};if(op==='merchantCouponPreview')return {memberName:'테스트 부원',stampCount:3,capacity:10,expiresAt:future(30000),serverNow:future(0)};if(op==='stampCoupon')return {stampCount:4,capacity:10};if(op==='merchantLogout')return {ok:true};if(op==='merchantLogin')return {sessionKey:merchantKey,expiresAt:future(365*86400000)};if(op==='memberCoupons')return {available:true,stampCount:3,capacity:10,revision:1,expiresAt:future(600000)};if(op==='issueCouponQr')return {token:qrToken,expiresAt:future(30000),serverNow:future(0)};throw Error('Unexpected op '+op);}};return {ctx,calls,toasts};}
-async function host(run,{path='/partners/feelingfine',blocked=false}={}){
+async function host(run,{path='/partners/feelingfine',blocked=false,motion=false}={}){
  const keys=['document','window','location','history','sessionStorage','performance','setInterval','clearInterval','CSS'],previous=new Map(keys.map(key=>[key,Object.getOwnPropertyDescriptor(globalThis,key)]));
  const cookies=new Map(),writes=[],dialogs=[],timers=new Map(),tab=new Map(),docListeners=new Map(),winListeners=new Map();let now=1000,timerId=0,rejectCookies=blocked;
  const listen=(map,type,fn)=>{if(!map.has(type))map.set(type,new Set());map.get(type).add(fn);},unlisten=(map,type,fn)=>map.get(type)?.delete(fn);
  class Element{
-  constructor(tag='div'){this.tag=tag;this.innerHTML='';this.textContent='';this.style={};this.attrs=new Map();this.listeners=new Map();this.parts=new Map();this.dataset={};this.isConnected=true;const classes=new Set();this.classList={add:(...names)=>names.forEach(name=>classes.add(name)),remove:(...names)=>names.forEach(name=>classes.delete(name)),contains:name=>classes.has(name)};}
-  setAttribute(n,v){this.attrs.set(n,String(v));}getAttribute(n){return this.attrs.get(n)||null;}removeAttribute(n){this.attrs.delete(n);}addEventListener(n,fn){listen(this.listeners,n,fn);}focus(){document.activeElement=this;}matches(){return false;}getClientRects(){return [1];}closest(){return null;}remove(){this.isConnected=false;}showModal(){this.open=true;}close(){if(!this.open)return;this.open=false;for(const fn of this.listeners.get('close')||[])fn();}
+  constructor(tag='div'){this.tag=tag;this.innerHTML='';this.textContent='';const styles=new Map();this.style={setProperty:(n,v)=>styles.set(n,v),getPropertyValue:n=>styles.get(n)||''};this.attrs=new Map();this.listeners=new Map();this.parts=new Map();this.dataset={};this.isConnected=true;const classes=new Set();this.classList={add:(...names)=>names.forEach(name=>classes.add(name)),remove:(...names)=>names.forEach(name=>classes.delete(name)),contains:name=>classes.has(name)};}
+  set innerHTML(value){this.html=value;this.couponStage=null;}get innerHTML(){return this.html;}
+  setAttribute(n,v){this.attrs.set(n,String(v));}getAttribute(n){return this.attrs.get(n)||null;}removeAttribute(n){this.attrs.delete(n);}addEventListener(n,fn){listen(this.listeners,n,fn);}removeEventListener(n,fn){unlisten(this.listeners,n,fn);}focus(){document.activeElement=this;}matches(){return false;}getClientRects(){return [1];}closest(){return null;}remove(){this.isConnected=false;}showModal(){this.open=true;}close(){if(!this.open)return;this.open=false;for(const fn of this.listeners.get('close')||[])fn();}
   querySelector(selector){if(selector==='form'||selector==='form[aria-busy=true]'||selector==='#discard-changes')return null;if(this.tag==='dialog'&&['.dialog-actions','.dialog-status'].includes(selector)&&!this.innerHTML.includes('class="'+selector.slice(1)+'"'))return null;if(!this.parts.has(selector)){const part=new Element();part.parent=this;this.parts.set(selector,part);}return this.parts.get(selector);}
-  querySelectorAll(){return [];}scrollIntoView(options){this.scrolled=options;}
+  querySelectorAll(selector){if(!motion||selector!=='[data-coupon-interactive]'||!this.innerHTML.includes('data-coupon-interactive'))return [];if(!this.couponStage){this.couponStage=new Element();this.couponStage.ownerDocument=document;}return [this.couponStage];}scrollIntoView(options){this.scrolled=options;}
  }
  const panel=new Element();
- const document={hidden:false,activeElement:null,body:new Element('body'),documentElement:new Element('html'),createElement:tag=>new Element(tag),querySelector(selector){if(selector==='.merchant-panel')return panel;if(['#modal','#modal[open]','dialog[open]'].includes(selector))return dialogs.findLast(dialog=>dialog.isConnected&&(selector==='#modal'||dialog.open))||null;return null;},querySelectorAll:()=>[],addEventListener:(n,fn)=>listen(docListeners,n,fn),removeEventListener:(n,fn)=>unlisten(docListeners,n,fn)};
+ const document={hidden:false,activeElement:null,body:new Element('body'),documentElement:new Element('html'),createElement:tag=>new Element(tag),querySelector(selector){if(selector==='.merchant-panel'||selector==='.merchant-page')return panel;if(['#modal','#modal[open]','dialog[open]'].includes(selector))return dialogs.findLast(dialog=>dialog.isConnected&&(selector==='#modal'||dialog.open))||null;return null;},querySelectorAll:()=>[],addEventListener:(n,fn)=>listen(docListeners,n,fn),removeEventListener:(n,fn)=>unlisten(docListeners,n,fn)};
  document.body.append=dialog=>dialogs.push(dialog);document.activeElement=document.body;
  Object.defineProperty(document,'cookie',{get:()=>[...cookies].map(([key,value])=>key+'='+value).join('; '),set:raw=>{writes.push(raw);if(rejectCookies)return;const [pair]=raw.split(';'),split=pair.indexOf('='),name=pair.slice(0,split),value=pair.slice(split+1);if(raw.includes('Max-Age=0'))cookies.delete(name);else cookies.set(name,value);}});
  const location={pathname:path,search:'',hash:'',protocol:'https:',hostname:'martini.test',origin:'https://martini.test'};
  const values={document,window:{addEventListener:(n,fn)=>listen(winListeners,n,fn),removeEventListener:(n,fn)=>unlisten(winListeners,n,fn)},location,history:{state:{},replaceState(_s,_t,url){location.hash='';this.last=url;}},sessionStorage:{getItem:key=>tab.get(key)||null,setItem:(key,value)=>tab.set(key,value),removeItem:key=>tab.delete(key),get length(){return tab.size;},key:index=>[...tab.keys()][index]},performance:{now:()=>now},setInterval:fn=>{const id=++timerId;timers.set(id,fn);return id;},clearInterval:id=>timers.delete(id),CSS:{supports:()=>true}};
  for(const [key,value] of Object.entries(values))Object.defineProperty(globalThis,key,{configurable:true,writable:true,value});
- try{return await run({cookies,writes,dialogs,timers,tab,panel,blockCookies:value=>{rejectCookies=value;},tick:async ms=>{now+=ms;for(const fn of [...timers.values()])fn();await Promise.resolve();},hidden:async value=>{document.hidden=value;for(const fn of [...docListeners.get('visibilitychange')||[]])fn();await Promise.resolve();},pagehide:async()=>{for(const fn of [...winListeners.get('pagehide')||[]])fn();await Promise.resolve();},focus:()=>{for(const fn of [...winListeners.get('focus')||[]])fn();}});}
+ try{return await run({cookies,writes,dialogs,timers,tab,panel,windowListenerCount:type=>winListeners.get(type)?.size||0,blockCookies:value=>{rejectCookies=value;},tick:async ms=>{now+=ms;for(const fn of [...timers.values()])fn();await Promise.resolve();},hidden:async value=>{document.hidden=value;for(const fn of [...docListeners.get('visibilitychange')||[]])fn();await Promise.resolve();},pagehide:async()=>{for(const fn of [...winListeners.get('pagehide')||[]])fn();await Promise.resolve();},focus:()=>{for(const fn of [...winListeners.get('focus')||[]])fn();}});}
  finally{for(const dialog of dialogs)dialog.close();for(const [key,value] of previous)if(value)Object.defineProperty(globalThis,key,value);else delete globalThis[key];}
 }
 function signIn(ctx){setMerchantSession(ctx,{sessionKey:merchantKey,expiresAt:future(365*86400000)});}
@@ -62,6 +63,43 @@ test('merchant result keeps preview stamp angles while a newly scanned QR starts
  await merchantAction(ctx,'merchant-stamp');const result=stampAngles(await renderMerchant(ctx));assert.equal(result.length,4);assert.deepEqual(result.slice(0,3),initial);
  location.hash='#qr='+otherKey;const next=stampAngles(await renderMerchant(ctx));assert.equal(next.length,3);assert.notDeepEqual(next,initial);assert.ok(next.every(angle=>Number.isFinite(angle)&&angle>=-18&&angle<=18));
 })));
+
+test('coupon rotation contains both supplied faces and front-only stamps while the QR remains outside the card',async()=>host(async()=>{
+ const {ctx}=context();memberSignIn(ctx);const dialog=await openMemberPartner(ctx);await partnerAction(ctx,'partner-qr');
+ const html=dialog.querySelector('[data-partner-body]').innerHTML,figure=html.match(/<figure\b[^>]*class="partner-coupon"[^>]*>[\s\S]*?<\/figure>/)?.[0];
+ assert.ok(figure);assert.match(figure,/data-coupon-interactive\b[^>]*tabindex="0"[^>]*role="button"/);
+ const front=figure.match(/<div class="partner-card-face partner-card-front"[^>]*>([\s\S]*?)<\/div>/)?.[1],back=figure.match(/<div class="partner-card-face partner-card-back"[^>]*>([\s\S]*?)<\/div>/)?.[1];
+ assert.ok(front);assert.ok(back);assert.match(front,/src="\/assets\/FeelingFineCoupon\.png\?v=[a-f0-9]+"/);assert.match(back,/src="\/assets\/FeelingFineCouponBack\.png\?v=[a-f0-9]+"/);
+ for(const face of [front,back]){assert.match(face,/width="3000" height="1650"/);assert.match(face,/draggable="false"/);}
+ assert.equal(stampGroups(front).length,3);assert.doesNotMatch(back,/class="partner-stamps"|\/assets\/stamp\.png/);
+ assert.match(figure,/<\/div><ol class="sr-only" aria-label="스탬프 3개 적립, 총 10개">/);
+ assert.doesNotMatch(figure,/partner-qr|data:image/);assert.match(html.slice(html.indexOf('</figure>')+9),/class="partner-qr-slot"[\s\S]*src="data:image\/png;base64,/);
+},{path:'/members'}));
+
+test('member coupon rerenders replace motion listeners and closing resets the card and removes every motion listener',async()=>host(async({windowListenerCount})=>{
+ const {ctx}=context();memberSignIn(ctx);const dialog=await openMemberPartner(ctx),body=dialog.querySelector('[data-partner-body]'),stage=()=>body.querySelectorAll('[data-coupon-interactive]')[0];
+ const first=stage();assert.equal(first.listeners.get('keydown')?.size,1);assert.equal(windowListenerCount('pointermove'),1);
+ for(const listener of first.listeners.get('keydown'))listener({key:'Enter',preventDefault(){}});
+ assert.equal(first.style.getPropertyValue('--coupon-rotate-y'),'180deg');
+ await partnerAction(ctx,'partner-refresh');const next=stage();assert.notEqual(next,first);assert.equal(first.style.getPropertyValue('--coupon-rotate-y'),'0deg');
+ assert.ok([...first.listeners.values()].every(listeners=>listeners.size===0));assert.equal(next.listeners.get('keydown')?.size,1);assert.equal(windowListenerCount('pointermove'),1);
+ await partnerAction(ctx,'partner-qr');const last=stage();assert.notEqual(last,next);assert.ok([...next.listeners.values()].every(listeners=>listeners.size===0));assert.equal(windowListenerCount('pointermove'),1);
+ for(const listener of last.listeners.get('keydown'))listener({key:'ArrowRight',preventDefault(){}});
+ assert.equal(last.style.getPropertyValue('--coupon-rotate-y'),'180deg');await dialog.requestClose(true);
+ assert.equal(last.style.getPropertyValue('--coupon-rotate-y'),'0deg');assert.ok([...last.listeners.values()].every(listeners=>listeners.size===0));
+ for(const type of ['pointermove','pointerup','pointercancel','keyup','blur'])assert.equal(windowListenerCount(type),0,type);
+},{path:'/members',motion:true}));
+
+test('merchant remounts keep one motion binding and hiding the preview removes it before a new scan',async()=>host(async({panel,hidden,windowListenerCount})=>{
+ const {ctx}=context();signIn(ctx);location.hash='#qr='+qrToken;panel.innerHTML=await renderMerchant(ctx);mountPartnerViews(ctx);
+ const first=panel.querySelectorAll('[data-coupon-interactive]')[0];assert.equal(first.listeners.get('keydown')?.size,1);assert.equal(windowListenerCount('pointermove'),1);
+ mountPartnerViews(ctx);assert.equal(first.listeners.get('keydown')?.size,1);assert.equal(windowListenerCount('pointermove'),1);
+ for(const listener of first.listeners.get('keydown'))listener({key:'Enter',preventDefault(){}});
+ await hidden(true);assert.equal(first.style.getPropertyValue('--coupon-rotate-y'),'0deg');assert.ok([...first.listeners.values()].every(listeners=>listeners.size===0));assert.equal(windowListenerCount('pointermove'),0);
+ await hidden(false);location.hash='#qr='+otherKey;panel.innerHTML=await renderMerchant(ctx);mountPartnerViews(ctx);const next=panel.querySelectorAll('[data-coupon-interactive]')[0];
+ assert.notEqual(next,first);assert.equal(next.listeners.get('keydown')?.size,1);assert.equal(windowListenerCount('pointermove'),1);clearPartnerViews(ctx);
+ assert.ok([...next.listeners.values()].every(listeners=>listeners.size===0));for(const type of ['pointermove','pointerup','pointercancel','keyup','blur'])assert.equal(windowListenerCount(type),0,type);
+},{motion:true}));
 
 test('merchant cookies persist only opaque credentials with host-only HTTPS attributes and a one-year ceiling',async()=>host(async({writes,cookies})=>{
  const {ctx}=context();setMerchantSession(ctx,{sessionKey:merchantKey,expiresAt:future(500*86400000),code:'never-save-this',memberName:'never-save-name'});
@@ -202,10 +240,10 @@ test('member QR remains visible after ten seconds, disappears after thirty, and 
  html=dialog.querySelector('[data-partner-body]').innerHTML;assert.doesNotMatch(html,/data:image/);assert.match(html,/새 QR 표시/);assert.equal(timers.size,0);assert.equal(calls.filter(call=>call.op==='issueCouponQr').length,1);
 },{path:'/members'}));
 
-test('member partner dialog puts information above stamps and closes safely with one header X and no footer',async()=>host(async({hidden,timers})=>{
+test('member partner dialog contains only the Feeling Fine coupon section and closes safely with one header X and no footer',async()=>host(async({hidden,timers})=>{
  const {ctx}=context();memberSignIn(ctx);const dialog=await openMemberPartner(ctx),html=dialog.innerHTML,body=()=>dialog.querySelector('[data-partner-body]').innerHTML;
- assert.ok(html.includes('partner-information'));assert.ok(html.indexOf('partner-information')<html.indexOf('partner-coupon-section'));
- for(const title of ['제휴 혜택','이용 안내','스탬프'])assert.ok(html.includes(title));assert.match(html,/안내 준비 중/);
+ assert.match(html,/<section class="partner-coupon-section"[^>]*>[\s\S]*?<h3 id="partner-coupon-title">필링파인<\/h3>[\s\S]*?data-partner-body/);
+ assert.doesNotMatch(html,/partner-information|partner-info-card|제휴 혜택|이용 안내|안내 준비 중/);
  assert.doesNotMatch(html,/<footer\b/);assert.equal((html.match(/\bdata-close\b/g)||[]).length,1);assert.match(html,/<button\b[^>]*data-close[^>]*aria-label="닫기"[^>]*>[\s\S]*?data-lucide="x"/);
  assert.equal(dialog.querySelector('.dialog-actions'),null);assert.equal(dialog.querySelector('.dialog-status'),null);
  assert.doesNotMatch(body(),/data-action="partner-refresh"|방문하고 스탬프를 모아 보세요|매장에서 적립할 때 QR을 표시해 주세요/);
