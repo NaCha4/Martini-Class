@@ -24,6 +24,7 @@ const inquiry=(extra={})=>({op:'submitClubRequest',kind:'inquiry',requestId:'inq
 const command=(id,action,extra={})=>service.handle({op:'clubRequestCommand',id,revision:1,action,response:action==='approve'?'':'운영진 답변',...extra},owner);
 const lookup=id=>service.handle({op:'clubRequestReceipt',id,receiptKey},guest);
 const cancel=id=>service.handle({op:'cancelClubRequest',id,receiptKey},guest);
+const deletion=record=>({op:'deleteRecord',kind:'clubRequests',id:record.id,updatedAt:record.updatedAt,revision:record.revision,confirmed:true});
 const eventApply=(extra={})=>({op:'apply',eventId:'event-one',sessionKey:session,answers:[],consent:true,requestId:'application-one',receiptKey,...extra});
 const applications=(sessionKey=session)=>service.handle({op:'memberApplications',sessionKey},guest);
 const application=(id,action='get',extra={})=>service.handle({op:'memberApplication',sessionKey:session,id,action,...extra},guest);
@@ -213,6 +214,55 @@ test('visit approvals and rejections persist revision, safe response and free-te
  assert.equal((await lookup('visit-two')).request.response,'사용 일정이 겹칩니다.');
  const audit=(await db.collection('martini_v2_audit').where('entityType','==','clubRequests').get()).docs.map(doc=>doc.data());
  assert.deepEqual(audit.map(row=>row.action).sort(),['approve','reject']);assert.equal(JSON.stringify(audit).includes('사용 일정'),false);
+});
+
+test('club request soft deletion hides history and capabilities while preserving records and one audit per request',async()=>{
+ await access();
+ const inputs=[visit(),{op:'submitClubRequest',kind:'inquiry',requestId:'member-inquiry',receiptKey,consent:true,sessionKey:session,subject:'부원 문의',message:'문의 내용'}];
+ for(const input of inputs)await service.handle(input,guest);
+ await command('member-inquiry','reply');
+ await seedLegacyJoin('legacy-join');
+ await service.handle(visit({requestId:'visible-visit'}),guest);
+ for(const id of ['visit-one','member-inquiry','legacy-join']){
+  const original=(await ref('clubRequests',id).get()).data(),input=deletion(original);
+  const deleted=await Promise.all([service.handle(input,owner),service.handle(input,owner)]);
+  assert.ok(deleted.every(result=>result.saved));assert.equal(deleted.filter(result=>result.duplicate).length,1);
+  const stored=(await ref('clubRequests',id).get()).data();
+  assert.deepEqual(stored,{...original,deletedAt:stamp(),deletedBy:owner.uid,updatedAt:stamp(),revision:original.revision+1});
+  await assert.rejects(lookup(id),e=>e.code==='not-found');
+  await assert.rejects(cancel(id),e=>e.code==='not-found');
+  await assert.rejects(command(id,original.kind==='inquiry'?'reply':'approve',{revision:stored.revision}),e=>e.code==='not-found');
+ }
+ assert.deepEqual((await service.handle({op:'clubRequests'},owner)).rows.map(row=>row.id),['visible-visit']);
+ assert.deepEqual((await service.handle({op:'memberPortal',sessionKey:session},guest)).requests.map(row=>row.id),['visible-visit']);
+ for(const input of inputs)await assert.rejects(service.handle(input,guest),e=>e.code==='already-exists');
+ assert.equal((await db.collection('martini_v2_clubRequests').get()).size,4);
+ const audit=(await db.collection('martini_v2_audit').where('entityType','==','clubRequests').get()).docs.map(doc=>doc.data()).filter(row=>row.action==='삭제');
+ assert.equal(audit.length,3);assert.deepEqual(audit.map(row=>row.entityId).sort(),['legacy-join','member-inquiry','visit-one']);
+ assert.ok(audit.every(row=>row.actor===owner.uid&&row.semester==='2026-2'));
+ for(const field of ['name','studentId','message','response','receiptHash','payloadHash'])assert.ok(audit.every(row=>!Object.hasOwn(row,field)));
+});
+
+test('club request deletion requires members management, explicit confirmation and current record versions',async()=>{
+ const saved=await service.handle(inquiry(),guest),input=deletion(saved.request);
+ await assert.rejects(service.handle(input,guest),e=>e.code==='unauthenticated');
+ for(const uid of ['education','publicity'])await assert.rejects(service.handle(input,{uid}),e=>e.code==='permission-denied');
+ await ref('admins','finance').update({expiresAt:time(-1)});
+ await assert.rejects(service.handle(input,{uid:'finance'}),e=>e.code==='permission-denied');
+ await assert.rejects(service.handle({...input,confirmed:false},owner),e=>e.code==='invalid-argument');
+ await assert.rejects(service.handle({...input,updatedAt:time(-1)},owner),e=>e.code==='aborted');
+ await assert.rejects(service.handle({...input,revision:0},owner),e=>e.code==='aborted');
+ const {revision:unused,...unversioned}=input;
+ await assert.rejects(service.handle(unversioned,owner),e=>e.code==='aborted');
+ assert.equal((await ref('clubRequests',input.id).get()).data().deletedAt,undefined);
+ assert.equal((await db.collection('martini_v2_audit').get()).size,0);
+ const replied=await command(input.id,'reply');
+ // The test clock stays fixed so revision protects a decision in the same millisecond.
+ assert.equal(replied.request.updatedAt,input.updatedAt);
+ await assert.rejects(service.handle(input,owner),e=>e.code==='aborted');
+ assert.deepEqual(await service.handle(deletion(replied.request),{uid:'execution'}),{saved:true});
+ assert.equal((await ref('clubRequests',input.id).get()).data().deletedBy,'execution');
+ assert.equal((await db.collection('martini_v2_audit').get()).size,2);
 });
 
 test('stale concurrent decisions cannot overwrite the first terminal decision',async()=>{

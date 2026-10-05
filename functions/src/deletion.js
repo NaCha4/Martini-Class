@@ -4,7 +4,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { parse, fail, ensureScope, idSchema } from './domain.js';
 import { hasPermission } from './permissions.js';
 
-const scopes={events:'events',applications:'events',finance:'finance',inventory:'inventory',meetings:'meetings',decisions:'decisions',content:'content',budgets:'finance'};
+const scopes={events:'events',applications:'events',clubRequests:'members',finance:'finance',inventory:'inventory',meetings:'meetings',decisions:'decisions',content:'content',budgets:'finance'};
 const schema=z.object({kind:z.enum(Object.keys(scopes)),id:idSchema,updatedAt:z.string().datetime(),revision:z.number().int().min(0).optional(),confirmed:z.literal(true)}).strict();
 
 // Keep the original record for accounting, idempotency and retention policies.
