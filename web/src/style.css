@@ -256,3 +256,5 @@ td .title-button{text-align:left;line-height:1.6}
 /* The overview reflects the remaining event, roster and inventory work. */
 @media(min-width:801px){.admin-overview-metrics{grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}}
 .admin-overview-grid>section:only-child{grid-column:1/-1}.admin-overview-grid .task-row>svg:first-child{width:20px;height:20px;flex-shrink:0;margin-left:0;color:var(--gold)}
+
+.workspace span.badge,body:has(.workspace)>dialog span.badge{padding:0;border:0;border-radius:0;background:none;box-shadow:none}
