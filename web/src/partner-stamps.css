@@ -25,12 +25,10 @@ dialog.partner-dialog.member-dialog .dialog-content{width:100%;min-width:0;paddi
 .partner-dialog .partner-benefits-note{margin:5px 0 0;color:#a9a398;font-size:12px;line-height:1.8}
 .partner-dialog .partner-coupon-area{min-width:0;padding:0 12px}
 .partner-dialog .partner-coupon-area .partner-message{margin:0;padding:28px 20px;text-align:center;word-break:keep-all}
-.partner-dialog.is-coupon-revealed .partner-hero{min-height:220px}
-.partner-dialog.is-coupon-revealed .partner-hero-title{padding-top:70px;padding-bottom:8px}
-.partner-dialog.is-coupon-revealed .partner-brand{font-size:36px}
-.partner-dialog.is-coupon-revealed .partner-hero-title>h2::after{margin-block:10px}
-.partner-dialog.is-coupon-revealed .partner-benefits-copy{display:none}
-.partner-dialog.is-coupon-revealed .partner-intro-copy{display:none}
+.partner-dialog :is(.partner-hero-title,.partner-benefits-copy),.partner-dialog>.dialog-frame>header,.partner-dialog .partner-coupon-pocket::before,.partner-dialog .partner-coupon-pocket::after{transition:opacity .3s ease}
+.partner-dialog:is(.is-coupon-revealing,.is-coupon-revealed) :is(.partner-hero-title,.partner-benefits-copy),.partner-dialog:is(.is-coupon-revealing,.is-coupon-revealed) .partner-coupon-pocket::before,.partner-dialog:is(.is-coupon-revealing,.is-coupon-revealed) .partner-coupon-pocket::after{opacity:0;pointer-events:none}
+.partner-dialog:is(.is-coupon-revealing,.is-coupon-revealed)>.dialog-frame>header{opacity:0;pointer-events:none}
+.partner-dialog:is(.is-coupon-revealing,.is-coupon-revealed)>.dialog-frame>header:focus-within{opacity:1;pointer-events:auto}
 
 /* The original paper back peeks above a raised pocket lip. Positive pull goes up. */
 .partner-dialog .partner-coupon-pocket{--pocket-lip:clamp(104px,29vw,138px);position:relative;isolation:isolate;height:calc(var(--pocket-lip) + 44px);margin:4px 4px 0}
@@ -161,9 +159,6 @@ dialog.partner-dialog.member-dialog .dialog-content{width:100%;min-width:0;paddi
  .partner-dialog .partner-benefits-note{font-size:11px}
  .partner-dialog .partner-coupon-area{padding-inline:0}
  .partner-dialog .partner-coupon-pocket{margin-inline:16px}
- .partner-dialog.is-coupon-revealed .partner-hero{min-height:200px}
- .partner-dialog.is-coupon-revealed .partner-hero-title{padding-top:60px;padding-bottom:8px}
- .partner-dialog.is-coupon-revealed .partner-brand{font-size:32px}
  .partner-dialog .partner-coupon-stage{padding:22px 8px 36px}
  .partner-coupon-stage{padding:18px 8px 36px}
  .partner-qr-frame{width:min(314px,100%)}
@@ -185,8 +180,6 @@ dialog.partner-dialog.member-dialog .dialog-content{width:100%;min-width:0;paddi
  .partner-dialog .partner-benefits-copy>h3{font-size:19px}
  .partner-dialog .partner-benefits-eyebrow{margin-bottom:9px;font-size:9px}
  .partner-dialog .partner-coupon-pocket{--pocket-lip:104px;margin-top:0}
- .partner-dialog.is-coupon-revealed .partner-hero{min-height:186px}
- .partner-dialog.is-coupon-revealed .partner-brand{font-size:30px}
  .merchant-panel{padding:20px 12px}
 }
 @media(prefers-reduced-motion:reduce){.partner-qr-frame::before,.partner-live-dot{animation-duration:4s}}
@@ -211,7 +204,21 @@ dialog.partner-dialog.partner-expanded>.dialog-frame>header>.icon-button>svg{wid
 dialog.partner-dialog.partner-expanded .partner-hero{min-height:clamp(300px,40dvh,440px);background:var(--partner-surface)}
 dialog.partner-dialog.partner-expanded .partner-hero>img,dialog.partner-dialog.partner-expanded .partner-hero::after{inset:var(--partner-image-top,0px) auto auto var(--partner-image-left,0px);width:var(--partner-image-width,100%);max-width:none;height:var(--partner-image-height)}
 dialog.partner-dialog.partner-expanded .partner-hero::after{background:var(--partner-image-shade)}
-dialog.partner-dialog.partner-expanded.is-coupon-revealed .partner-hero{min-height:clamp(200px,28dvh,230px)}
 dialog.partner-dialog.partner-expanded .partner-coupon-area{width:100%;max-width:464px;margin-inline:auto;padding-inline:0}
 dialog.partner-dialog.partner-expanded .partner-coupon-pocket::after{bottom:-56px}
 dialog.partner-dialog.partner-expanded .partner-coupon-float{max-width:440px}
+
+/* The paper leaves the pocket before the real stamped front turns into view. */
+dialog.partner-expanded .partner-feelingfine{position:relative}
+dialog.partner-expanded.is-coupon-revealed .partner-feelingfine{display:flex;align-items:center;justify-content:center;min-height:var(--partner-frame-height,100dvh);padding-bottom:0}
+dialog.partner-expanded.is-coupon-revealed .partner-intro{position:absolute;inset:0;pointer-events:none}
+dialog.partner-expanded.is-coupon-revealed .partner-hero{height:100%;min-height:0}
+dialog.partner-expanded.is-coupon-revealed .partner-hero-title{visibility:hidden}
+dialog.partner-expanded.is-coupon-revealed .partner-benefits-copy{position:absolute;visibility:hidden}
+dialog.partner-expanded.is-coupon-revealed .partner-coupon-area{position:relative;z-index:1;flex-shrink:0;padding-block:24px}
+.partner-dialog.is-coupon-revealing .partner-coupon-peek{pointer-events:none}
+.partner-dialog.is-coupon-revealed .partner-qr-slot{opacity:0;transition:opacity .2s ease}
+.partner-dialog.is-coupon-ready .partner-qr-slot{opacity:1}
+@media(prefers-reduced-motion:reduce){
+ .partner-dialog :is(.partner-hero-title,.partner-benefits-copy,.partner-qr-slot),.partner-dialog>.dialog-frame>header,.partner-dialog .partner-coupon-pocket::before,.partner-dialog .partner-coupon-pocket::after{transition:none}
+}

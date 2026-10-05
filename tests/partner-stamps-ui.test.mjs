@@ -31,6 +31,7 @@ async function host(run,{path='/partners/feelingfine',blocked=false,motion=false
    if(selector==='[data-partner-countdown]'&&!this.innerHTML.includes('data-partner-countdown'))return null;
    if(!this.parts.has(selector)){
     const part=new Element();part.parent=this;part.selector=selector;part.ownerDocument=document;
+    if(selector==='[data-partner-body]')part.innerHTML=this.innerHTML.match(/<div data-partner-body>([\s\S]*?)<\/div><\/div><\/section>/)?.[1]||'';
     if(selector==='[data-coupon-interactive]')part.innerHTML=this.innerHTML.match(/<figure\b[\s\S]*?<\/figure>/)?.[0]||'';
     if(selector==='[data-partner-qr-face]')part.hidden=true;
     this.parts.set(selector,part);
@@ -155,16 +156,22 @@ test('opening partner information exposes only a paper-back button and defers st
  assert.equal(ctx.state.memberPartner.revealed,false);assert.deepEqual(calls,[]);
  await partnerAction(ctx,'partner-qr');await partnerAction(ctx,'partner-refresh');assert.deepEqual(calls,[]);assert.equal(ctx.state.memberPartner.revealed,false);
  await partnerAction(ctx,'partner-reveal');assert.deepEqual(calls.map(call=>call.op),['memberCoupons']);assert.equal(ctx.state.memberPartner.revealed,true);
- assert.equal(dialog.classList.contains('is-coupon-revealed'),true);assert.equal(dialog.querySelector('.partner-benefits-copy').getAttribute('aria-hidden'),'true');assert.equal(dialog.querySelector('.partner-intro-copy').getAttribute('aria-hidden'),'true');
+ assert.equal(dialog.classList.contains('is-coupon-revealed'),true);assert.equal(dialog.querySelector('.partner-hero-title').getAttribute('aria-hidden'),'true');assert.equal(dialog.querySelector('.partner-benefits-copy').getAttribute('aria-hidden'),'true');assert.equal(dialog.querySelector('.partner-intro-copy').getAttribute('aria-hidden'),'true');
  assert.match(dialog.querySelector('[data-partner-body]').innerHTML,/FeelingFineCoupon|data-coupon-interactive/);assert.match(dialog.querySelector('[data-partner-body]').innerHTML,/data-action="partner-qr"/);assert.equal(ctx.state.memberPartner.qr,null);
+ assert.equal(ctx.state.memberPartner.revealing,false);assert.equal(dialog.classList.contains('is-coupon-ready'),true);assert.equal(dialog.querySelector('[data-partner-body]').inert,false);
 },{path:'/members'}));
 
-test('simultaneous reveal taps share one stamp read and do not issue a QR automatically',async()=>host(async()=>{
+test('simultaneous reveal taps retain the paper back while loading and do not issue a QR automatically',async()=>host(async()=>{
  const {ctx,calls}=context(),api=ctx.api,pending=deferred();ctx.api=async(op,data)=>{if(op==='memberCoupons'){calls.push({op,data});return pending.promise;}return api(op,data);};
  memberSignIn(ctx);const dialog=await openMemberPartner(ctx),first=partnerAction(ctx,'partner-reveal'),second=partnerAction(ctx,'partner-reveal');
- assert.deepEqual(calls.map(call=>call.op),['memberCoupons']);assert.equal(ctx.state.memberPartner.revealed,true);assert.doesNotMatch(dialog.querySelector('[data-partner-body]').innerHTML,/FeelingFineCoupon|data-action="partner-qr"/);
+ const body=dialog.querySelector('[data-partner-body]');
+ assert.deepEqual(calls.map(call=>call.op),['memberCoupons']);assert.equal(ctx.state.memberPartner.revealed,true);assert.equal(ctx.state.memberPartner.revealing,true);
+ assert.match(body.innerHTML,/partner-coupon-pocket/);assert.match(body.innerHTML,/FeelingFineCouponBack\.png/);assert.doesNotMatch(body.innerHTML,/FeelingFineCoupon\.png|data-action="partner-qr"/);
+ assert.equal(dialog.classList.contains('is-coupon-revealing'),true);assert.equal(dialog.classList.contains('is-coupon-ready'),false);assert.equal(dialog.querySelector('.partner-hero-title').getAttribute('aria-hidden'),'true');
+ await partnerAction(ctx,'partner-qr');await partnerAction(ctx,'partner-refresh');assert.deepEqual(calls.map(call=>call.op),['memberCoupons']);
  pending.resolve({available:true,stampCount:4,capacity:10,expiresAt:future(600000)});await Promise.all([first,second]);await partnerAction(ctx,'partner-reveal');
  assert.equal(calls.filter(call=>call.op==='memberCoupons').length,1);assert.equal(calls.filter(call=>call.op==='issueCouponQr').length,0);assert.equal(stampGroups(dialog.querySelector('[data-partner-body]').innerHTML).length,4);
+ assert.equal(body.inert,false);assert.equal(dialog.classList.contains('is-coupon-revealing'),false);assert.equal(dialog.classList.contains('is-coupon-ready'),true);
  await partnerAction(ctx,'partner-qr');assert.equal(calls.filter(call=>call.op==='issueCouponQr').length,1);
 },{path:'/members'}));
 
@@ -174,14 +181,32 @@ test('reopening partner information hides the previous coupon and requires a new
  await partnerAction(ctx,'partner-reveal');assert.equal(calls.filter(call=>call.op==='memberCoupons').length,2);assert.match(reopened.querySelector('[data-partner-body]').innerHTML,/FeelingFineCoupon/);
 },{path:'/members'}));
 
-test('a late stamp read cannot populate a closed or replacement partner dialog',async()=>host(async()=>{
+test('closing during the wallet lift cancels its animation and a late read cannot populate a replacement dialog',async()=>host(async()=>{
  for(const replace of [false,true]){
   const {ctx,calls}=context(),pending=deferred();ctx.api=async(op,data)=>{calls.push({op,data});assert.equal(op,'memberCoupons');return pending.promise;};memberSignIn(ctx);
-  const old=await openMemberPartner(ctx),oldView=ctx.state.memberPartner,reading=partnerAction(ctx,'partner-reveal');await old.requestClose(true);const replacement=replace?await openMemberPartner(ctx):null;
-  pending.resolve({available:true,stampCount:9,capacity:10,expiresAt:future(600000)});await reading;assert.equal(oldView.coupons,null);assert.doesNotMatch(old.querySelector('[data-partner-body]').innerHTML,/FeelingFineCoupon|data-action="partner-qr"/);
+  const old=await openMemberPartner(ctx),oldView=ctx.state.memberPartner,peek=old.querySelector('[data-coupon-reveal]'),lift=deferred();let cancelled=0;
+  peek.getBoundingClientRect=()=>({left:35,top:380,width:300,height:165});
+  peek.animate=()=>({finished:lift.promise,cancel(){cancelled++;lift.reject(new Error('Animation cancelled'));}});
+  const reading=partnerAction(ctx,'partner-reveal');assert.equal(cancelled,0);assert.equal(oldView.revealing,true);
+  await old.requestClose(true);assert.equal(cancelled,1);const replacement=replace?await openMemberPartner(ctx):null;
+  pending.resolve({available:true,stampCount:9,capacity:10,expiresAt:future(600000)});await reading;assert.equal(oldView.coupons,null);assert.doesNotMatch(old.querySelector('[data-partner-body]').innerHTML,/FeelingFineCoupon\.png|data-action="partner-qr"/);assert.equal(old.classList.contains('is-coupon-ready'),false);
   if(replacement){assert.equal(ctx.state.memberPartner.coupons,null);assert.equal(ctx.state.memberPartner.revealed,false);assert.doesNotMatch(replacement.innerHTML,/FeelingFineCoupon\.png|data-coupon-interactive|data-action="partner-qr"/);await replacement.requestClose(true);}else assert.equal(ctx.state.memberPartner,undefined);
   assert.equal(calls.length,1);
  }
+},{path:'/members'}));
+
+test('loaded stamps remain inert and cannot issue a QR until the card finishes turning',async()=>host(async()=>{
+ const {ctx,calls}=context();memberSignIn(ctx);const dialog=await openMemberPartner(ctx),peek=dialog.querySelector('[data-coupon-reveal]'),floating=dialog.querySelector('.partner-coupon-float'),turn=deferred();let started=0;
+ peek.getBoundingClientRect=()=>({left:35,top:250,width:300,height:165});
+ floating.getBoundingClientRect=()=>({left:15,top:140,width:340,height:187});
+ floating.animate=()=>{started++;return {finished:turn.promise,cancel:()=>turn.resolve()};};
+ const revealing=partnerAction(ctx,'partner-reveal');await flushEvents();
+ assert.equal(started,1);assert.equal(ctx.state.memberPartner.coupons.stampCount,3);assert.equal(ctx.state.memberPartner.revealing,true);
+ assert.equal(dialog.querySelector('[data-partner-body]').inert,true);assert.equal(dialog.classList.contains('is-coupon-ready'),false);
+ await partnerAction(ctx,'partner-qr');assert.equal(calls.filter(call=>call.op==='issueCouponQr').length,0);
+ turn.resolve();await revealing;
+ assert.equal(ctx.state.memberPartner.revealing,false);assert.equal(dialog.querySelector('[data-partner-body]').inert,false);assert.equal(dialog.classList.contains('is-coupon-ready'),true);
+ await partnerAction(ctx,'partner-qr');assert.equal(calls.filter(call=>call.op==='issueCouponQr').length,1);
 },{path:'/members'}));
 
 test('a delayed reveal preserves focus when the member tabs to the close control',async()=>host(async()=>{

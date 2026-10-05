@@ -4,6 +4,7 @@ import { getMemberSessionKey, isMemberRoute, refreshMemberSession, clearMemberId
 import { getMerchantSessionKey, setMerchantSession, clearMerchantSession, merchantCookieUnavailable, isMerchantAccessError, MERCHANT_SESSION_CHANNEL } from './merchant-session.js';
 import { bindCouponMotion } from './coupon-motion.js';
 import { bindCouponReveal } from './coupon-pocket.js';
+import { liftCouponFromPocket, turnCouponIntoPlace } from './coupon-reveal.js';
 import './partner-stamps.css';
 import './merchant-stamps.css';
 
@@ -73,12 +74,12 @@ function syncMemberQr(view){
 function paintMember(ctx,view){
  const body=view.dialog?.querySelector('[data-partner-body]');if(!body)return;
  clearCouponMotion(view);body.innerHTML=memberBody(view);refreshIcons();
- view.couponCleanup=bindCouponMotion(body,{onActivate:()=>partnerAction(ctx,'partner-qr'),canInteract:()=>memberCurrent(ctx,view)&&!view.qr&&!view.issuing});
+ view.couponCleanup=bindCouponMotion(body,{onActivate:()=>partnerAction(ctx,'partner-qr'),canInteract:()=>memberCurrent(ctx,view)&&!view.revealing&&!view.qr&&!view.issuing});
  syncMemberQr(view);
 }
 function expireMemberQr(view){stop(view);view.qr=null;view.issuing=false;view.expired=true;view.generation++;if(!view.disposed)syncMemberQr(view);}
 function disposeMember(ctx){
- const view=ctx.state.memberPartner;if(!view)return;stop(view);clearCouponMotion(view);view.revealCleanup?.();view.cleanup?.();view.frameCleanup?.();view.disposed=true;view.generation++;view.qr=null;view.expansion?.cancel();view.expansion=null;
+ const view=ctx.state.memberPartner;if(!view)return;stop(view);clearCouponMotion(view);view.revealCleanup?.();view.revealMotion?.cancel();view.cleanup?.();view.frameCleanup?.();view.disposed=true;view.generation++;view.qr=null;view.expansion?.cancel();view.expansion=null;
  for(const selector of ['.partner-qr-slot','[data-partner-qr-face]']){const element=view.dialog?.querySelector(selector);if(element)element.innerHTML='';}
  delete ctx.state.memberPartner;
 }
@@ -95,16 +96,16 @@ function watchMemberQr(ctx,view){
  document.addEventListener('visibilitychange',check);window.addEventListener('pagehide',hide);
  view.stop=()=>{clearInterval(timer);clearTimeout(expiry);document.removeEventListener('visibilitychange',check);window.removeEventListener('pagehide',hide);};check();
 }
-async function loadCoupons(ctx,view){
+async function loadCoupons(ctx,view,{paint=true}={}){
  const generation=++view.generation;view.error='';
  try{
   const coupons=await ctx.api('memberCoupons',{sessionKey:view.sessionKey});
   if(!memberCurrent(ctx,view)||generation!==view.generation)return;
-  refreshMemberSession(ctx,coupons.expiresAt);view.coupons=coupons;paintMember(ctx,view);
+  refreshMemberSession(ctx,coupons.expiresAt);view.coupons=coupons;if(paint)paintMember(ctx,view);
  }catch(error){
   if(!memberCurrent(ctx,view)||generation!==view.generation)return;
   if(isMemberAccessError(error)){clearMemberIdentity(ctx);await view.dialog.requestClose(true);await ctx.render();return;}
-  view.error=error.message||'스탬프를 불러오지 못했습니다.';paintMember(ctx,view);
+  view.error=error.message||'스탬프를 불러오지 못했습니다.';if(paint)paintMember(ctx,view);
  }
 }
 function bindMemberFrame(view){
@@ -154,10 +155,10 @@ export async function openMemberPartner(ctx){
  if(back){back.innerHTML=icon('arrow-left');back.setAttribute('aria-label','혜택으로 돌아가기');back.setAttribute('title','뒤로');}
  const close=dialog.requestClose.bind(dialog);
  dialog.requestClose=discard=>{
-  if(discard){view.expansion?.cancel();view.closing=true;expireMemberQr(view);return close(true);}
+  if(discard){view.expansion?.cancel();view.revealMotion?.cancel();view.closing=true;expireMemberQr(view);return close(true);}
   if(view.closing)return view.closePromise||Promise.resolve(true);
   if(dialog.isSaving())return close();
-  view.closing=true;expireMemberQr(view);
+  view.closing=true;view.revealMotion?.cancel();expireMemberQr(view);
   view.closePromise=animateMemberExpansion(view,false).then(()=>close());
   return view.closePromise;
  };
@@ -178,11 +179,31 @@ export async function partnerAction(ctx,action){
  if(action==='partner-reveal'){
   if(view.revealed)return;
   view.expansion?.cancel();
-  view.revealed=true;view.revealCleanup?.();view.revealCleanup=null;
-  view.dialog.classList.add('is-coupon-revealed');
+  view.revealed=true;view.revealing=true;view.revealCleanup?.();view.revealCleanup=null;
+  const peek=view.dialog.querySelector('[data-coupon-reveal]'),loadingFocus=document.activeElement;
+  view.dialog.classList.add('is-coupon-revealing');
+  view.dialog.querySelector('.partner-hero-title')?.setAttribute('aria-hidden','true');
   view.dialog.querySelector('.partner-benefits-copy')?.setAttribute('aria-hidden','true');
   view.dialog.querySelector('.partner-intro-copy')?.setAttribute('aria-hidden','true');
-  paintMember(ctx,view);const loadingFocus=document.activeElement;await loadCoupons(ctx,view);
+  peek?.setAttribute('aria-busy','true');peek?.setAttribute('aria-label','스탬프 쿠폰을 불러오고 있습니다');
+  const lift=liftCouponFromPocket(peek);view.revealMotion=lift;
+  await Promise.all([lift.finished,loadCoupons(ctx,view,{paint:false})]);
+  if(!memberCurrent(ctx,view))return;
+  const origin=peek?.getBoundingClientRect?.(),background=view.dialog.querySelector('.partner-hero>img')?.getBoundingClientRect?.(),frame=view.dialog.getBoundingClientRect?.();
+  // Reflow the controls into the center while keeping the background in place.
+  if(background&&frame&&[background.left,background.top,frame.left,frame.top].every(Number.isFinite)){
+   view.dialog.style.setProperty('--partner-image-left',(background.left-frame.left)+'px');
+   view.dialog.style.setProperty('--partner-image-top',(background.top-frame.top)+'px');
+  }
+  view.dialog.classList.add('is-coupon-revealed');
+  const scroller=view.dialog.querySelector('.dialog-scroll');if(scroller)scroller.scrollTop=0;
+  paintMember(ctx,view);lift.cancel();
+  const body=view.dialog.querySelector('[data-partner-body]');if(body)body.inert=true;
+  const turn=turnCouponIntoPlace(view.dialog,origin);view.revealMotion=turn;
+  await turn.finished;
+  if(!memberCurrent(ctx,view))return;
+  view.revealMotion=null;view.revealing=false;if(body)body.inert=false;
+  view.dialog.classList.remove('is-coupon-revealing');view.dialog.classList.add('is-coupon-ready');
   if(memberCurrent(ctx,view)&&(document.activeElement===loadingFocus||document.activeElement===document.body)){
    const card=view.dialog.querySelector('[data-coupon-interactive]');
    if(!view.pointerReveal)card?.focus?.({preventScroll:true});
@@ -190,7 +211,7 @@ export async function partnerAction(ctx,action){
   }
   return;
  }
- if(!view.revealed)return;
+ if(!view.revealed||view.revealing)return;
  if(action==='partner-refresh'){expireMemberQr(view);view.expired=false;view.qrError='';return loadCoupons(ctx,view);}
  if(action!=='partner-qr'||view.issuing||view.qr||!canIssueQr(view))return;
  view.expired=false;view.issuing=true;view.qrError='';syncMemberQr(view);const generation=++view.generation,started=monotonic();
