@@ -194,7 +194,7 @@ dialog.partner-dialog.partner-expanded::backdrop{background:transparent;backdrop
 dialog.partner-dialog.partner-expanded>.dialog-frame{height:100%;max-height:100%;overflow:hidden}
 dialog.partner-dialog.partner-expanded>.dialog-frame>.dialog-scroll{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:auto;scroll-padding-top:68px;-webkit-overflow-scrolling:touch}
 dialog.partner-dialog.member-dialog.partner-expanded .dialog-content{min-height:100%;padding:0}
-dialog.partner-dialog.partner-expanded .partner-feelingfine{width:100%;max-width:680px;min-height:100%;margin:0 auto;padding-bottom:max(32px,calc(env(safe-area-inset-bottom) + 20px))}
+dialog.partner-dialog.partner-expanded .partner-feelingfine{width:100%;max-width:680px;min-height:var(--partner-frame-height,100dvh);margin:0 auto}
 dialog.partner-dialog.member-dialog.partner-expanded>.dialog-frame>header{inset:8px auto auto max(12px,env(safe-area-inset-left));justify-content:flex-start}
 dialog.partner-dialog.partner-expanded>.dialog-frame>header>.icon-button{display:grid;place-items:center;width:48px;height:48px;padding:0}
 dialog.partner-dialog.partner-expanded>.dialog-frame>header>.icon-button>svg{width:24px;height:24px}
@@ -202,7 +202,12 @@ dialog.partner-dialog.partner-expanded .partner-hero{min-height:clamp(300px,40dv
 dialog.partner-dialog.partner-expanded .partner-hero>img,dialog.partner-dialog.partner-expanded .partner-hero::after{inset:var(--partner-image-top,0px) auto auto var(--partner-image-left,0px);width:var(--partner-image-width,100%);max-width:none;height:var(--partner-image-height)}
 dialog.partner-dialog.partner-expanded .partner-hero::after{background:var(--partner-image-shade)}
 dialog.partner-dialog.partner-expanded .partner-coupon-area{width:100%;max-width:464px;margin-inline:auto;padding-inline:0}
-dialog.partner-dialog.partner-expanded .partner-coupon-pocket::after{bottom:-56px}
+/* Dock the unopened wallet at the navigation edge, with a continuous pocket face. */
+dialog.partner-expanded:not(.is-coupon-revealed) .partner-feelingfine{display:flex;flex-direction:column}
+dialog.partner-expanded:not(.is-coupon-revealed) :is(.partner-intro,.partner-benefits-copy){flex-shrink:0}
+dialog.partner-expanded:not(.is-coupon-revealed) .partner-coupon-area{flex-shrink:0;max-width:none;margin-top:auto}
+dialog.partner-expanded:not(.is-coupon-revealed) .partner-coupon-pocket{height:calc(var(--pocket-lip) + 100px);margin-inline:16px}
+dialog.partner-dialog.partner-expanded .partner-coupon-pocket::after{bottom:0}
 dialog.partner-dialog.partner-expanded .partner-coupon-float{max-width:440px}
 
 /* The paper leaves the pocket before the real stamped front turns into view. */
