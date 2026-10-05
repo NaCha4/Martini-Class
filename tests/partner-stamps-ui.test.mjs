@@ -434,7 +434,7 @@ test('full or disabled member coupons retain their stamps and cannot issue a QR 
 },{path:'/members',motion:true}));
 
 test('expanded member partner preserves header and navigation while isolating and restoring the covered content',async()=>host(async({hidden,timers,windowListenerCount})=>{
- const content={inert:false},appHeader={inert:false,getBoundingClientRect:()=>({bottom:64})},nav={inert:false,getBoundingClientRect:()=>({top:773})};
+ const content={inert:false,getBoundingClientRect:()=>({left:0,width:390})},appHeader={inert:false,getBoundingClientRect:()=>({bottom:64})},nav={inert:false,getBoundingClientRect:()=>({top:773})};
  const app={getBoundingClientRect:()=>({left:0,width:390}),querySelector:selector=>({'.member-app-header':appHeader,'.member-bottom-nav':nav,'.member-shell-content':content})[selector]||null};
  const query=document.querySelector;document.querySelector=selector=>selector==='[data-member-app]'?app:query(selector);window.innerHeight=844;
  const {ctx}=context();memberSignIn(ctx);const dialog=await openRevealedPartner(ctx),html=dialog.innerHTML,body=()=>dialog.querySelector('[data-partner-body]').innerHTML,face=dialog.querySelector('[data-partner-qr-face]'),stage=dialog.querySelector('[data-coupon-interactive]');
@@ -465,6 +465,53 @@ test('expanded member partner preserves header and navigation while isolating an
 test('a QR issuance that returns after the member dialog closes cannot restore a QR',async()=>host(async()=>{
  const {ctx}=context();memberSignIn(ctx);const dialog=await openRevealedPartner(ctx),face=dialog.querySelector('[data-partner-qr-face]'),pending=deferred();ctx.api=()=>pending.promise;
  const issuing=partnerAction(ctx,'partner-qr');assert.match(face.innerHTML,/partner-card-qr-loading/);dialog.close();assert.equal(face.innerHTML,'');pending.resolve({token:qrToken,expiresAt:future(30000),serverNow:future(0)});await issuing;assert.equal(ctx.state.memberPartner,undefined);assert.equal(face.innerHTML,'');assert.equal(dialog.querySelector('.partner-qr-slot').innerHTML,'');
+},{path:'/members'}));
+
+test('partner expansion reveals a stationary image across frame borders, scrollbar width, and an interrupted opening',async()=>host(async()=>{
+ const rect=(left,top,width,height)=>({left,top,width,height,right:left+width,bottom:top+height});
+ const content={inert:false,getBoundingClientRect:()=>rect(11,64,678,900)},appHeader={getBoundingClientRect:()=>({bottom:64})},nav={getBoundingClientRect:()=>({top:773})};
+ const app={getBoundingClientRect:()=>rect(10,0,680,964),querySelector:selector=>({'.member-app-header':appHeader,'.member-bottom-nav':nav,'.member-shell-content':content})[selector]||null};
+ const rejectImageMotion=()=>assert.fail('the image must remain stationary while only its visible area changes');
+ const source={getBoundingClientRect:()=>rect(11,48,678,360),animate:rejectImageMotion};
+ const photo={getBoundingClientRect:()=>rect(11,72,678,180),querySelector:selector=>selector==='img'?source:null};
+ const origin={getBoundingClientRect:()=>rect(11,72,678,248),querySelector:selector=>({'.member-benefit-photo':photo,'.member-benefit-photo>img':source})[selector]||null};
+ const query=document.querySelector,create=document.createElement,previousStyle=Object.getOwnPropertyDescriptor(globalThis,'getComputedStyle'),motions=[];
+ let currentClip='none';
+ document.querySelector=selector=>({'[data-member-app]':app,'.member-benefit-feature':origin})[selector]||query(selector);window.innerHeight=844;
+ document.createElement=tag=>{
+  const element=create(tag);
+  if(tag!=='dialog'){element.animate=rejectImageMotion;return element;}
+  element.getBoundingClientRect=()=>rect(11,64,678,709);
+  const select=element.querySelector.bind(element);
+  element.querySelector=selector=>{
+   const part=select(selector);
+   if(selector==='.partner-hero'){
+    part.getBoundingClientRect=()=>rect(11,64,661,369);
+    part.querySelector('img').animate=rejectImageMotion;
+   }
+   return part;
+  };
+  element.animate=(keyframes,options)=>{
+   const pending=deferred(),motion={keyframes,options,finished:pending.promise,finish:pending.resolve,cancel(){this.cancelled=true;pending.resolve();}};
+   motions.push(motion);return motion;
+  };
+  return element;
+ };
+ Object.defineProperty(globalThis,'getComputedStyle',{configurable:true,value:()=>({clipPath:currentClip})});
+ try{
+  const {ctx}=context();memberSignIn(ctx);const dialog=await openMemberPartner(ctx);
+  for(const [key,value] of Object.entries({top:'64px',left:'11px',width:'678px',height:'709px'}))assert.equal(dialog.style.getPropertyValue('--partner-frame-'+key),value);
+  const assertImagePlane=()=>{for(const [key,value] of Object.entries({left:'0px',top:'-16px',width:'678px',height:'360px'}))assert.equal(dialog.style.getPropertyValue('--partner-image-'+key),value);};
+  assertImagePlane();assert.equal(motions.length,1);
+  const aperture='inset(8px 0px 521px 0px round 0px)',expanded='inset(0px 0px 0px 0px round 0px)';
+  assert.deepEqual(motions[0].keyframes,[{clipPath:aperture},{clipPath:expanded}]);
+  currentClip='inset(4px 0px 300px 0px round 0px)';const closing=dialog.requestClose();
+  assert.equal(motions.length,2);assert.equal(motions[0].cancelled,true);
+  assert.deepEqual(motions[1].keyframes,[{clipPath:currentClip},{clipPath:aperture}]);
+  assertImagePlane();motions[1].finish();assert.equal(await closing,true);assert.equal(dialog.open,false);assert.equal(content.inert,false);assertImagePlane();
+ }finally{
+  if(previousStyle)Object.defineProperty(globalThis,'getComputedStyle',previousStyle);else delete globalThis.getComputedStyle;
+ }
 },{path:'/members'}));
 
 test('reverse expansion immediately clears QR work and discards its late response before the dialog closes',async()=>host(async({timers})=>{

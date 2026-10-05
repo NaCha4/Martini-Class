@@ -196,6 +196,8 @@ dialog.partner-dialog.member-dialog .dialog-content{width:100%;min-width:0;paddi
  .partner-dialog .partner-qr-pending>svg,.partner-dialog .partner-card-qr-loading>svg{animation:none}
 }
 
+/* Preview and expanded page crop the same full-size image; only the window opens. */
+.member-app-shell,dialog.partner-expanded{--partner-image-height:clamp(300px,40dvh,440px);--partner-image-shade:linear-gradient(180deg,#16141420 0%,#16141412 25%,#202022aa 64%,#202022 100%)}
 /* The store card fills the content frame between the app header and bottom navigation. */
 dialog.partner-dialog.member-dialog.partner-expanded[open]{position:fixed;z-index:20;inset:var(--partner-frame-top,0px) auto auto var(--partner-frame-left,0px);width:var(--partner-frame-width,100vw);max-width:none;height:var(--partner-frame-height,100dvh);max-height:none;margin:0;padding:0;overflow:hidden;border:0;border-radius:0;background:var(--partner-surface);box-shadow:none}
 dialog.partner-dialog.partner-expanded::backdrop{background:transparent;backdrop-filter:none;-webkit-backdrop-filter:none}
@@ -206,18 +208,10 @@ dialog.partner-dialog.partner-expanded .partner-feelingfine{width:100%;max-width
 dialog.partner-dialog.member-dialog.partner-expanded>.dialog-frame>header{inset:8px auto auto max(12px,env(safe-area-inset-left));justify-content:flex-start}
 dialog.partner-dialog.partner-expanded>.dialog-frame>header>.icon-button{display:grid;place-items:center;width:48px;height:48px;padding:0}
 dialog.partner-dialog.partner-expanded>.dialog-frame>header>.icon-button>svg{width:24px;height:24px}
-dialog.partner-dialog.partner-expanded .partner-hero{min-height:clamp(300px,40dvh,440px)}
+dialog.partner-dialog.partner-expanded .partner-hero{min-height:clamp(300px,40dvh,440px);background:var(--partner-surface)}
+dialog.partner-dialog.partner-expanded .partner-hero>img,dialog.partner-dialog.partner-expanded .partner-hero::after{inset:var(--partner-image-top,0px) auto auto var(--partner-image-left,0px);width:var(--partner-image-width,100%);max-width:none;height:var(--partner-image-height)}
+dialog.partner-dialog.partner-expanded .partner-hero::after{background:var(--partner-image-shade)}
 dialog.partner-dialog.partner-expanded.is-coupon-revealed .partner-hero{min-height:clamp(200px,28dvh,230px)}
 dialog.partner-dialog.partner-expanded .partner-coupon-area{width:100%;max-width:464px;margin-inline:auto;padding-inline:0}
 dialog.partner-dialog.partner-expanded .partner-coupon-pocket::after{bottom:-56px}
 dialog.partner-dialog.partner-expanded .partner-coupon-float{max-width:440px}
-
-/* Carry the card's painted image into the expanded hero without stretching it. */
-.partner-expanded .partner-photo-transition{position:absolute;inset:0;z-index:0;overflow:hidden;pointer-events:none}
-.partner-photo-transition-window{position:absolute;inset:0}
-.partner-photo-transition-window>img,.partner-photo-transition-shade{position:absolute;top:0;left:0;max-width:none;transform-origin:0 0}
-.partner-photo-transition-window>img{display:block;object-fit:fill}
-dialog.partner-expanded.is-image-expanding>.dialog-frame{z-index:1}
-.partner-expanded.is-image-expanding :is(.partner-feelingfine,.partner-hero){background:transparent}
-.partner-expanded.is-image-expanding .partner-hero>img{visibility:hidden}
-.partner-expanded.is-image-expanding .partner-hero::after{opacity:0}
