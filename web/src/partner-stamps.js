@@ -147,7 +147,7 @@ export async function openMemberPartner(ctx){
  disposeMember(ctx);const view={sessionKey,generation:0,coupons:null,qr:null,revealed:false,disposed:false,closing:false,error:'',qrError:'',origin:document.querySelector('.member-benefit-feature')};
  const content='<section class="partner-feelingfine" aria-labelledby="modal-title">'+
   '<div class="partner-intro"><div class="partner-hero"><img src="/assets/feelingfine-bar-hero.jpg" width="1672" height="941" alt="분위기를 표현한 가상의 바 테이블 이미지" decoding="async" draggable="false"><div class="partner-hero-title"><p class="partner-brand" aria-hidden="true">Feeling Fine</p><h2 id="modal-title" tabindex="-1">필링파인</h2><div class="partner-intro-copy"><p class="partner-intro-description">다양한 칵테일과 안주를 즐기는 공간.</p></div></div></div></div>'+
-  '<div class="partner-benefits-copy"><p class="partner-benefits-eyebrow">MARTINI MEMBERS</p><h3>함께하는 시간에, 작은 혜택을.</h3><p class="partner-benefits-description">부원 전용 스탬프 적립</p></div>'+
+  '<div class="partner-benefits-copy"><p class="partner-benefits-eyebrow">MARTINI MEMBERS</p><p class="partner-benefits-description">부원 전용 스탬프 적립</p></div>'+
   '<div class="partner-coupon-area"><div data-partner-body>'+memberBody(view)+'</div></div></section>';
  const dialog=modal('필링파인',content,null,{contentOnly:true,bodyTitle:true,footer:false,nonModal:true,onClose:()=>{if(ctx.state.memberPartner===view)disposeMember(ctx);}});
  dialog.classList.add('member-dialog','member-partners-dialog','partner-dialog','partner-expanded');view.dialog=dialog;ctx.state.memberPartner=view;

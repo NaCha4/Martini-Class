@@ -20,7 +20,6 @@ dialog.partner-dialog.member-dialog .dialog-content{width:100%;min-width:0;paddi
 .partner-dialog .partner-intro-description{margin:0;color:#d1cac1;font-size:13px;line-height:1.8;word-break:keep-all}
 .partner-dialog .partner-benefits-copy{max-width:440px;margin:0 auto;padding:18px 24px 24px;text-align:center;word-break:keep-all}
 .partner-dialog .partner-benefits-eyebrow{margin:0 0 12px;color:#ddbd84;font-size:10px;font-weight:500;line-height:1.5;letter-spacing:.18em}
-.partner-dialog .partner-benefits-copy>h3{margin:0;color:#f0ece5;font-size:23px;line-height:1.65;letter-spacing:-.05em;font-weight:500}
 .partner-dialog .partner-benefits-description{margin:12px 0 0;color:#c6bfb4;font-size:13px;line-height:1.85}
 .partner-dialog .partner-benefits-note{margin:5px 0 0;color:#a9a398;font-size:12px;line-height:1.8}
 .partner-dialog .partner-coupon-area{min-width:0;padding:0 12px}
@@ -154,7 +153,6 @@ dialog.partner-dialog.member-dialog .dialog-content{width:100%;min-width:0;paddi
  .partner-dialog .partner-hero-title>h2{font-size:14px}
  .partner-dialog .partner-intro-description{font-size:12px}
  .partner-dialog .partner-benefits-copy{padding:14px 20px 20px}
- .partner-dialog .partner-benefits-copy>h3{font-size:21px}
  .partner-dialog .partner-benefits-description{margin-top:10px;font-size:12px}
  .partner-dialog .partner-benefits-note{font-size:11px}
  .partner-dialog .partner-coupon-area{padding-inline:0}
@@ -177,7 +175,6 @@ dialog.partner-dialog.member-dialog .dialog-content{width:100%;min-width:0;paddi
  .partner-dialog .partner-hero-title{padding:96px 18px 12px}
  .partner-dialog .partner-brand{font-size:34px}
  .partner-dialog .partner-benefits-copy{padding:12px 18px 16px}
- .partner-dialog .partner-benefits-copy>h3{font-size:19px}
  .partner-dialog .partner-benefits-eyebrow{margin-bottom:9px;font-size:9px}
  .partner-dialog .partner-coupon-pocket{--pocket-lip:104px;margin-top:0}
  .merchant-panel{padding:20px 12px}
