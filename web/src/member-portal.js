@@ -164,14 +164,15 @@ function activityPanel(ctx){
   groups[group].push({at:row.event.startsAt||row.application.createdAt,html:applicationRow(row)});
  }
  for(const row of allRequests(ctx).filter(row=>row.kind==='visit'))groups[currentRequest(row)?'current':'past'].push({at:row.startsAt||row.createdAt,html:requestRow(row)});
+ const incomplete=Boolean(view.applicationsError||view.receiptErrors);
  let records='';
- for(const [group,title] of [['action','처리할 일'],['current','진행 중'],['past','지난 내역']]){
-  const rows=groups[group];if(!rows.length)continue;
+ for(const [group,title,emptyMessage] of [['action','처리할 일','처리할 일이 없습니다.'],['current','진행 중','진행 중인 내역이 없습니다.'],['past','지난 내역','지난 내역이 없습니다.']]){
+  const rows=groups[group];
   rows.sort((a,b)=>(group==='past'?-1:1)*String(a.at||'').localeCompare(String(b.at||'')));
-  records+='<section class="member-app-section member-status-section" data-member-status="'+group+'" aria-labelledby="member-status-'+group+'"><div class="member-app-section-heading"><h2 id="member-status-'+group+'">'+title+'</h2><span class="member-section-count">'+rows.length+'</span></div><div class="member-record-list">'+rows.map(row=>row.html).join('')+'</div></section>';
+  records+='<section class="member-app-section member-status-section" data-member-status="'+group+'" aria-labelledby="member-status-'+group+'"><div class="member-app-section-heading"><h2 id="member-status-'+group+'">'+title+'</h2><span class="member-section-count">'+(!rows.length&&incomplete?'—':rows.length)+'</span></div>'+(rows.length?'<div class="member-record-list">'+rows.map(row=>row.html).join('')+'</div>':appEmpty('clipboard-list',incomplete?'내역을 확인하지 못했습니다.':emptyMessage))+'</section>';
  }
  const errors=connectionMessage(view.applicationsError)+(view.receiptErrors?connectionMessage('일부 신청 내역을 불러오지 못했습니다.'):'');
- return appIntro('내 현황')+receiptMessages(ctx)+receiptMessages(ctx,{legacy:true})+errors+'<div id="member-records">'+(records||(!errors?appEmpty('clipboard-list','신청 내역이 없습니다.') :''))+'</div>';
+ return appIntro('내 현황')+receiptMessages(ctx)+receiptMessages(ctx,{legacy:true})+errors+'<div id="member-records">'+records+'</div>';
 }
 function activeApplication(row){
  const a=row.application,e=row.event;if(!a||!e)return false;
