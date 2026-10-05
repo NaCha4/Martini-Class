@@ -205,7 +205,8 @@ dialog.partner-dialog.partner-expanded .partner-coupon-area{width:100%;max-width
 /* Dock the unopened wallet at the navigation edge, with a continuous pocket face. */
 dialog.partner-expanded:not(.is-coupon-revealed) .partner-feelingfine{display:flex;flex-direction:column}
 dialog.partner-expanded:not(.is-coupon-revealed) :is(.partner-intro,.partner-benefits-copy){flex-shrink:0}
-dialog.partner-expanded:not(.is-coupon-revealed) .partner-coupon-area{flex-shrink:0;max-width:none;margin-top:auto}
+dialog.partner-expanded:not(.is-coupon-revealed) .partner-benefits-copy{margin-top:auto}
+dialog.partner-expanded:not(.is-coupon-revealed) .partner-coupon-area{flex-shrink:0;max-width:none}
 dialog.partner-expanded:not(.is-coupon-revealed) .partner-coupon-pocket{height:calc(var(--pocket-lip) + 100px);margin-inline:16px}
 dialog.partner-dialog.partner-expanded .partner-coupon-pocket::after{bottom:0}
 dialog.partner-dialog.partner-expanded .partner-coupon-float{max-width:440px}
