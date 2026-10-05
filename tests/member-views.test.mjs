@@ -201,7 +201,7 @@ test('empty member panels retain their actions and refresh reloads server status
  const {html,ctx,calls}=await view('applications',{events:[]});
  const panels=memberPanels(html,'activity');assert.match(panels.visits,/data-form="member-visit"/);assert.match(panels.events,/행사/);assert.match(panels.benefits,/data-action="member-partners"/);
  assert.doesNotMatch(html,/data-action="member-section"|data-action="member-application-open"|data-action="member-request"/);
- const emptyGroups=[['action','처리할 일','처리할 일이 없습니다.'],['current','진행 중','진행 중인 내역이 없습니다.'],['past','지난 내역','지난 내역이 없습니다.']];
+ const emptyGroups=[['action','확인 필요','확인할 내역이 없습니다.'],['current','진행 중','진행 중인 내역이 없습니다.'],['past','지난 내역','지난 내역이 없습니다.']];
  assert.deepEqual([...panels.activity.matchAll(/data-member-status="([^"]+)"/g)].map(match=>match[1]),emptyGroups.map(([id])=>id));
  for(const [id,title,message] of emptyGroups){
   const section=panels.activity.match(new RegExp('<section\\b[^>]*data-member-status="'+id+'"[^>]*>([\\s\\S]*?)<\\/section>'))?.[1];
