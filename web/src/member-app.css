@@ -76,6 +76,7 @@ main.member-public-page.member-app-page{width:100%;max-width:680px;min-height:10
 .member-app-shell .member-request-row>.member-status{grid-column:2;grid-row:2;justify-self:start}
 .member-app-shell :is(.member-request-row,.member-application-row)>svg{display:none}
 .member-app-shell .member-status{max-width:100%;padding:3px 8px;border-radius:6px;font-size:11px;font-weight:500;line-height:1.6;white-space:normal;overflow-wrap:anywhere}
+:is(.member-app-shell,.member-dialog) span:is(.member-status,.badge){padding:0;border:0;border-radius:0;background:none;box-shadow:none}
 .member-app-shell .member-app-card :is(.member-request-row,.member-application-row){margin-top:0;padding:15px 0;border:0;border-bottom:1px solid var(--app-line);border-radius:0;background:transparent}
 .member-app-shell .member-app-card :is(.member-request-row,.member-application-row):last-child{border-bottom:0}
 .member-app-shell .member-past-history{margin-top:22px;padding-top:2px;border-top:1px solid var(--app-line)}
