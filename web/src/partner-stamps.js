@@ -4,6 +4,7 @@ import { getMemberSessionKey, isMemberRoute, refreshMemberSession, clearMemberId
 import { getMerchantSessionKey, setMerchantSession, clearMerchantSession, merchantCookieUnavailable, isMerchantAccessError, MERCHANT_SESSION_CHANNEL } from './merchant-session.js';
 import { bindCouponMotion } from './coupon-motion.js';
 import { bindCouponReveal } from './coupon-pocket.js';
+import { animatePartnerPhoto } from './partner-expansion.js';
 import './partner-stamps.css';
 import './merchant-stamps.css';
 
@@ -78,7 +79,7 @@ function paintMember(ctx,view){
 }
 function expireMemberQr(view){stop(view);view.qr=null;view.issuing=false;view.expired=true;view.generation++;if(!view.disposed)syncMemberQr(view);}
 function disposeMember(ctx){
- const view=ctx.state.memberPartner;if(!view)return;stop(view);clearCouponMotion(view);view.revealCleanup?.();view.cleanup?.();view.frameCleanup?.();view.disposed=true;view.generation++;view.qr=null;view.expansion?.cancel();view.expansion=null;
+ const view=ctx.state.memberPartner;if(!view)return;stop(view);clearCouponMotion(view);view.revealCleanup?.();view.cleanup?.();view.frameCleanup?.();view.disposed=true;view.generation++;view.qr=null;view.expansion?.cancel();view.expansion=null;view.photoTransition?.cancel();
  for(const selector of ['.partner-qr-slot','[data-partner-qr-face]']){const element=view.dialog?.querySelector(selector);if(element)element.innerHTML='';}
  delete ctx.state.memberPartner;
 }
@@ -124,16 +125,19 @@ function bindMemberFrame(view){
 }
 function animateMemberExpansion(view,opening){
  const dialog=view.dialog,origin=view.origin?.getBoundingClientRect?.(),frame=dialog?.getBoundingClientRect?.();
- if(!dialog?.animate||window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches||!origin?.width||!origin?.height||!frame?.width||!frame?.height||document.hidden)return Promise.resolve();
+ if(!dialog?.animate||window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches||!origin?.width||!origin?.height||!frame?.width||!frame?.height||document.hidden){view.photoTransition?.cancel();return Promise.resolve();}
  const top=Math.max(0,origin.top-frame.top),left=Math.max(0,origin.left-frame.left);
  const bottom=Math.max(0,frame.bottom-origin.bottom),right=Math.max(0,frame.right-origin.right);
  if(![top,left,bottom,right].every(Number.isFinite))return Promise.resolve();
  const cardClip='inset('+top+'px '+right+'px '+bottom+'px '+left+'px round 0px)',fullClip='inset(0px 0px 0px 0px round 0px)';
  const currentClip=globalThis.getComputedStyle?.(dialog)?.clipPath;
  view.expansion?.cancel();
- const motion=dialog.animate([{clipPath:opening?cardClip:currentClip&&currentClip!=='none'?currentClip:fullClip},{clipPath:opening?fullClip:cardClip}],{duration:opening?360:240,easing:'cubic-bezier(.22,.8,.25,1)'});
+ const timing={duration:opening?360:240,easing:'cubic-bezier(.22,.8,.25,1)'};
+ const photo=animatePartnerPhoto(view,opening,frame,timing);
+ if(!photo)view.photoTransition?.cancel();
+ const motion=dialog.animate([{clipPath:opening?cardClip:currentClip&&currentClip!=='none'?currentClip:fullClip},{clipPath:opening?fullClip:cardClip}],timing);
  view.expansion=motion;
- return motion.finished.catch(()=>{}).finally(()=>{if(view.expansion===motion)view.expansion=null;});
+ return Promise.all([motion.finished.catch(()=>{}),photo?.finished]).finally(()=>{if(view.expansion===motion)view.expansion=null;});
 }
 export async function openMemberPartner(ctx){
  const sessionKey=getMemberSessionKey(ctx);if(!sessionKey||!isMemberRoute())return ctx.render();
@@ -148,7 +152,7 @@ export async function openMemberPartner(ctx){
  if(back){back.innerHTML=icon('arrow-left');back.setAttribute('aria-label','혜택으로 돌아가기');back.setAttribute('title','뒤로');}
  const close=dialog.requestClose.bind(dialog);
  dialog.requestClose=discard=>{
-  if(discard){view.expansion?.cancel();view.closing=true;expireMemberQr(view);return close(true);}
+  if(discard){view.expansion?.cancel();view.photoTransition?.cancel();view.closing=true;expireMemberQr(view);return close(true);}
   if(view.closing)return view.closePromise||Promise.resolve(true);
   if(dialog.isSaving())return close();
   view.closing=true;expireMemberQr(view);
@@ -171,6 +175,7 @@ export async function partnerAction(ctx,action){
  const view=ctx.state.memberPartner;if(!view||!memberCurrent(ctx,view))return;
  if(action==='partner-reveal'){
   if(view.revealed)return;
+  view.expansion?.cancel();view.photoTransition?.cancel();
   view.revealed=true;view.revealCleanup?.();view.revealCleanup=null;
   view.dialog.classList.add('is-coupon-revealed');
   view.dialog.querySelector('.partner-benefits-copy')?.setAttribute('aria-hidden','true');

@@ -211,3 +211,13 @@ dialog.partner-dialog.partner-expanded.is-coupon-revealed .partner-hero{min-heig
 dialog.partner-dialog.partner-expanded .partner-coupon-area{width:100%;max-width:464px;margin-inline:auto;padding-inline:0}
 dialog.partner-dialog.partner-expanded .partner-coupon-pocket::after{bottom:-56px}
 dialog.partner-dialog.partner-expanded .partner-coupon-float{max-width:440px}
+
+/* Carry the card's painted image into the expanded hero without stretching it. */
+.partner-expanded .partner-photo-transition{position:absolute;inset:0;z-index:0;overflow:hidden;pointer-events:none}
+.partner-photo-transition-window{position:absolute;inset:0}
+.partner-photo-transition-window>img,.partner-photo-transition-shade{position:absolute;top:0;left:0;max-width:none;transform-origin:0 0}
+.partner-photo-transition-window>img{display:block;object-fit:fill}
+dialog.partner-expanded.is-image-expanding>.dialog-frame{z-index:1}
+.partner-expanded.is-image-expanding :is(.partner-feelingfine,.partner-hero){background:transparent}
+.partner-expanded.is-image-expanding .partner-hero>img{visibility:hidden}
+.partner-expanded.is-image-expanding .partner-hero::after{opacity:0}
