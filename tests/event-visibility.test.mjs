@@ -118,43 +118,45 @@ test('member lounge event lists omit hidden events while existing unflagged even
  assert.equal(f.event('private-event').memberVisible,false);
 });
 
-test('member application history hides private events without deleting their existing registrations',async()=>{
+test('member application history retains unlisted events and existing registrations',async()=>{
  const f=fixture(),result=await f.handle({op:'memberApplications',sessionKey});
- assert.deepEqual(result.applications.map(row=>row.event.id).sort(),['legacy-event','public-event']);
- assert.equal(result.applications.some(row=>row.application.eventTitle==='private-event'),false);
+ assert.deepEqual(result.applications.map(row=>row.event.id).sort(),['legacy-event','private-event','public-event']);
+ assert.equal(result.applications.some(row=>row.application.eventTitle==='private-event'),true);
  assert.equal(f.application('private-event').status,'registered');
  assert.equal(f.writes.filter(write=>!write.path.startsWith('martini_v2_rateLimits/')).length,0);
 });
 
-test('session and legacy event access reject hidden events even with valid authentication or share keys',async()=>{
+test('unlisted events require a share key while listed events also allow session access',async()=>{
  for(const id of Object.keys(eventKeys)){
   const f=fixture();
   for(const input of [{op:'memberEventAccess',eventId:id,sessionKey},{op:'eventAccess',eventId:id,key:eventKeys[id]},{op:'resolveLink',kind:'e',key:eventKeys[id]}]){
-   if(id==='private-event')await assert.rejects(f.handle(input),code('not-found'));
+   if(id==='private-event'&&input.op==='memberEventAccess')await assert.rejects(f.handle(input),code('not-found'));
    else assert.equal((await f.handle(input)).id,id);
   }
  }
 });
 
-test('session application access blocks every action for a hidden event while public histories remain usable',async()=>{
+test('owners can view and manage their applications for unlisted events',async()=>{
  for(const action of ['get','payment','cancel','accept','decline']){
-  const f=fixture(),before=f.application('private-event');
-  await assert.rejects(f.handle({op:'memberApplication',sessionKey,id:appId('private-event'),action}),code('not-found'));
-  assert.deepEqual(f.application('private-event'),before);
-  assert.equal(f.writes.filter(write=>!write.path.startsWith('martini_v2_rateLimits/')).length,0);
+  const f=fixture(),id=appId('private-event');
+  if(['accept','decline'].includes(action))f.records.set('martini_v2_applications/'+id,{...f.application('private-event'),status:'offered',offerExpiresAt:time(3600000)});
+  const result=await f.handle({op:'memberApplication',sessionKey,id,action});
+  assert.equal(result.event.id,'private-event');
+  assert.equal(result.application.status,['cancel','decline'].includes(action)?'cancelled':'registered');
+  assert.equal(result.application.payment,action==='payment'?'requested':'unpaid');
  }
- for(const id of ['public-event','legacy-event']){
+ for(const id of ['public-event','private-event','legacy-event']){
   const f=fixture(),result=await f.handle({op:'memberApplication',sessionKey,id:appId(id),action:'get'});
   assert.equal(result.event.id,id);
   assert.equal(result.application.id,appId(id));
  }
 });
 
-test('new registrations reject hidden events through session and legacy forms without changing counts',async()=>{
+test('unlisted registrations require a valid link while listed events accept either access mode',async()=>{
  for(const mode of ['session','legacy'])for(const id of Object.keys(eventKeys)){
   const f=fixture({applications:false}),before=f.event(id);
   const input={op:'apply',eventId:id,answers:[],consent:true,requestId:'new-'+mode,receiptKey:'9'.repeat(64),...(mode==='session'?{sessionKey}:{key:eventKeys[id],name:member.name,studentId:member.studentId})};
-  if(id==='private-event'){
+  if(id==='private-event'&&mode==='session'){
    await assert.rejects(f.handle(input),code('not-found'));
    assert.deepEqual(f.event(id),before);
    assert.equal(f.application(id),undefined);
@@ -168,7 +170,7 @@ test('new registrations reject hidden events through session and legacy forms wi
  }
 });
 
-test('visibility changes affect lounge lists and histories immediately without changing registration records',async()=>{
+test('visibility changes affect lounge lists immediately while preserving personal history and share links',async()=>{
  const f=fixture(),before=f.application('private-event');
  await f.handle({op:'saveEvent',...eventInput({id:'private-event',revision:1,memberVisible:true})},owner);
  assert.ok((await f.handle({op:'memberPortal',sessionKey})).events.some(event=>event.id==='private-event'));
@@ -176,7 +178,8 @@ test('visibility changes affect lounge lists and histories immediately without c
  assert.equal((await f.handle({op:'memberEventAccess',sessionKey,eventId:'private-event'})).id,'private-event');
  await f.handle({op:'saveEvent',...eventInput({id:'private-event',revision:2,memberVisible:false})},owner);
  assert.ok(!(await f.handle({op:'memberPortal',sessionKey})).events.some(event=>event.id==='private-event'));
- assert.ok(!(await f.handle({op:'memberApplications',sessionKey})).applications.some(row=>row.event.id==='private-event'));
+ assert.ok((await f.handle({op:'memberApplications',sessionKey})).applications.some(row=>row.event.id==='private-event'));
+ assert.equal((await f.handle({op:'eventAccess',eventId:'private-event',key:eventKeys['private-event']})).id,'private-event');
  assert.deepEqual(f.application('private-event'),before);
 });
 
@@ -202,4 +205,48 @@ test('existing private receipt holders retain their receipt link and cancellatio
  assert.equal(f.application('private-event').status,'cancelled');
  assert.equal(f.event('private-event').registered,0);
  await assert.rejects(f.handle({op:'receipt',id,key:'0'.repeat(64),action:'get'}),code('not-found'));
+});
+
+test('unlisted link reissue invalidates old keys without publishing or changing receipts',async()=>{
+ const f=fixture(),id='private-event',oldKey=eventKeys[id],before=f.application(id);
+ const rotated=await f.handle({op:'rotateEventLink',id,revision:1},owner);
+ assert.equal(f.event(id).memberVisible,false);
+ for(const input of [{op:'resolveLink',kind:'e',key:oldKey},{op:'eventAccess',eventId:id,key:oldKey}])await assert.rejects(f.handle(input),code('not-found'));
+ assert.equal((await f.handle({op:'resolveLink',kind:'e',key:rotated.linkKey})).id,id);
+ assert.equal((await f.handle({op:'eventAccess',eventId:id,key:rotated.linkKey})).id,id);
+ await assert.rejects(f.handle({op:'rotateEventLink',id,revision:1},owner),code('aborted'));
+ assert.equal((await f.handle({op:'receipt',id:appId(id),key:receiptKeys[id]})).application.id,appId(id));
+ assert.deepEqual(f.application(id),before);
+ assert.ok(!(await f.handle({op:'memberPortal',sessionKey})).events.some(event=>event.id===id));
+ assert.ok(f.writes.some(write=>write.path.startsWith('martini_v2_audit/')));
+});
+
+test('unlisted links retain token, roster, status, and deletion checks',async()=>{
+ for(const scenario of ['wrong-key','wrong-member','removed-member','draft','closed','deleted']){
+  const f=fixture({applications:false}),id='private-event',input={op:'apply',eventId:id,key:eventKeys[id],name:member.name,studentId:member.studentId,answers:[],consent:true,requestId:'invalid-'+scenario,receiptKey:'9'.repeat(64)};
+  if(scenario==='wrong-key')input.key='0'.repeat(64);
+  if(scenario==='wrong-member')input.name='다른 부원';
+  if(scenario==='removed-member')f.records.get('martini_v2_semesters/2026-2/members/'+member.id).removedAt=stamp;
+  if(['draft','closed'].includes(scenario))f.records.get('martini_v2_events/'+id).status=scenario;
+  if(scenario==='deleted')f.records.get('martini_v2_events/'+id).deletedAt=stamp;
+  const before=f.event(id);
+  await assert.rejects(f.handle(input),code(['wrong-key','draft','deleted'].includes(scenario)?'not-found':scenario==='closed'?'failed-precondition':'permission-denied'));
+  assert.deepEqual(f.event(id),before);assert.equal(f.application(id),undefined);
+ }
+});
+
+test('unlisted application history still requires ownership and a live member session',async()=>{
+ for(const scenario of ['other-owner','changed-identity','deleted','anonymized','wrong-semester']){
+  const f=fixture(),id=appId('private-event'),record=f.records.get('martini_v2_applications/'+id);
+  if(scenario==='other-owner')record.memberId='someone-else';
+  if(scenario==='changed-identity')record.memberIdentityHash='0'.repeat(64);
+  if(scenario==='deleted')record.deletedAt=stamp;
+  if(scenario==='anonymized')record.anonymizedAt=stamp;
+  if(scenario==='wrong-semester')f.records.get('martini_v2_events/private-event').semester='2026-1';
+  assert.ok(!(await f.handle({op:'memberApplications',sessionKey})).applications.some(row=>row.application.id===id));
+  await assert.rejects(f.handle({op:'memberApplication',sessionKey,id}),code('not-found'));
+ }
+ const f=fixture();
+ f.records.get('martini_v2_memberSessions/'+hash(sessionKey)).expiresAt=Timestamp.fromMillis(START-1);
+ await assert.rejects(f.handle({op:'memberApplication',sessionKey,id:appId('private-event')}),code('unauthenticated'));
 });

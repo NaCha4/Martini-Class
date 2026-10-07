@@ -54,7 +54,7 @@ async function globals(values,run){
  try{return await run();}
  finally{for(const [key,descriptor] of previous)if(descriptor)Object.defineProperty(globalThis,key,descriptor);else delete globalThis[key];}
 }
-const at=(path,run)=>{const url=new URL(path,'https://martini.test');return globals({location:{pathname:url.pathname,search:url.search}},run);};
+const at=(path,run)=>{const url=new URL(path,'https://martini.test');return globals({location:{pathname:url.pathname,search:url.search,origin:url.origin}},run);};
 const hrefs=html=>[...html.matchAll(/<a\b[^>]*\bhref="([^"]*)"/g)].map(match=>match[1]);
 function noRetiredLinks(html){
  for(const href of hrefs(html))assert.ok(!retired.some(kind=>new RegExp('^/admin/'+kind+'(?:[/?#]|$)').test(href)),'Retired link: '+href);
@@ -438,7 +438,7 @@ test('new, legacy, and private event editors preserve visibility defaults and sa
   const {ctx}=context();
   if(existing)ctx.state.data.events={[current.id]:current};
   const saved=[];let rendered=0;
-  ctx.api=async(op,data)=>{assert.equal(op,'saveEvent');saved.push(data);return {saved:true,...(!submitVisible?{linkKey:'legacy-private-link'}:{})};};
+  ctx.api=async(op,data)=>{assert.equal(op,'saveEvent');saved.push(data);return {saved:true,...(!existing?{linkKey:'a'.repeat(64)}:{})};};
   ctx.render=async()=>{rendered++;};ctx.toast=()=>{};
   await at('/admin/events'+(existing?'/'+current.id:''),()=>withDialogs(async dialogs=>{
    await adminAction(ctx,'event-edit',existing?current.id:undefined);
@@ -452,7 +452,7 @@ test('new, legacy, and private event editors preserve visibility defaults and sa
    }
    assert.equal(dialog.querySelector('[name=status]').value,existing?'open':'draft');
    assert.equal(dialog.querySelector('[name=memberVisible]').checked,storedVisible!==false);
-   assert.match(html,/부원에게 공개/);assert.match(html,/체크를 해제하면 부원 라운지와 행사 신청 링크에서 숨겨지며/);
+   assert.match(html,/부원 행사 목록에 공개/);assert.match(html,/체크를 해제하면 부원 행사 목록에서만 숨깁니다/);assert.match(html,/링크를 받은 부원은 신청할 수 있고/);
    assert.equal(dialog.querySelector('[name=confirmCancellation]').disabled,true);
    assert.equal(dialog.querySelector('[type=submit]').textContent,'행사 저장');
    if(existing){
@@ -466,31 +466,39 @@ test('new, legacy, and private event editors preserve visibility defaults and sa
    assert.deepEqual(saved,[{...(existing?{id:current.id,revision:4}:{revision:0}),...values,title:'새 칵테일 교육',...Object.fromEntries(Object.entries(dates).map(([key,value])=>[key,new Date(value).toISOString()])),capacity:24,fee:5000,memberVisible:submitVisible,waitlist:true,questions:['준비물 확인','기타 요청']}]);
    assert.equal(rendered,1);
    assert.equal(dialog.open,false);
-   if(!submitVisible){await new Promise(resolve=>setTimeout(resolve,0));assert.equal(dialogs.length,1,'Private event saves must not open a share dialog even if an older response contains a link');}
+   await new Promise(resolve=>setTimeout(resolve,0));
+   assert.equal(dialogs.length,existing?1:2,'New events show their share link regardless of listing visibility');
+   if(!existing)assert.match(dialogs[1].innerHTML,/행사 신청 링크/);
   }));
  }
 });
 
-test('private events remain in admin cards and details with a clear label and editable settings, without invite controls',async()=>{
+test('unlisted events retain their admin label, edit controls, and link reissue action',async()=>{
  for(const memberVisible of [undefined,true,false]){
   const current=event(memberVisible===undefined?{}:{memberVisible}),{ctx}=context({rows:{events:[current]}});
   const list=main(await at('/admin/events',()=>renderAdmin(ctx)));
-  assert.match(list,memberVisible===false?/event-term[^>]*>[^<]*운영진 전용/:/event-term[^>]*>[^<]*부원 공개/);
+  assert.match(list,memberVisible===false?/event-term[^>]*>[^<]*링크로만 공개/:/event-term[^>]*>[^<]*부원 공개/);
   assert.ok(hrefs(list).includes('/admin/events/event-a'));
   const detail=main(await at('/admin/events/event-a',()=>renderAdmin(ctx)));
   assert.match(detail,/data-action="event-edit"/);
-  assert.match(detail,memberVisible===false?/<span class="badge">운영진 전용<\/span>/:/<span class="badge">부원 공개<\/span>/);
-  if(memberVisible===false){assert.doesNotMatch(detail,/data-action="event-link"|신청 링크를 복사해서/);assert.match(detail,/공개 설정을 변경해 주세요/);}
-  else assert.match(detail,/data-action="event-link"/);
+  assert.match(detail,memberVisible===false?/<span class="badge">링크로만 공개<\/span>/:/<span class="badge">부원 공개<\/span>/);
+  assert.match(detail,/data-action="event-link"/);
+  if(memberVisible===false)assert.match(detail,/신청 링크를 만들어 참여할 부원에게 전달/);
  }
 });
 
-test('private event link actions do not open the share workflow or request a new link',async()=>{
- const {ctx,calls}=context(),messages=[];ctx.state.data.events={'event-a':event({memberVisible:false})};ctx.toast=message=>messages.push(message);
+test('unlisted event links can be reissued and shared after confirmation',async()=>{
+ const {ctx}=context(),calls=[];ctx.state.data.events={'event-a':event({memberVisible:false,revision:7})};ctx.toast=()=>{};ctx.render=async()=>{};
+ ctx.api=async(op,data)=>{calls.push({op,data});return {linkKey:'b'.repeat(64)};};
  await at('/admin/events/event-a',()=>withDialogs(async dialogs=>{
-  await adminAction(ctx,'event-link','event-a');assert.equal(dialogs.length,0);
+  await adminAction(ctx,'event-link','event-a');assert.equal(dialogs.length,1);assert.deepEqual(calls,[]);
+  assert.match(dialogs[0].innerHTML,/이전 행사 신청 링크는 사용할 수 없습니다/);
+  await dialogs[0].querySelector('form').listeners.get('submit')({preventDefault(){}});
+  await new Promise(resolve=>setTimeout(resolve,0));
+  assert.equal(dialogs.length,2);assert.match(dialogs[1].innerHTML,/행사 신청 링크/);
+  assert.equal(dialogs[1].querySelector('[name=shareUrl]').value,'https://martini.test/e/#'+Buffer.from('b'.repeat(64),'hex').toString('base64url'));
  }));
- assert.deepEqual(calls,[]);assert.match(messages[0],/운영진 전용 행사/);
+ assert.deepEqual(calls,[{op:'rotateEventLink',data:{id:'event-a',revision:7}}]);
 });
 
 test('finance permission still opens event participants and existing event payment controls',async()=>{
