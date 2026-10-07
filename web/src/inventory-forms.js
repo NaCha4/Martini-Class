@@ -1,5 +1,5 @@
 import { field, modal } from './ui.js';
-import { read } from './admin.js';
+import { read } from './admin-data.js';
 
 const units={each:'개',bottle:'병',g:'g',ml:'mL',pack:'팩'};
 const integerUnit=unit=>['each','bottle','pack'].includes(unit);

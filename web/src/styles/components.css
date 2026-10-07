@@ -1,0 +1,300 @@
+/* Reading-first records, grouped editors and direct task controls. */
+/* Task-oriented navigation, event discovery and application shortcuts. */
+.list-guide {
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: 18px;
+}
+.event-card .event-visual {
+  height: auto;
+  min-height: 58px;
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.event-card .event-visual>svg {
+  width: 22px;
+  height: 22px;
+}
+.event-card .event-visual>.badge {
+  position: static;
+  margin-left: auto;
+}
+.event-term {
+  font-size: 12px;
+  color: var(--muted);
+}
+.event-content :is(h2,h3) {
+  margin-top: 12px;
+  overflow-wrap: anywhere;
+}
+.event-deadline {
+  font-size: 12px!important;
+  color: var(--muted);
+}
+.event-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 16px;
+  margin-top: 16px;
+  border-top: 1px solid var(--line);
+  font-size: 12px;
+  color: var(--muted);
+}
+.event-card-footer strong {
+  color: var(--gold);
+  font-weight: 500;
+}
+.application-shortcut {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px 24px;
+  margin-bottom: 28px;
+  border: 1px solid #655035;
+  background: var(--gold-dark);
+  border-radius: 8px;
+}
+.application-shortcut strong {
+  display: block;
+  font-size: 16px;
+}
+.application-shortcut small {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+  margin-top: 6px;
+}
+.application-shortcut .button {
+  flex-shrink: 0;
+}
+.application-description h2 {
+  margin-bottom: 14px;
+}
+.record-delete {
+  color: var(--muted);
+  border-color: transparent;
+}
+.record-delete:hover {
+  color: #ffb8ae;
+  border-color: #914e44;
+  background: #914e4420;
+}
+.event-card-wrap {
+  position: relative;
+  min-width: 0;
+}
+.event-card-wrap .event-card {
+  display: block;
+  height: 100%;
+}
+.event-card-wrap>.record-delete {
+  position: absolute;
+  right: 12px;
+  top: 66px;
+  z-index: 1;
+  background: var(--surface);
+}
+.event-card-wrap .event-term {
+  display: block;
+  padding-right: 34px;
+}
+.delete-impact {
+  padding: 16px;
+  background: var(--raised);
+  border-radius: 6px;
+  line-height: 1.8;
+}
+.delete-impact p {
+  font-size: 14px;
+}
+@media(max-width:580px) {
+  .application-shortcut {
+    padding: 16px;
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .application-shortcut .button {
+    width: 100%;
+  }
+  .event-card-footer {
+    font-size: 12px;
+  }
+  .toolbar select[data-event-type] {
+    max-width: none;
+    flex: 1;
+  }
+  .record-delete {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+.receipt-account {
+  margin: 0 0 1.25rem;
+  padding: 0 0 1.25rem;
+  border-bottom: 1px solid var(--line);
+}
+.receipt-account .account-owner {
+  margin-bottom: .4rem;
+  overflow-wrap: anywhere;
+}
+.account-owner span {
+  margin-inline: .35rem;
+  color: var(--muted);
+}
+.receipt-account .account-fee {
+  margin: .5rem 0 1rem;
+}
+.account-number {
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+.decision-context {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 22px 24px;
+  margin-bottom: 24px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+.decision-category-picker {
+  flex: 1;
+  min-width: 0;
+  max-width: 600px;
+}
+.decision-category-picker label {
+  display: block;
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+.decision-category-picker select {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-height: 46px;
+  padding: 12px 13px;
+  border: 1px solid #4b4947;
+  border-radius: 5px;
+  color: var(--text);
+  background: #18181a;
+  font: inherit;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+.decision-category-picker select:hover {
+  border-color: #8b7859;
+}
+.decision-category-picker select:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+  border-color: var(--gold);
+}
+.decision-context-copy {
+  flex-basis: 100%;
+  min-width: 0;
+}
+.decision-context-copy h2 {
+  font-size: 18px;
+  margin: 4px 0 6px;
+  overflow-wrap: anywhere;
+}
+.decision-context-copy p {
+  font-size: 13px;
+  color: var(--muted);
+  margin: 0;
+}
+@media(max-width:650px) {
+  .decision-context {
+    padding: 18px;
+    gap: 12px;
+  }
+  .decision-category-picker {
+    flex-basis: 100%;
+  }
+  .decision-category-picker select {
+    font-size: 16px;
+  }
+  .decision-context>.button {
+    width: 100%;
+  }
+}
+/* Member entry remains visible on narrow screens; operations are secondary. */
+.member-header-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 8px 14px;
+  border: 1px solid #897344;
+  border-radius: 8px;
+  color: #f0dba4;
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+.member-header-link:hover {
+  background: #352e21;
+}
+.member-header-link:focus-visible,.footer-admin-link:focus-visible {
+  outline: 2px solid #f0dba4;
+  outline-offset: 4px;
+}
+.footer-admin-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  color: inherit;
+  font-size: 12px;
+  text-decoration: none;
+}
+@media(max-width:640px) {
+  .member-header-link {
+    padding: 8px 10px;
+    font-size: 12px;
+  }
+  .member-header-link svg {
+    width: 17px;
+    height: 17px;
+  }
+  .public-header .header-actions {
+    gap: 8px;
+  }
+}
+.event-section:not([hidden])~.event-section {
+  margin-top: 36px;
+  padding-top: 28px;
+  border-top: 1px solid var(--line);
+}
+.event-section-heading {
+  margin-bottom: 18px;
+}
+.event-section-heading h2 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -.03em;
+}
+.event-section-heading [data-event-section-count] {
+  padding: 3px 8px;
+  border-radius: 5px;
+  background: var(--raised);
+  color: var(--muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+/* The overview reflects the remaining event, roster and inventory work. */

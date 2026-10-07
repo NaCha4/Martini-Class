@@ -4,7 +4,7 @@ import { shortLink } from './share-links.js';
 import { hasPermission, permissionLabels } from '../../functions/src/permissions.js';
 import { openChatUrl } from '../../functions/src/public-links.js';
 import { esc, field, icon, badge, button, date, money, label, modal, textBlock, downloadCSV } from './ui.js';
-import { read,total,unit,rosterSemester } from './admin.js';
+import { read,total,unit,rosterSemester } from './admin-data.js';
 import { itemEdit } from './inventory-forms.js';
 const uuid=()=>crypto.randomUUID();
 const val=(f,n)=>String(f.get(n)||'').trim(),num=(f,n)=>Number(f.get(n)||0);

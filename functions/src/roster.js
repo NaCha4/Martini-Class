@@ -26,5 +26,16 @@ export function createRoster(col){
   const [stored,legacy]=await Promise.all([col('semesters').get(),col('members').select('semester').get()]);
   return [...new Set([...stored.docs.map(d=>d.id),...legacy.docs.map(d=>d.data().semester)])].filter(s=>semesterSchema.safeParse(s).success).sort().reverse();
  }
- return {collection,get,documents,find,findStudent:(studentId,semester,tx)=>find(studentId,semester,tx,'studentId'),terms,value};
+ async function countActive(semester){
+  return col('semesters').firestore.runTransaction(async tx=>{
+   const [nested,legacy]=await Promise.all([
+    tx.get(collection(semester).select('removedAt','anonymizedAt')),
+    tx.get(col('members').where('semester','==',semester).select('removedAt','anonymizedAt')),
+   ]);
+   const docs=new Map(legacy.docs.map(doc=>[doc.id,doc]));
+   nested.docs.forEach(doc=>docs.set(doc.id,doc));
+   return [...docs.values()].filter(doc=>!doc.data().removedAt&&!doc.data().anonymizedAt).length;
+  },{readOnly:true});
+ }
+ return {collection,get,documents,countActive,find,findStudent:(studentId,semester,tx)=>find(studentId,semester,tx,'studentId'),terms,value};
 }

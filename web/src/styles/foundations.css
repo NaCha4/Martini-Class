@@ -1,0 +1,168 @@
+@font-face {
+  font-family: Pretendard;
+  src: url('/assets/fonts/Pretendard-Regular.woff2') format('woff2');
+  font-weight: 400 500;
+  font-display: swap;
+}
+@font-face {
+  font-family: Pretendard;
+  src: url('/assets/fonts/Pretendard-Bold.woff2') format('woff2');
+  font-weight: 600 700;
+  font-display: swap;
+}
+@font-face {
+  font-family: Pretendard;
+  src: url('/assets/fonts/Pretendard-ExtraBold.woff2') format('woff2');
+  font-weight: 800 900;
+  font-display: swap;
+}
+:root {
+  font-family: Pretendard,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  color-scheme: dark;
+  color: var(--text);
+  background: var(--bg);
+  font-synthesis: none;
+  --bg: #171719;
+  --surface: #202022;
+  --raised: #272728;
+  --text: #f1eee8;
+  --muted: #b0aaa1;
+  --line: #363436;
+  --gold: #ddbd84;
+  --gold-dark: #242016;
+}
+* {
+  box-sizing: border-box;
+}
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 100px;
+}
+body {
+  margin: 0;
+}
+a {
+  color: inherit;
+  text-decoration: none;
+}
+button,input,select,textarea {
+  font: inherit;
+}
+button,a,input,select,textarea {
+  -webkit-tap-highlight-color: transparent;
+}
+button {
+  cursor: pointer;
+}
+button:disabled {
+  opacity: .5;
+  cursor: wait;
+}
+button svg,a svg {
+  width: 19px;
+  height: 19px;
+  flex-shrink: 0;
+}
+:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 4px;
+}
+[hidden] {
+  display: none!important;
+}
+h1,h2,h3,p {
+  margin: 0;
+}
+svg {
+  width: 22px;
+  height: 22px;
+}
+p {
+  line-height: 1.8;
+}
+::selection {
+  background: #ddbd8440;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 12px;
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: .4px;
+}
+.brand .wordmark {
+  display: block;
+  width: 150px;
+  height: auto;
+  filter: invert(1);
+  object-fit: contain;
+}
+.eyebrow {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: .04em;
+  color: var(--gold);
+  margin-bottom: 16px;
+}
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 46px;
+  padding: 12px 20px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: var(--gold);
+  color: #201b13;
+  font-size: 14px;
+  font-weight: 700;
+  transition: background .15s,border-color .15s;
+}
+.button:hover {
+  background: #edcf97;
+}
+.button.secondary {
+  background: transparent;
+  border-color: #514a40;
+  color: var(--text);
+}
+.button.secondary:hover {
+  background: #33302b;
+  border-color: #8c7956;
+}
+.button.ghost {
+  background: transparent;
+  color: var(--muted);
+}
+.button.ghost:hover {
+  background: var(--raised);
+  color: var(--text);
+}
+.button.danger {
+  background: #914e44;
+  color: #fff;
+}
+.button.small {
+  min-height: 38px;
+  padding: 8px 12px;
+  font-size: 13px;
+}
+.full {
+  width: 100%;
+}
+.skip-link {
+  position: fixed;
+  top: -100px;
+  left: 16px;
+  z-index: 100;
+  background: var(--gold);
+  color: #111;
+  padding: 14px;
+}
+.skip-link:focus {
+  top: 12px;
+}

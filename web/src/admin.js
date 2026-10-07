@@ -1,3 +1,6 @@
+import './styles/admin.css';
+import { read, readAll, loadMore, rosterSemester, total, unit } from './admin-data.js';
+export { read, readAll, rosterSemester, total, unit } from './admin-data.js';
 import { billingFee } from '../../functions/src/billing.js';
 import { hasPermission, permissionLabels, isRequestViewer, REQUEST_VIEWER_ROLE } from '../../functions/src/permissions.js';
 import { openChatUrl } from '../../functions/src/public-links.js';
@@ -7,7 +10,7 @@ import { handleAdminAction, handleAdminSubmit } from './admin-forms.js';
 import { hasStaffFee, staffCheckbox } from './staff-pricing.js';
 import { renderAdminRequests, adminRequestAction } from './admin-requests.js';
 import { renderOnTheRock, onTheRockAction } from './on-the-rock.js';
-import { renderInventory, inventoryAction } from './inventory.js';
+import { renderInventory, inventoryAction, bindInventoryBoard } from './inventory.js';
 import { renderBudgetPlanner, budgetPlannerAction } from './budget-planner.js';
 import { renderPartnerAdmin, partnerAdminAction } from './partner-admin.js';
 import { renderEquipmentAdmin,equipmentAdminAction } from './equipment.js';
@@ -50,21 +53,6 @@ export function sortMemberRows(ctx,control){
  body.append(...Array.from(body.rows).sort((a,b)=>compareMembers(member(a),member(b),ctx.state.memberSortField,ctx.state.memberSortDirection)));
 }
 
-export const rosterSemester=ctx=>/^20\d{2}-[12]$/.test(new URLSearchParams(location.search).get('semester')||'')&&location.pathname.replace(/\/$/,'')==='/admin/members'?new URLSearchParams(location.search).get('semester'):ctx.state.settings.semester;
-function memberParams(ctx,kind,params){if(kind!=='members')return params;const semester=params.semester||rosterSemester(ctx),removed=false;if(ctx.state.memberSemester!==semester||ctx.state.memberRemoved!==removed){ctx.state.data.members={};if(ctx.state.pages)delete ctx.state.pages.members;ctx.state.memberSemester=semester;ctx.state.memberRemoved=removed;}return {...params,semester,removed};}
-export async function read(ctx,kind,params={}){
- params=memberParams(ctx,kind,params);
- const result=await ctx.api('read',{kind,...params});
- ctx.state.data[kind]||={};result.rows.forEach(row=>ctx.state.data[kind][row.id]=row);
- ctx.state.pages||={};if(!params.recordId&&!params.eventId&&!params.revisions)ctx.state.pages[kind]=result;
- return result;
-}
-export async function readAll(ctx,kind,params={}){
- params=memberParams(ctx,kind,params);
- const rows=[];let cursor;
- do{const page=await ctx.api('read',{kind,...params,...(cursor?{cursor}:{})});rows.push(...page.rows);cursor=page.nextCursor;}while(cursor);
- ctx.state.data[kind]||={};rows.forEach(r=>ctx.state.data[kind][r.id]=r);ctx.state.pages||={};ctx.state.pages[kind]={rows,nextCursor:null};return {rows,nextCursor:null};
-}
 function heading(eyebrow,title,description,action=''){return '<div class="page-heading"><div><h1 id="page-title" tabindex="-1">'+title+'</h1><p>'+description+'</p></div>'+action+'</div>';}
 function toolbar(kind,choices=[],extra=''){
  const inventory=kind==='inventory',config={events:['행사 이름 · 장소','행사'],members:['이름 · 학번 · 연락처 · 학과','부원'],inventory:['품목 이름','품목'],admins:['이름 · 역할','임원'],audit:['작업 · 처리자','변경 이력'],applications:['신청자 이름','신청자']}[kind]||['이름 · 내용','목록'];
@@ -80,24 +68,19 @@ function managementActions(kind,id,allowDelete=true){
 function table(headers,rows){return '<div class="table-wrap"><table><thead><tr>'+headers.map(h=>'<th scope="col">'+h+'</th>').join('')+'</tr></thead><tbody>'+rows.join('')+'</tbody></table></div>';}
 function row(record,search,cells,headers,status=record.status){return '<tr data-searchable="'+esc(search)+'" data-status="'+esc(status||'')+'">'+cells.map((cell,i)=>'<td data-label="'+esc(headers[i])+'">'+cell+'</td>').join('')+'</tr>';}
 function next(ctx,kind){return ctx.state.pages?.[kind]?.nextCursor?'<div class="pagination">'+button('기록 100개 더 보기','load-more',{id:kind,class:'button secondary'})+'</div>':'';}
-function statusOverview(events){return events.filter(e=>!['cancelled','completed','draft'].includes(e.status)&&Date.parse(e.endsAt)>=Date.now());}
 const eventVisibility=event=>event.memberVisible===false?'링크로만 공개':'부원 공개';
 async function home(ctx){
- const kinds=['events','members','inventory'].filter(k=>can(ctx,k));
- const loaded=await Promise.all(kinds.map(async k=>[k,(await readAll(ctx,k)).rows.filter(r=>k==='inventory'||r.semester===ctx.state.settings.semester)]));const data=Object.fromEntries(loaded);
- const events=statusOverview(data.events||[]).sort((a,b)=>a.startsAt.localeCompare(b.startsAt));
- const items=(data.inventory||[]).filter(i=>total(i)<i.minimum);
- const metrics=[['calendar-days','다가오는 행사',events.length,'events'],['users-round','등록 부원',(data.members||[]).filter(m=>!m.anonymizedAt).length,'members'],['package','확인할 재고',items.length,'inventory']].filter(m=>can(ctx,m[3]));
+ const overview=await ctx.api('dashboard');
+ const events=overview.events||[],items=overview.inventory||[];
+ const metrics=[['calendar-days','다가오는 행사',overview.counts.events||0,'events'],['users-round','등록 부원',overview.counts.members||0,'members'],['package','확인할 재고',overview.counts.inventory||0,'inventory']].filter(m=>can(ctx,m[3]));
  const setup=can(ctx,'settings')&&(!ctx.state.settings.id||(!ctx.state.settings.contact&&!openChatUrl(ctx.state.settings.joinUrl)))?'<section class="operations-note">'+icon('settings-2')+'<div><h2>모집 전에 운영 정보를 확인해 주세요</h2><p>현재 학기와 동아리 문의 채널 또는 가입 오픈채팅 링크를 확인해 주세요.</p></div><a href="/admin/settings" data-nav class="button secondary">운영 설정 확인</a></section>':'';
  return heading('YOUR CLUB, AT A GLANCE','운영 현황','이번 학기의 행사, 등록 부원과 보유 재고입니다.')+quickStart(ctx)+setup+
  '<div class="metrics admin-overview-metrics">'+metrics.map(([i,t,n,k])=>'<a data-nav href="/admin/'+k+'" class="metric"><span class="metric-icon">'+icon(i)+'</span><div><span>'+t+'</span><strong>'+n+'<small>'+(k==='members'?'명':'건')+'</small></strong></div>'+icon('arrow-up-right')+'</a>').join('')+'</div><p class="data-caption">현재 학기의 전체 기록 기준입니다.</p>'+
  '<div class="dashboard-grid admin-overview-grid">'+(can(ctx,'events')?'<section class="panel"><div class="panel-title"><h2>다가오는 행사</h2><a data-nav href="/admin/events">전체 보기 '+icon('arrow-right')+'</a></div>'+(events.length?events.slice(0,4).map(e=>'<a data-nav href="/admin/events/'+e.id+'" class="schedule-row"><div class="date-tile"><b>'+new Date(e.startsAt).getDate()+'</b><small>'+new Intl.DateTimeFormat('ko-KR',{month:'short'}).format(new Date(e.startsAt))+'</small></div><div><h3>'+esc(e.title)+'</h3><p>'+esc(date(e.startsAt,true))+' · '+esc(e.location)+'</p></div>'+badge(e.status)+'</a>').join(''):empty('예정된 행사가 없습니다',scopeEvent(ctx)?'행사 일정과 신청 기간을 정하고 모집을 준비하세요.':'행사 담당자가 일정을 등록하면 이곳에서 확인할 수 있습니다.',scopeEvent(ctx)?button('첫 행사 준비','event-edit',{class:'button secondary'}):''))+'</section>':'')+
  (can(ctx,'inventory')?'<section class="panel"><div class="panel-title"><h2>확인할 재고</h2><a data-nav href="/admin/inventory">전체 보기 '+icon('arrow-right')+'</a></div>'+(items.length?items.slice(0,5).map(i=>'<button class="task-row" data-action="item-view" data-id="'+esc(i.id)+'">'+icon('package')+'<div><h3>'+esc(i.name)+'</h3><p>보유 '+total(i).toLocaleString('ko-KR')+' '+esc(unit(i))+' · 최소 '+Number(i.minimum).toLocaleString('ko-KR')+' '+esc(unit(i))+'</p></div><span class="badge waiting">재고 확인</span></button>').join(''):empty('최소 기준보다 부족한 재고가 없습니다','입고와 사용 기록을 남기면 보유량을 확인할 수 있습니다.','<a data-nav href="/admin/inventory" class="button secondary">재고 관리 열기</a>'))+'</section>':'')+'</div>';
 }
-export const total=item=>item.unit==='bottle'?item.quantity*item.size+Object.values(item.bottles||{}).reduce((sum,p)=>sum+item.size*p/100,0):item.quantity;
-export const unit=item=>item.unit==='bottle'?'mL (추정)':({each:'개',g:'g',ml:'mL',pack:'팩'}[item.unit]||item.unit);
 function previousSemester(term){const [year,half]=String(term).split('-').map(Number);return half===2?year+'-1':(year-1)+'-2';}
-async function list(ctx,kind){
+async function list(ctx,kind,{pageData}={}){
  if(kind==='equipment')return renderEquipmentAdmin(ctx);
  if(kind==='inventory')return renderInventory(ctx);
  if(kind==='budget')return renderBudgetPlanner(ctx);
@@ -120,7 +103,7 @@ async function list(ctx,kind){
   return heading('','역할 관리','역할을 만들고 업무 권한을 정한 뒤 임원에게 배정합니다.',button('역할 만들기','role-edit',{icon:'plus'}))+table(heads,roles.map(r=>row(r,r.name,['<span class="role-name">'+esc(r.name)+'</span>',r.permissions.filter(p=>!['meetings','decisions','content'].includes(p)).map(p=>esc(p==='finance'?'행사 참가비 관리':permissionLabels[p]||(p==='requestsRead'?'신청 · 문의 조회 전용':'역할·임원 관리'))).join(' · ')||'<span class="help">사용 가능한 업무 없음</span>',r.assigned+'명',r.id===REQUEST_VIEWER_ROLE?'<span class="help">고정 조회 권한</span>':['owner','chair'].includes(r.id)?managementActions('role',r.id,false)+'<span class="help">필수 관리 권한 유지</span>':managementActions('role',r.id)],heads)))+'<p class="help">행사 참가비 관리 권한으로 참가자의 입금·환불 기록과 관리인원 금액을 관리합니다. 기본적으로 회장·부회장·재무부에 부여되며, 권한 변경은 배정된 임원 모두에게 적용됩니다. 회장·부회장을 제외한 역할은 삭제할 수 있으며, 배정 인원이 있으면 먼저 다른 역할로 변경해야 합니다.</p>';
  }
 
- let {rows}=['events','members'].includes(kind)?await readAll(ctx,kind):await read(ctx,kind);
+ let {rows}=pageData?.kind===kind?pageData.result:['events','members'].includes(kind)?await readAll(ctx,kind):await read(ctx,kind);
  if(kind==='events'){
   const writable=hasPermission(ctx.state.profile,'events');
   const rank=e=>e.status==='draft'?1:e.status==='cancelled'||Date.parse(e.endsAt)<Date.now()?2:0;
@@ -176,7 +159,7 @@ async function eventDetail(ctx,id){
 function login(ctx){
  return '<main id="main-content" class="login-page"><a href="/" data-nav class="brand"><img class="wordmark" src="/assets/wordmark.png" alt="Martini" width="170" height="42"></a><section class="login-card"><span class="eyebrow">임원 로그인</span><h1 id="page-title" tabindex="-1">마티니 운영실</h1><p>임원 계정으로 로그인해 주세요.</p><form data-form="login">'+field('email','이메일',ctx.state.user?.email||'',{type:'email',required:true,autocomplete:'username',inputmode:'email',maxLength:254})+field('password','비밀번호','',{type:'password',required:true,autocomplete:'current-password',maxLength:4096})+field('remember','이 브라우저에서 로그인 유지',true,{type:'checkbox',wide:true})+'<p class="help">조회 전용 계정은 최대 7일 또는 접근 만료일까지 유지됩니다. 공용 기기에서는 선택을 해제하세요.</p><p role="alert" class="form-error">'+esc(ctx.state.authError||'')+'</p><button type="submit" class="button full">로그인 '+icon('arrow-right')+'</button></form>'+button('비밀번호 재설정','password-reset',{class:'button ghost full'})+(ctx.state.user?button('다른 계정으로 로그인','logout',{class:'button secondary full'}):'')+(local?'<div class="local-note">로컬 검증 환경 · 실제 데이터와 분리되어 있습니다.'+button('가상 임원으로 확인하기','local-login',{class:'button secondary full'})+'</div>':'')+'</section></main>';
 }
-export async function renderAdmin(ctx){
+export async function renderAdmin(ctx,options={}){
  if(retiredSections.has(location.pathname.split('/')[2])){await ctx.navigate('/admin',{replace:true,discard:true});return '';}
  if(!ctx.state.authReady)return '<div class="loading" role="status">'+icon('loader-circle')+'로그인 상태 확인 중</div>';
  if(!ctx.state.user)return login(ctx);
@@ -195,7 +178,7 @@ export async function renderAdmin(ctx){
  if(isRequestViewer(profile)&&!kind){await ctx.navigate('/admin/requests',{replace:true,discard:true});return '';}
  if(kind && !can(ctx,kind))return '<main id="main-content" class="connection-page"><h1 id="page-title" tabindex="-1">접근 권한이 없습니다</h1><p>현재 임원 역할에서 사용할 수 없는 메뉴입니다.</p><a href="/admin" data-nav class="button">운영 홈</a></main>';
  const independent=['budget','partners','requests','equipment'].includes(kind),config=independent?null:(await read(ctx,'settings')).rows[0];if(!independent)ctx.state.settings=config||{semester:'2026-2'};
- let body=kind==='events'&&part[2]?await eventDetail(ctx,part[2]):kind==='settings'?heading('','학기 · 운영 설정','홈페이지 소개와 가입 오픈채팅을 관리합니다.',button('설정 수정','settings-edit',{icon:'pencil'}))+'<section class="panel padded">'+(config?'<div class="detail-grid"><p>현재 학기<br><strong>'+esc(config.semester)+'</strong></p><p>기본 활동 장소<br><strong>'+esc(config.location||'미입력')+'</strong></p><p>동아리 문의 채널<br><strong>'+esc(config.contact||(openChatUrl(config.joinUrl)?'가입 오픈채팅':'미입력'))+'</strong></p></div><hr><h3>가입 오픈채팅</h3>'+(openChatUrl(config.joinUrl)?'<a class="button secondary" href="'+esc(openChatUrl(config.joinUrl))+'" target="_blank" rel="noopener noreferrer">가입 오픈채팅 열기 (새 탭)</a>':'<p>가입 오픈채팅 준비 중입니다. 설정 수정에서 링크를 입력해 주세요.</p>')+'<hr><h3>소개</h3>'+textBlock(config.intro):empty('운영 정보를 입력해 주세요','현재 학기, 동아리 소개와 가입 오픈채팅을 설정합니다.'))+'<hr><h3>개인정보 처리방침</h3><p>기존 홈페이지의 개인정보 처리방침을 사용합니다. 보존 여부는 처리방침에 따라 검토해 주세요.</p><a class="button secondary" href="/privacy" target="_blank" rel="noopener noreferrer">개인정보 처리방침 보기 (새 탭)</a></section>':kind?await list(ctx,kind):await home(ctx);
+ let body=kind==='events'&&part[2]?await eventDetail(ctx,part[2]):kind==='settings'?heading('','학기 · 운영 설정','홈페이지 소개와 가입 오픈채팅을 관리합니다.',button('설정 수정','settings-edit',{icon:'pencil'}))+'<section class="panel padded">'+(config?'<div class="detail-grid"><p>현재 학기<br><strong>'+esc(config.semester)+'</strong></p><p>기본 활동 장소<br><strong>'+esc(config.location||'미입력')+'</strong></p><p>동아리 문의 채널<br><strong>'+esc(config.contact||(openChatUrl(config.joinUrl)?'가입 오픈채팅':'미입력'))+'</strong></p></div><hr><h3>가입 오픈채팅</h3>'+(openChatUrl(config.joinUrl)?'<a class="button secondary" href="'+esc(openChatUrl(config.joinUrl))+'" target="_blank" rel="noopener noreferrer">가입 오픈채팅 열기 (새 탭)</a>':'<p>가입 오픈채팅 준비 중입니다. 설정 수정에서 링크를 입력해 주세요.</p>')+'<hr><h3>소개</h3>'+textBlock(config.intro):empty('운영 정보를 입력해 주세요','현재 학기, 동아리 소개와 가입 오픈채팅을 설정합니다.'))+'<hr><h3>개인정보 처리방침</h3><p>기존 홈페이지의 개인정보 처리방침을 사용합니다. 보존 여부는 처리방침에 따라 검토해 주세요.</p><a class="button secondary" href="/privacy" target="_blank" rel="noopener noreferrer">개인정보 처리방침 보기 (새 탭)</a></section>':kind?await list(ctx,kind,options):await home(ctx);
  return '<div class="workspace"><aside class="sidebar"><a href="/admin" data-nav class="side-brand"><img src="/assets/logo.png" alt="" width="42" height="42"><span>MARTINI<small>운영실</small></span></a><nav aria-label="운영 메뉴">'+groupedNavigation(ctx,kind)+'</nav><div class="side-footer"><a href="/" data-nav>'+icon('arrow-up-right')+' 홈페이지 보기</a><button data-action="logout">'+icon('log-out')+' 로그아웃</button></div></aside><div class="workspace-main"><header class="workspace-header"><div class="breadcrumb">마티니 <span>/</span> '+esc(navigation.find(([k])=>k===kind)?.[2]||'운영실')+'</div><div class="account-chip"><span class="avatar">'+esc(ctx.state.profile.displayName.slice(0,1))+'</span><div>'+esc(ctx.state.profile.displayName)+'<small>'+esc(ctx.state.profile.roleName||label(ctx.state.profile.role))+'</small></div></div></header>'+(local?'<div class="local-strip">개발 환경 · 가상 데이터</div>':'')+'<main id="main-content" class="workspace-content">'+body+'</main><nav class="mobile-admin-nav" aria-label="빠른 운영 메뉴">'+navigation.filter(([k])=>['','events','members','inventory','requests'].includes(k)&&can(ctx,k||'home')).map(([key,i,t])=>'<a data-nav href="/admin'+(key?'/'+key:'')+'" class="'+(kind===key?'active':'')+'"'+(kind===key?' aria-current="page"':'')+'>'+icon(i)+'<span>'+t+'</span></a>').join('')+button('전체 메뉴','mobile-menu',{class:'mobile-more',icon:'menu'})+'</nav></div></div>';
 }
 export async function adminAction(ctx,action,id,target){
@@ -218,17 +201,18 @@ export async function adminAction(ctx,action,id,target){
  if(action==='mobile-menu'){
   modal('운영 메뉴','<nav class="mobile-menu-list wide" aria-label="전체 운영 메뉴">'+groupedNavigation(ctx,location.pathname.split('/')[2]||'')+'</nav>',null);return;
  }
- if(action==='load-more'){const current=ctx.state.pages[id];const result=await ctx.api('read',{kind:id,cursor:current.nextCursor,...(id==='members'?{semester:rosterSemester(ctx),removed:false}:{})});result.rows.forEach(r=>ctx.state.data[id][r.id]=r);ctx.state.pages[id]={rows:[...current.rows,...result.rows],nextCursor:result.nextCursor};ctx.toast('추가 기록 '+result.rows.length+'개를 불러왔습니다.');return showMoreRows(ctx,id);}
+ if(action==='load-more'){
+  const pageData=await loadMore(ctx,id);
+  if(!pageData)return;
+  ctx.toast('추가 기록 '+pageData.added+'개를 불러왔습니다.');
+  return ctx.render({pageData});
+ }
  return handleAdminAction(ctx,action,id,target);
-}
-async function showMoreRows(ctx,kind){
- // Render with the already fetched accumulated page once.
- const original=ctx.api,accumulated=ctx.state.pages[kind];
- ctx.api=async(op,data)=>op==='read'&&data.kind===kind&&!data.recordId?accumulated:original(op,data);
- try{await ctx.render();}finally{ctx.api=original;}
 }
 export async function adminSubmit(ctx,form,data,target){
  if(form==='privacy-filter'){ctx.state.privacySemester=String(data.get('semester')).trim();return ctx.render();}
  if(form==='login'){ctx.state.authError='';await signInAdmin(data.get('email'),data.get('password'),data.has('remember'));return ctx.render();}
  return handleAdminSubmit(ctx,form,data,target);
 }
+
+export function mountAdminView(ctx,app){bindInventoryBoard(ctx,app);}

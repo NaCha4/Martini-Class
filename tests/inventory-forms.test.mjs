@@ -9,13 +9,13 @@ const bridgeKey=Symbol.for('martini.inventory-forms.tests');
 const moduleUrl=new URL('../web/src/inventory-forms.js?inventory-forms-tests',import.meta.url).href;
 const hook=registerHooks({
  resolve(specifier,context,nextResolve){
-  if(context.parentURL===moduleUrl&&['./ui.js','./admin.js'].includes(specifier))return {url:'inventory-forms-test:'+specifier.slice(2),shortCircuit:true};
+  if(context.parentURL===moduleUrl&&['./ui.js','./admin-data.js'].includes(specifier))return {url:'inventory-forms-test:'+specifier.slice(2),shortCircuit:true};
   return nextResolve(specifier,context);
  },
  load(url,context,nextLoad){
   const bridge='globalThis[Symbol.for("martini.inventory-forms.tests")]';
   if(url==='inventory-forms-test:ui.js')return {format:'module',shortCircuit:true,source:['field','modal'].map(name=>'export const '+name+'=(...args)=>'+bridge+'.'+name+'(...args);').join('\n')};
-  if(url==='inventory-forms-test:admin.js')return {format:'module',shortCircuit:true,source:'export const read=(...args)=>'+bridge+'.read(...args);'};
+  if(url==='inventory-forms-test:admin-data.js')return {format:'module',shortCircuit:true,source:'export const read=(...args)=>'+bridge+'.read(...args);'};
   return nextLoad(url,context);
  }
 });

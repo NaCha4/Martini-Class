@@ -1,0 +1,223 @@
+.loading,.connection-page {
+  min-height: 70vh;
+  display: flex;
+  gap: 20px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  text-align: center;
+}
+.loading {
+  color: var(--muted);
+}
+.loading svg {
+  animation: spin 1.4s linear infinite;
+  color: var(--gold);
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.login-page {
+  min-height: 100svh;
+  padding: 36px 6vw 70px;
+  background: linear-gradient(#10111480,#171719ed),url('/assets/background.webp') center/cover;
+}
+.login-card {
+  max-width: 450px;
+  margin: 65px auto 0;
+  background: #1c1c1ef5;
+  padding: 38px;
+  border: 1px solid #65563d;
+  border-radius: 8px;
+  box-shadow: 0 24px 80px #0007;
+}
+.login-card h1 {
+  font-size: 30px;
+  letter-spacing: -.03em;
+  margin-bottom: 12px;
+}
+.login-card>p {
+  color: var(--muted);
+  font-size: 16px;
+}
+.login-card form {
+  margin-top: 30px;
+}
+.local-note {
+  margin-top: 28px;
+  font-size: 12px!important;
+  color: var(--muted);
+}
+.local-note .button {
+  margin-top: 12px;
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  margin-bottom: 20px;
+  font-size: 14px;
+  min-width: 0;
+}
+.field span {
+  font-weight: 600;
+}
+.field b {
+  color: #e7bd7d;
+  font-weight: 400;
+}
+.field input,.field select,.field textarea {
+  width: 100%;
+  padding: 12px 13px;
+  border: 1px solid #4b4947;
+  border-radius: 5px;
+  color: var(--text);
+  background: #18181a;
+  min-height: 46px;
+  transition: border-color .15s;
+}
+.field input:hover,.field select:hover,.field textarea:hover {
+  border-color: #8b7859;
+}
+.field textarea {
+  resize: vertical;
+  line-height: 1.8;
+}
+.field small {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.7;
+}
+.field.check-field {
+  flex-direction: row-reverse;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 12px;
+}
+.field.check-field input {
+  width: 18px;
+  min-height: 18px;
+  accent-color: var(--gold);
+  margin: 0;
+}
+.field.check-field span {
+  font-weight: 400;
+  line-height: 1.7;
+}
+.form-error {
+  color: #f0aaa1!important;
+  line-height: 1.7;
+  font-size: 14px;
+  margin: 12px 0;
+}
+.icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  color: var(--text);
+}
+#toast {
+  position: fixed;
+  left: 50%;
+  bottom: 28px;
+  transform: translate(-50%,20px);
+  max-width: min(90vw,600px);
+  padding: 14px 22px;
+  background: #e0c18b;
+  color: #201a12;
+  border-radius: 6px;
+  font-size: 14px;
+  z-index: 1000;
+  opacity: 0;
+  pointer-events: none;
+  transition: .2s;
+  box-shadow: 0 6px 30px #0005;
+}
+#toast.visible {
+  opacity: 1;
+  transform: translate(-50%,0);
+}
+dialog {
+  border: 1px solid #63543f;
+  border-radius: 8px;
+  padding: 0;
+  width: min(600px,94vw);
+  max-height: 90svh;
+  color: var(--text);
+  background: var(--surface);
+  box-shadow: 0 24px 90px #0009;
+}
+dialog::backdrop {
+  background: #070708bb;
+  backdrop-filter: blur(4px);
+}
+dialog.wide-dialog {
+  width: min(840px,96vw);
+}
+dialog header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 24px 30px;
+  border-bottom: 1px solid var(--line);
+}
+dialog h2 {
+  font-size: 23px;
+  letter-spacing: -.025em;
+}
+dialog .form-grid {
+  padding: 28px 30px 8px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 22px;
+}
+dialog .wide {
+  grid-column: 1/-1;
+}
+dialog footer {
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 18px 30px;
+  background: #1a1a1c;
+  border-top: 1px solid var(--line);
+}
+dialog .form-error {
+  padding: 0 30px;
+}
+.prose {
+  line-height: 1.9;
+  font-size: 16px;
+  overflow-wrap: anywhere;
+  color: #d1cdc6;
+}
+.empty {
+  text-align: center;
+  padding: 48px 24px;
+  color: var(--muted);
+}
+.empty svg {
+  width: 30px;
+  height: 30px;
+  color: #a89676;
+  margin-bottom: 18px;
+}
+.empty h3 {
+  color: var(--text);
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+.empty p {
+  font-size: 14px;
+  margin-bottom: 18px;
+}

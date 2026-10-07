@@ -1,3 +1,4 @@
+import { htmlTree, elements, attr, textContent } from './helpers/html.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { MEMBER_TABS, memberShell, memberTabForPath, currentMemberTab, activateMemberTab, activateMemberRequestView } from '../web/src/member-navigation.js';
@@ -12,19 +13,21 @@ test('member shell exposes four accessible tabs and selects only the requested p
     const html = memberShell(content, { activeTab, memberName: '테스트 부원' });
     assert.ok(html.includes('<div class="member-shell-content">' + content));
     assert.doesNotMatch(html, /data-member-visit-actions|data-action="member-visit"|member-visit-create/);
-    const nav = html.match(/<nav\b[^>]*aria-label="부원 메뉴"[^>]*>([\s\S]*?)<\/nav>/)?.[1];
+    const tree=htmlTree(html);
+    const nav=elements(tree,node=>node.tagName==='nav'&&attr(node,'aria-label')==='부원 메뉴')[0];
     assert.ok(nav);
-    const buttons = [...nav.matchAll(/<button\b[^>]*data-action="member-tab"[^>]*data-id="([^"]+)"[^>]*>/g)];
-    assert.deepEqual(buttons.map(button => button[1]), ids);
-    for (const button of buttons) {
-      assert.ok(button[0].includes('aria-controls="member-panel-' + button[1] + '"'));
-      assert.equal(button[0].includes('aria-current="page"'), button[1] === activeTab);
+    const buttons=elements(nav,node=>node.tagName==='button'&&attr(node,'data-action')==='member-tab');
+    assert.deepEqual(buttons.map(button=>attr(button,'data-id')),ids);
+    for(const button of buttons){
+      const id=attr(button,'data-id');
+      assert.equal(attr(button,'aria-controls'),'member-panel-'+id);
+      assert.equal(attr(button,'aria-current')==='page',id===activeTab);
     }
-    assert.doesNotMatch(nav, /<a\b|href=|<select\b/);
-    assert.doesNotMatch(html, /<h1\b/);
-    const header = html.match(/<header\b[^>]*>([\s\S]*?)<\/header>/)?.[1];
-    assert.match(header, /테스트 부원/);
-    assert.match(header, /data-action="member-forget"[^>]*aria-label="로그아웃"/);
+    assert.equal(elements(nav,node=>node.tagName==='a'||node.tagName==='select').length,0);
+    assert.equal(elements(tree,node=>node.tagName==='h1').length,0);
+    const header=elements(tree,node=>node.tagName==='header')[0];
+    assert.ok(textContent(header).includes('테스트 부원'));
+    assert.ok(elements(header,node=>attr(node,'data-action')==='member-forget'&&attr(node,'aria-label')==='로그아웃').length);
     assert.doesNotMatch(html, /data-id="home"|member-app-profile/);
   }
 });

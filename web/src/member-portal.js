@@ -1,3 +1,4 @@
+import { memberRequestGuard, routeSnapshot } from './view-request.js';
 import './member-portal.css';
 import './member-app.css';
 import { visitCalendar, visitSchedule } from './visit-calendar.js';
@@ -59,7 +60,6 @@ export function openMemberVerification(ctx,{returnTo,continueToVisit=false}={}){
  },{submit:'로그인',busyText:'로그인 중…'});
  dialog.classList.add('member-dialog');return dialog;
 }
-const routeSnapshot=()=>[location.href,location.pathname,location.search,location.hash].join('|');
 async function loadReceipts(ctx,view,current){
  const pendingEntries=Object.entries(storage(ctx).pending),recoveredRows=[];
  const recovered=await Promise.allSettled(pendingEntries.map(([,pending])=>ctx.api('clubRequestReceipt',{id:pending.requestId,receiptKey:pending.receiptKey})));
@@ -90,7 +90,7 @@ async function loadPortal(ctx){
  const view=state(ctx),sessionKey=getMemberSessionKey(ctx),route=routeSnapshot();
  if(!sessionKey)return {status:'login'};
  const attempt=(view.portalLoad||0)+1;view.portalLoad=attempt;
- const current=()=>ctx.state.memberLounge===view&&view.portalLoad===attempt&&getMemberSessionKey(ctx)===sessionKey&&routeSnapshot()===route;
+ const current=memberRequestGuard(ctx,()=>ctx.state.memberLounge===view&&view.portalLoad===attempt);
  view.error='';view.applicationsError='';view.receiptErrors=0;view.linkError='';view.linkedId='';
  let portal;
  try{portal=await ctx.api('memberPortal',{sessionKey});}
@@ -304,7 +304,7 @@ export async function memberPortalSubmit(ctx,form,data,node){
  const kind=form.replace(/^member-/,'');if(!activeKinds.includes(kind))return;
  if(!data.has('consent'))throw new Error('개인정보 수집·이용 동의를 확인해 주세요.');
  const payload={kind,consent:true},sessionKey=getMemberSessionKey(ctx),view=state(ctx),route=routeSnapshot();
- const current=()=>ctx.state.memberLounge===view&&getMemberSessionKey(ctx)===sessionKey&&routeSnapshot()===route;
+ const current=memberRequestGuard(ctx,()=>ctx.state.memberLounge===view);
  if(!sessionKey)throw new Error('로그인이 만료되었습니다. 다시 로그인해 주세요.');
   const schedule=visitSchedule(data);
   payload.sessionKey=sessionKey;payload.startsAt=koreaISO(schedule.startsAt);
