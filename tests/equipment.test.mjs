@@ -86,3 +86,24 @@ test('active loans follow the same verified identity across semesters',async()=>
  f.records.set('martini_v2_semesters/2027-1/members/member-a',{...member,semester:'2027-1'});f.records.get('martini_v2_settings/club').semester='2027-1';f.records.get('martini_v2_memberSessions/'+hash(sessionKey)).semester='2027-1';
  assert.equal((await f.handle({op:'memberEquipment',sessionKey})).loans.length,1);await returnLoan(f);assert.equal(f.item(f.itemId).borrowed,0);
 });
+
+test('equipment photos support add, preserve, replace and remove without copying into loans',async()=>{
+ const f=await setup(),png='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6MwAAAABJRU5ErkJggg==',webp='data:image/webp;base64,UklGRiIAAABXRUJQVlA4IBYAAAAwAQCdASoBAAEADsD+JaQAA3AAAAAA';
+ const save=extra=>f.handle({op:'saveEquipmentItem',...itemInput,id:f.itemId,revision:f.item(f.itemId).revision,...extra},owner);
+ assert.equal(f.item(f.itemId).photo,'');
+ await save({photo:png});assert.equal((await f.handle({op:'memberEquipment',sessionKey})).items[0].photo,png);
+ await save({name:'renamed'});assert.equal(f.item(f.itemId).photo,png,'old clients must preserve omitted photo');
+ await save({photo:webp});assert.equal((await f.handle({op:'equipmentCatalog'},owner)).items[0].photo,webp);
+ await borrow(f);assert.equal(f.loan('borrow-one').item.photo,undefined,'historical loans must not duplicate thumbnails');
+ await assert.rejects(f.handle({op:'saveEquipmentItem',...itemInput,id:f.itemId,revision:1,photo:''},owner),code('aborted'));
+ assert.equal(f.item(f.itemId).photo,webp);
+ await save({photo:''});assert.equal((await f.handle({op:'memberEquipment',sessionKey})).items[0].photo,'');
+});
+test('equipment photo mutations reject unsafe data and remain restricted to inventory staff',async()=>{
+ const f=await setup();
+ for(const photo of [null,'https://example.com/photo.jpg','data:image/svg+xml;base64,PHN2Zy8+','data:image/png;base64,AAAA','data:image/jpeg;base64,'+'A'.repeat(64000)]){
+  await assert.rejects(f.handle({op:'saveEquipmentItem',...itemInput,id:f.itemId,revision:1,photo},owner),code('invalid-argument'));
+ }
+ await assert.rejects(f.handle({op:'saveEquipmentItem',...itemInput,id:f.itemId,revision:1,photo:''},{uid:'publicity'}),code('permission-denied'));
+ assert.equal(f.item(f.itemId).revision,1);assert.equal(f.item(f.itemId).photo,'');
+});
