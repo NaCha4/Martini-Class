@@ -13,24 +13,10 @@ const singleLoan=(loan,item)=>singleItem(item)&&loan.quantity===1;
 const loanTitle=(loan,item)=>loan.item.name+(singleLoan(loan,item)?'':' · '+loan.quantity+'개');
 export function equipmentLoanRow(loan,item){return '<button type="button" class="member-request-row" data-action="member-equipment-loan" data-id="'+esc(loan.id)+'"><span class="member-request-icon">'+icon('package')+'</span><span class="member-request-content"><span class="member-request-kind">비품 대여</span><strong>'+esc(loanTitle(loan,item))+'</strong><small>'+esc(loan.status==='returned'?date(loan.returnedAt,true)+' 반납':loan.dueDate?'반납 예정 '+loan.dueDate:date(loan.borrowedAt,true)+' 대여')+'</small></span><span class="member-status '+(loan.status==='returned'?'cancelled':overdue(loan)?'rejected':'approved')+'">'+status(loan)+'</span>'+icon('arrow-right')+'</button>';}
 function equipmentMemberCard(item,loans){
- const mine=loans.filter(loan=>loan.itemId===item.id&&loan.status==='borrowed');
- const mineQuantity=mine.reduce((sum,loan)=>sum+loan.quantity,0),single=singleItem(item);
- const badge=(text,style)=>'<span class="member-status '+style+'">'+esc(text)+'</span>';
- const action=(text,name,id,secondary=false)=>'<button type="button" class="button'+(secondary?' secondary':'')+'" data-action="'+name+'" data-id="'+esc(id)+'" aria-label="'+esc(item.name+' '+text)+'">'+text+'</button>';
- let badges='';
- if(mine.length)badges+=badge('내가 대여 중'+(single?'':' '+mineQuantity+'개'),'approved equipment-mine');
- if(item.borrowed>mineQuantity)badges+=badge('대여 중'+(single?'':' '+item.borrowed+'개'),'cancelled');
- if(!item.enabled)badges+=badge('신규 대여 중지','cancelled');
- else if(item.available>0)badges+=badge('대여 가능'+(single?'':' '+item.available+'개'),'approved');
- if(mine.some(overdue))badges+=badge('반납 기한 지남','rejected');
- let actions='';
- if(item.enabled&&(!mine.length||item.available>0))actions+=action(mine.length?'추가 대여':item.available>0?'상세 · 대여':'상세 보기','member-equipment-borrow',item.id,!!mine.length);
- if(mine.length)actions+=action('반납하기',mine.length===1?'member-equipment-loan':'member-equipment-returns',mine.length===1?mine[0].id:item.id);
- return '<article class="equipment-choice'+(mine.length?' is-mine':'')+'" data-equipment-item="'+esc(item.id)+'">'
-  +'<div class="equipment-card-status">'+badges+'</div><h2 class="equipment-card-title">'+esc(item.name)+'</h2>'
-  +(item.description?'<p class="equipment-description">'+esc(item.description)+'</p>':'')
-  +(item.location?'<p class="equipment-location">'+icon('map-pin')+'<span>'+esc(item.location)+'</span></p>':'')
-  +'<div class="equipment-card-actions">'+actions+'</div></article>';
+ const mine=loans.some(loan=>loan.itemId===item.id&&loan.status==='borrowed');
+ return '<button type="button" class="equipment-choice'+(mine?' is-mine':'')+'" data-equipment-item="'+esc(item.id)+'" data-action="member-equipment-detail" data-id="'+esc(item.id)+'" aria-haspopup="dialog" aria-label="'+esc(item.name+' 상세 보기')+'">'
+  +'<strong class="equipment-card-title">'+esc(item.name)+'</strong>'
+  +(item.description?'<span class="equipment-description">'+esc(item.description)+'</span>':'')+'</button>';
 }
 export function renderEquipmentMember(ctx){
  const data=memberState(ctx).equipment;
@@ -88,6 +74,17 @@ export async function memberEquipmentAction(ctx,action,id){
  if(!await loadMemberEquipment(ctx)||!shot.current())return;
  const data=shot.view.equipment;
  if(!data?.items)throw Error('비품 목록을 불러온 뒤 다시 시도해 주세요.');
+ if(action==='member-equipment-detail'){
+  const item=data.items.find(item=>item.id===id),mine=data.loans.filter(loan=>loan.itemId===id&&loan.status==='borrowed');
+  if(!item||(!item.enabled&&!mine.length))throw Error('현재 확인할 수 없는 비품입니다. 목록을 새로고침해 주세요.');
+  const single=singleItem(item),canBorrow=item.enabled&&item.available>0;
+  const availability=!item.enabled?'신규 대여 중지':item.available>0?'대여 가능':'대여 중';
+  const summary=single?availability:'전체 '+item.quantity+'개 · 대여 중 '+item.borrowed+'개 · 남은 수량 '+item.available+'개'+(!item.enabled?' · 신규 대여 중지':'');
+  const own=mine.length?'<p class="equipment-availability">내가 대여 중'+(single?'':' '+mine.reduce((sum,loan)=>sum+loan.quantity,0)+'개')+(mine.some(overdue)?' · 반납 기한 지남':'')+'</p>':'';
+  const actions=(canBorrow?button(mine.length?'추가 대여':'대여하기','member-equipment-borrow',{id:item.id,class:mine.length?'button secondary':'button'}):'')+(mine.length?button('반납하기','member-equipment-returns',{id:item.id}):'');
+  const dialog=modal(item.name,textBlock(item.description)+info(item)+'<p class="equipment-availability">'+summary+'</p>'+own+(actions?'<div class="equipment-detail-actions">'+actions+'</div>':''),null,{contentOnly:true,wide:true});
+  dialog.classList.add('member-dialog');return;
+ }
  if(action==='member-equipment-returns'){
   const item=data.items.find(item=>item.id===id),loans=data.loans.filter(loan=>loan.itemId===id&&loan.status==='borrowed');
   if(!loans.length)throw Error('대여 중인 기록이 없습니다. 목록을 새로고침해 주세요.');
