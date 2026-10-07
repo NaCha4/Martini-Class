@@ -1,16 +1,11 @@
 .equipment-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,280px),1fr));gap:16px}
-.equipment-choice{display:flex;flex-direction:column;gap:14px;min-width:0;padding:22px;border:1px solid var(--line);border-radius:14px;background:var(--surface);color:var(--text);overflow-wrap:anywhere}
-.equipment-choice.is-mine{border-color:var(--gold)}
-.equipment-card-status{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
-.member-app-shell .equipment-card-status .member-status{white-space:normal;max-width:100%;text-align:left;font-size:12px;padding:4px 8px;border-radius:6px;background:color-mix(in srgb,currentColor 9%,transparent)}
-.equipment-card-status .equipment-mine{color:var(--gold);background:color-mix(in srgb,var(--gold) 12%,transparent)}
+.equipment-choice{display:flex;flex-direction:column;align-items:stretch;gap:14px;min-width:0;min-height:120px;width:100%;padding:22px;border:1px solid var(--line);border-radius:14px;background:var(--surface);color:var(--text);font:inherit;text-align:left;overflow-wrap:anywhere;cursor:pointer}
+.equipment-choice.is-mine,.equipment-choice:hover{border-color:var(--gold)}
+.equipment-choice:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
 .equipment-card-title{font-size:19px;line-height:1.45;margin:0}
 .equipment-description{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden;color:var(--muted);font-size:14px;line-height:1.65;white-space:pre-wrap;margin:0}
-.equipment-location{display:flex;gap:8px;color:var(--muted);font-size:13px;align-items:flex-start;margin:0}
-.equipment-location svg{flex:none;width:17px;height:17px}
-.equipment-location span{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
-.equipment-card-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:auto;padding-top:4px}
-.equipment-card-actions .button{flex:1;min-height:44px;font-size:13px;padding:10px 12px}
+.equipment-detail-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:24px}
+.equipment-detail-actions .button{min-height:44px}
 .equipment-facts{display:grid;gap:18px;margin:20px 0}.equipment-facts dt{font-size:13px;color:var(--muted);margin-bottom:6px}.equipment-facts dd{margin:0;overflow-wrap:anywhere}.equipment-facts .prose p{margin:0;white-space:pre-wrap}.equipment-availability{color:var(--gold);font-size:14px}.equipment-extra-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr) auto;gap:12px;align-items:start;padding:16px 0;border-top:1px solid var(--line)}.equipment-extra-row>.icon-button{margin-top:26px}.equipment-extra .field{min-width:0}@media(max-width:600px){.equipment-choice{padding:18px}.equipment-extra-row{grid-template-columns:minmax(0,1fr) auto}.equipment-extra-row>.field:nth-child(2){grid-column:1;grid-row:2}.equipment-extra-row>.icon-button{grid-column:2;grid-row:1}}
 
 /* Disable the browser's page reload only while this in-page refresh surface is visible. */
