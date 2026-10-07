@@ -14,7 +14,8 @@ test('member equipment cards open details without status, location or nested con
  assert.equal((html.match(/<button /g)||[]).length,1);
  assert.doesNotMatch(html,/data-id="paused"|대여 가능|대여 중|반납하기|수납장|equipment-card-status|equipment-location|equipment-card-actions|member-record-list/);
  assert.doesNotMatch(html,/<script>|<h1/);assert.match(html,/&lt;script&gt;/);
- assert.match(equipmentLoanRow({...loan,dueDate:'2000-01-01'}),/반납 예정일 지남/);
+ const legacyRow=equipmentLoanRow({...loan,dueDate:'2000-01-01'});
+ assert.match(legacyRow,/대여 중/);assert.doesNotMatch(legacyRow,/반납 예정|기한 지남|2000-01-01|rejected/);
  const single={...item,quantity:1,borrowed:1,available:0};
  memberState(ctx).equipment={items:[single],loans:[loan]};
  assert.doesNotMatch(renderEquipmentMember(ctx),/1개/);
