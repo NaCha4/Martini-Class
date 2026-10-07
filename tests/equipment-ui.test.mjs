@@ -43,3 +43,14 @@ test('a late catalog response cannot repopulate private equipment state after lo
  const ctx={state:{},render:async()=>{}},key='a'.repeat(64);setMemberSession(ctx,{sessionKey:key,member:{name:'부원'},expiresAt:new Date(Date.now()+60000).toISOString()});
  let release;ctx.api=()=>new Promise(resolve=>{release=resolve;});const pending=loadMemberEquipment(ctx);clearMemberIdentity(ctx);release({items:[item],loans:[loan]});assert.equal(await pending,false);assert.equal(memberState(ctx).equipment,undefined);assert.deepEqual(memberState(ctx).equipmentLoans,[]);
 });
+
+test('equipment card photos are optional, constrained and preserve the full-card action',()=>{
+ const ctx={state:{}},photo='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6MwAAAABJRU5ErkJggg==';
+ memberState(ctx).equipment={items:[item],loans:[]};
+ assert.match(renderEquipmentMember(ctx),/equipment-photo-placeholder/);assert.doesNotMatch(renderEquipmentMember(ctx),/<img/);
+ memberState(ctx).equipment.items=[{...item,photo}];const html=renderEquipmentMember(ctx);
+ assert.match(html,/<img data-equipment-photo/);assert.match(html,/object|equipment-media/);assert.match(html,/data-action="member-equipment-detail"/);
+ for(const bad of ['https://example.com/x.png','javascript:alert(1)','data:image/svg+xml;base64,PHN2Zy8+','data:image/png;base64,AAAA" onerror="alert(1)']){
+  memberState(ctx).equipment.items=[{...item,photo:bad}];assert.doesNotMatch(renderEquipmentMember(ctx),/<img|onerror=/);
+ }
+});

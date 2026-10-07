@@ -3,6 +3,7 @@ import { hasPermission } from '../../functions/src/permissions.js';
 import { memberState,getMemberSessionKey,clearMemberIdentity,isMemberAccessError,refreshMemberSession } from './member-session.js';
 import { activateMemberRequestView } from './member-navigation.js';
 import './equipment.css';
+import { equipmentPhoto,equipmentPhotoField,bindEquipmentPhotoEditor } from './equipment-photo.js';
 import { bindEquipmentPullRefresh } from './equipment-pull-refresh.js';
 
 const info=item=>'<dl class="equipment-facts">'+[['보관 위치',item.location],['주의사항',item.precautions],...(item.details||[]).map(d=>[d.label,d.value])].filter(([,v])=>v).map(([label,value])=>'<div><dt>'+esc(label)+'</dt><dd>'+textBlock(value)+'</dd></div>').join('')+'</dl>';
@@ -15,7 +16,7 @@ export function equipmentLoanRow(loan,item){return '<button type="button" class=
 function equipmentMemberCard(item,loans){
  const mine=loans.some(loan=>loan.itemId===item.id&&loan.status==='borrowed');
  return '<button type="button" class="equipment-choice'+(mine?' is-mine':'')+'" data-equipment-item="'+esc(item.id)+'" data-action="member-equipment-detail" data-id="'+esc(item.id)+'" aria-haspopup="dialog" aria-label="'+esc(item.name+' 상세 보기')+'">'
-  +'<strong class="equipment-card-title">'+esc(item.name)+'</strong></button>';
+  +'<strong class="equipment-card-title">'+esc(item.name)+'</strong>'+equipmentPhoto(item.photo)+'</button>';
 }
 export function renderEquipmentMember(ctx){
  const data=memberState(ctx).equipment;
@@ -81,7 +82,7 @@ export async function memberEquipmentAction(ctx,action,id){
   const summary=single?availability:'전체 '+item.quantity+'개 · 대여 중 '+item.borrowed+'개 · 남은 수량 '+item.available+'개'+(!item.enabled?' · 신규 대여 중지':'');
   const own=mine.length?'<p class="equipment-availability">내가 대여 중'+(single?'':' '+mine.reduce((sum,loan)=>sum+loan.quantity,0)+'개')+(mine.some(overdue)?' · 반납 기한 지남':'')+'</p>':'';
   const actions=(canBorrow?button(mine.length?'추가 대여':'대여하기','member-equipment-borrow',{id:item.id,class:mine.length?'button secondary':'button'}):'')+(mine.length?button('반납하기','member-equipment-returns',{id:item.id}):'');
-  const dialog=modal(item.name,textBlock(item.description)+info(item)+'<p class="equipment-availability">'+summary+'</p>'+own+(actions?'<div class="equipment-detail-actions">'+actions+'</div>':''),null,{contentOnly:true,wide:true});
+  const dialog=modal(item.name,equipmentPhoto(item.photo,'equipment-detail-photo')+textBlock(item.description)+info(item)+'<p class="equipment-availability">'+summary+'</p>'+own+(actions?'<div class="equipment-detail-actions">'+actions+'</div>':''),null,{contentOnly:true,wide:true});
   dialog.classList.add('member-dialog');return;
  }
  if(action==='member-equipment-returns'){
@@ -120,7 +121,7 @@ export async function memberEquipmentAction(ctx,action,id){
 function equipmentAdminCard(item){
  const availability=!item.enabled?'신규 대여 중지':item.available?'대여 가능':'모두 대여 중';
  return '<article class="admin-catalog-card equipment-admin-card">'
-  +'<div class="admin-catalog-top"><span class="admin-catalog-icon" aria-hidden="true">'+icon('package')+'</span><span class="admin-catalog-status '+(item.enabled&&item.available?'is-active':'')+'">'+availability+'</span></div>'
+  +'<div class="admin-catalog-top">'+equipmentPhoto(item.photo,'equipment-admin-thumbnail')+'<span class="admin-catalog-status '+(item.enabled&&item.available?'is-active':'')+'">'+availability+'</span></div>'
   +'<h2 class="admin-catalog-title" title="'+esc(item.name)+'">'+esc(item.name)+'</h2>'
   +'<p class="admin-catalog-description">'+esc(item.description||'등록된 설명이 없습니다.')+'</p>'
   +'<p class="admin-catalog-location" title="'+esc(item.location||'보관 위치 미입력')+'">'+icon('map-pin')+'<span><span class="sr-only">보관 위치: </span>'+esc(item.location||'보관 위치 미입력')+'</span></p>'
@@ -144,20 +145,22 @@ export async function equipmentAdminAction(ctx,action,id){
  const item=id?data.items.find(i=>i.id===id):null;if(id&&!item)throw Error('비품 목록을 새로고침해 주세요.');
  if(action==='equipment-detail'){
   if(!item)throw Error('비품 목록을 새로고침해 주세요.');
-  return modal(item.name,'<div class="equipment-admin-detail">'+textBlock(item.description)+info(item)+'<p class="equipment-availability">전체 '+item.quantity+'개 · 대여 중 '+item.borrowed+'개 · 남은 수량 '+item.available+'개</p></div>',null,{contentOnly:true,wide:true});
+  return modal(item.name,'<div class="equipment-admin-detail">'+equipmentPhoto(item.photo,'equipment-detail-photo')+textBlock(item.description)+info(item)+'<p class="equipment-availability">전체 '+item.quantity+'개 · 대여 중 '+item.borrowed+'개 · 남은 수량 '+item.available+'개</p></div>',null,{contentOnly:true,wide:true});
  }
  if(action==='equipment-delete'){
   if(item.borrowed)throw Error('대여 중인 비품은 삭제할 수 없습니다. 정보 수정에서 신규 대여를 중지할 수 있습니다.');
   return modal('비품 목록에서 삭제','<p class="wide">'+esc(item.name)+'을(를) 목록에서 삭제합니다. 기존 대여·반납 기록은 유지됩니다.</p>',async()=>{if(!current())throw Error('권한이나 화면이 변경되었습니다.');await ctx.api('deleteEquipmentItem',{id,revision:item.revision,confirmed:true});if(!current())return;await ctx.render();ctx.toast('비품을 목록에서 삭제했습니다.');},{submit:'목록에서 삭제',submitClass:'button danger'});
  }
  if(action!=='equipment-edit')return;
- const body=field('name','비품 이름',item?.name||'',{required:true,maxLength:100,wide:true})+field('description','설명',item?.description||'',{type:'textarea',maxLength:3000,wide:true,rows:3})+field('location','보관 위치',item?.location||'',{maxLength:300,wide:true,placeholder:'예: 동아리방 입구 오른쪽 수납장 2층'})+field('precautions','주의사항',item?.precautions||'',{type:'textarea',maxLength:3000,wide:true,rows:3})+field('quantity','전체 보유 수량',item?.quantity||1,{type:'number',required:true,min:Math.max(1,item?.borrowed||0),max:1000,wide:true,hint:'현재 대여 중인 수량도 포함해 입력해 주세요.'})+field('enabled','부원이 새로 대여할 수 있음',item?.enabled??true,{type:'checkbox',wide:true})+'<section class="wide equipment-extra"><h3>추가 정보</h3><p class="help">원하는 항목명과 내용을 최대 12개까지 추가할 수 있습니다.</p><div data-equipment-details>'+((item?.details||[]).map(extraRow).join(''))+'</div><button type="button" class="button secondary small" data-equipment-add>정보 추가</button></section>';
+ const body=field('name','비품 이름',item?.name||'',{required:true,maxLength:100,wide:true})+equipmentPhotoField(item?.photo)+field('description','설명',item?.description||'',{type:'textarea',maxLength:3000,wide:true,rows:3})+field('location','보관 위치',item?.location||'',{maxLength:300,wide:true,placeholder:'예: 동아리방 입구 오른쪽 수납장 2층'})+field('precautions','주의사항',item?.precautions||'',{type:'textarea',maxLength:3000,wide:true,rows:3})+field('quantity','전체 보유 수량',item?.quantity||1,{type:'number',required:true,min:Math.max(1,item?.borrowed||0),max:1000,wide:true,hint:'현재 대여 중인 수량도 포함해 입력해 주세요.'})+field('enabled','부원이 새로 대여할 수 있음',item?.enabled??true,{type:'checkbox',wide:true})+'<section class="wide equipment-extra"><h3>추가 정보</h3><p class="help">원하는 항목명과 내용을 최대 12개까지 추가할 수 있습니다.</p><div data-equipment-details>'+((item?.details||[]).map(extraRow).join(''))+'</div><button type="button" class="button secondary small" data-equipment-add>정보 추가</button></section>';
  let dialog;dialog=modal(item?'비품 정보 수정':'비품 추가',body,async f=>{
   if(!current()||!dialog.open)throw Error('권한이나 화면이 변경되었습니다.');
+  if(dialog.equipmentPhotoBusy)throw Error('사진 준비가 끝난 뒤 저장해 주세요.');
   const details=[...dialog.querySelectorAll('[data-equipment-detail]')].map(row=>({label:row.querySelector('[name=extraLabel]').value.trim(),value:row.querySelector('[name=extraValue]').value.trim()})).filter(d=>d.label||d.value);
   if(details.some(d=>!d.label||!d.value))throw Error('추가 정보의 항목명과 내용을 모두 입력해 주세요.');
-  await ctx.api('saveEquipmentItem',{...(item?{id:item.id}:{}),revision:item?.revision||0,name:String(f.get('name')||'').trim(),description:String(f.get('description')||'').trim(),location:String(f.get('location')||'').trim(),precautions:String(f.get('precautions')||'').trim(),quantity:Number(f.get('quantity')),enabled:f.has('enabled'),details});if(!current())return;await ctx.render();ctx.toast('비품 정보를 저장했습니다.');
+  await ctx.api('saveEquipmentItem',{...(item?{id:item.id}:{}),revision:item?.revision||0,name:String(f.get('name')||'').trim(),photo:String(f.get('photo')||''),description:String(f.get('description')||'').trim(),location:String(f.get('location')||'').trim(),precautions:String(f.get('precautions')||'').trim(),quantity:Number(f.get('quantity')),enabled:f.has('enabled'),details});if(!current())return;await ctx.render();ctx.toast('비품 정보를 저장했습니다.');
  },{wide:true,submit:'비품 저장'});
+ bindEquipmentPhotoEditor(dialog,current);
  const container=dialog.querySelector('[data-equipment-details]');
  dialog.querySelector('[data-equipment-add]').addEventListener('click',()=>{if(container.querySelectorAll('[data-equipment-detail]').length>=12){ctx.toast('추가 정보는 최대 12개까지 입력할 수 있습니다.');return;}container.insertAdjacentHTML('beforeend',extraRow());refreshIcons();container.lastElementChild.querySelector('input').focus();});
  container.addEventListener('click',event=>{const remove=event.target.closest('[data-equipment-remove]');if(remove){remove.closest('[data-equipment-detail]').remove();dialog.querySelector('[data-equipment-add]').focus();}});

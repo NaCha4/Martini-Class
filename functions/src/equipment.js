@@ -1,10 +1,11 @@
 import { z } from 'zod';
+import { MAX_EQUIPMENT_PHOTO_LENGTH,validEquipmentPhoto } from './equipment-photo.js';
 import { parse, fail, hash, ensureScope, requireRevision, idSchema } from './domain.js';
 
 const key=z.string().regex(/^[a-f0-9]{64}$/),text=max=>z.string().trim().max(max);
 const detail=z.object({label:text(60).min(1),value:text(2000).min(1)}).strict();
-const itemSchema=z.object({id:idSchema.optional(),revision:z.number().int().min(0),name:text(100).min(1),description:text(3000).default(''),location:text(300).default(''),precautions:text(3000).default(''),details:z.array(detail).max(12).default([]),quantity:z.number().int().min(1).max(1000),enabled:z.boolean()}).strict();
-const safeItem=(id,r)=>({id,name:r.name,description:r.description,location:r.location,precautions:r.precautions,details:r.details||[],quantity:r.quantity,borrowed:r.borrowed||0,available:Math.max(0,r.quantity-(r.borrowed||0)),enabled:r.enabled,revision:r.revision});
+const itemSchema=z.object({id:idSchema.optional(),revision:z.number().int().min(0),name:text(100).min(1),photo:z.string().max(MAX_EQUIPMENT_PHOTO_LENGTH).refine(validEquipmentPhoto,{message:'사진은 용량을 줄인 JPG, PNG, WebP 이미지로 등록해 주세요.'}).optional(),description:text(3000).default(''),location:text(300).default(''),precautions:text(3000).default(''),details:z.array(detail).max(12).default([]),quantity:z.number().int().min(1).max(1000),enabled:z.boolean()}).strict();
+const safeItem=(id,r)=>({id,name:r.name,photo:r.photo||'',description:r.description,location:r.location,precautions:r.precautions,details:r.details||[],quantity:r.quantity,borrowed:r.borrowed||0,available:Math.max(0,r.quantity-(r.borrowed||0)),enabled:r.enabled,revision:r.revision});
 const safeLoan=(id,r)=>({id,itemId:r.itemId,item:r.item,quantity:r.quantity,note:r.note,dueDate:r.dueDate,status:r.status,borrowedAt:r.borrowedAt,returnedAt:r.returnedAt||null});
 export function createEquipment({db,col,clock,now,audit,authenticate,identityFingerprint,throttle}){
  const items=()=>col('equipmentItems'),loans=()=>col('equipmentLoans');
@@ -73,7 +74,7 @@ export function createEquipment({db,col,clock,now,audit,authenticate,identityFin
    if(!old&&input.revision!==0)fail('aborted','새 비품 정보를 다시 입력해 주세요.');
    if(!old){const result=await tx.get(items().where('deleted','==',false).limit(200));if(result.size>=200)fail('failed-precondition','비품은 최대 200개까지 등록할 수 있습니다.');}
    if(input.quantity<(old?.borrowed||0))fail('failed-precondition','보유 수량은 현재 대여 중인 수량보다 적을 수 없습니다.');
-   const record={...input,id:ref.id,deleted:false,borrowed:old?.borrowed||0,revision:(old?.revision||0)+1,createdAt:old?.createdAt||now(),updatedAt:now()};
+   const record={...input,photo:input.photo??old?.photo??'',id:ref.id,deleted:false,borrowed:old?.borrowed||0,revision:(old?.revision||0)+1,createdAt:old?.createdAt||now(),updatedAt:now()};
    tx.set(ref,record);audit(tx,who,'equipmentItems',ref.id,old?'비품 정보 수정':'비품 등록');return {item:safeItem(ref.id,record)};
   });
  }
