@@ -18,7 +18,8 @@
 }
 :root {
   font-family: Pretendard,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
-  color-scheme: dark;
+  /* Preserve the authored palette when the browser applies automatic dark mode. */
+  color-scheme: only light;
   color: var(--text);
   background: var(--bg);
   font-synthesis: none;
