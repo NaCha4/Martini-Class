@@ -10,7 +10,7 @@ test('member equipment cards open details without status, location or nested con
  const ctx={state:{}};memberState(ctx).equipment={items:[item,{...item,id:'paused',enabled:false}],loans:[loan,{...loan,id:'returned',status:'returned'}]};
  const html=renderEquipmentMember(ctx);
  assert.match(html,/data-action="member-equipment-detail" data-id="item-a"/);
- assert.match(html,/aria-haspopup="dialog"/);assert.match(html,/자세한 설명/);
+ assert.match(html,/aria-haspopup="dialog"/);assert.doesNotMatch(html,/자세한 설명|equipment-description/);
  assert.equal((html.match(/<button /g)||[]).length,1);
  assert.doesNotMatch(html,/data-id="paused"|대여 가능|대여 중|반납하기|수납장|equipment-card-status|equipment-location|equipment-card-actions|member-record-list/);
  assert.doesNotMatch(html,/<script>|<h1/);assert.match(html,/&lt;script&gt;/);
