@@ -38,8 +38,9 @@ Node.js 22.23.3, Java 21 계열, 설치된 일반 Chrome 및 Auth/Functions/Fire
 - `playwright test tests/browser/requests-viewer.spec.js --project=desktop`: 최초 6개 통과 후, 늦은 응답의 캐시 재유입 방지와 기존 관리자 처리 2개를 추가하여 각각 통과했다. Chrome 종료·재실행 복원, 탭 한정 유지, 다른 탭 로그아웃, 토큰 갱신, 발급된 토큰 해제·Auth 비활성화, UI 접근 차단·캐시 제거, 일시적 연결 장애 복구, 기존 관리자 승인·반려·답변·삭제를 확인한다.
 - 기존 `roles.spec.js`의 역할 배정·참가비 권한 부여/해제, `service.spec.js`의 부원 등록·관리 메뉴까지 2개 통과했다. 총 10개 고유 Chrome 시나리오가 통과했으며 조회 화면 스크린샷은 `.local/screenshots/dot-readonly.png`에 있다.
 - 기존 `member-portal.spec.js`의 출입 신청 흐름은 처음에 `.member-account-bar`를 기다리며 실패했다. 변경 전 `HEAD`에서도 해당 HTML은 없고 CSS에만 남아 있는 오래된 선택자였다. 배포 승인 후 관련 헬퍼를 현재 계정 표시, 신청 탭·인라인 폼, 새로고침 흐름에 맞게 수정했다. 회원 신청 → 임원 승인 → 회원 승인 내용 확인 → 승인된 방문 취소 → 대기 중 방문 취소까지 Chrome에서 통과했다. 기존 업무 검증은 제거하거나 약화하지 않았다.
-- `npm run check:syntax`, `npm run check:secrets`, `npm run build`: 통과. `build`는 무시된 `dist/`만 만들며 Pages 루트 산출물은 갱신하지 않는다.
-- 별도 lint/TypeScript 검사 명령과 TypeScript 설정은 이 JavaScript 저장소에 없다. 이를 실행했다고 보고하지 않는다. Storage 규칙은 변경 없이 전면 차단을 확인했으며 Storage 에뮬레이터 통합 검사는 수행하지 않았다. 운영 인증·dot 클라우드 브라우저·배포 검증도 수행하지 않았다.
+- 원격 `a29921a` 통합 후 최종 회귀: 단위 **397개**, 서버 통합 **140개**, Chrome **11개** 모두 통과했다. 앞서 실패했던 회원 신청·승인·취소 흐름도 이 11개에 포함된다.
+- `npm run check:syntax`, `npm run check:secrets`, `npm run build:pages`: 통과. 최종 빌드는 Pages 루트 산출물도 준비하며 로컬 테스트 계정의 자격증명이 프로덕션 번들에 없음을 확인했다.
+- 별도 lint/TypeScript 검사 명령과 TypeScript 설정은 이 JavaScript 저장소에 없다. 이를 실행했다고 보고하지 않는다. Storage 규칙은 변경 없이 전면 차단을 확인했으며 Storage 에뮬레이터 통합 검사는 수행하지 않았다. 실제 전용 계정·dot 클라우드 브라우저의 인증 검증은 권한 부여 승인 이후 별도로 필요하다. 운영 배포 결과는 로컬 기능 검증과 분리해 보고한다.
 
 초기 검증 로그는 `.local/dot-unit.log`, `.local/dot-ui-unit.log`, `.local/dot-session-final.log`, `.local/dot-integration.log`, `.local/dot-browser.log`, `.local/dot-browser-race.log`, `.local/dot-final-regression.log`, `.local/dot-build.log`에 있다. 기존 회원 테스트의 초기 실패는 `.local/dot-admin-regression.log`, 수정 후 통과는 `.local/dot-release-member.log`에 보존한다. 원격 변경 통합 후의 재검증과 실제 배포 결과는 `.local/dot-release-*` 로그로 분리한다.
 
