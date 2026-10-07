@@ -8,7 +8,7 @@ const item={id:'item-a',name:'비품 <script>',description:'자세한 설명',lo
 const loan={id:'loan-a',itemId:item.id,item,quantity:1,status:'borrowed',borrowedAt:new Date().toISOString(),dueDate:'',note:''};
 test('member equipment cards show availability and personal records with escaped text',()=>{
  const ctx={state:{}};memberState(ctx).equipment={items:[item,{...item,id:'paused',enabled:false}],loans:[loan,{...loan,id:'returned',status:'returned',returnedAt:new Date().toISOString()}]};
- const html=renderEquipmentMember(ctx);assert.match(html,/비품 신청|대여 가능 1개/);assert.match(html,/data-action="member-equipment-borrow" data-id="item-a"/);assert.doesNotMatch(html,/data-action="member-equipment-borrow" data-id="paused"/);assert.match(html,/내가 대여 중인 비품/);assert.match(html,/최근 반납 내역/);assert.doesNotMatch(html,/<script>/);assert.match(html,/&lt;script&gt;/);assert.doesNotMatch(html,/승인 요청|운영진 승인/);
+ const html=renderEquipmentMember(ctx);assert.match(html,/대여 가능 1개/);assert.doesNotMatch(html,/equipment-member-heading|승인 없이|<h1/);assert.match(html,/data-action="member-equipment-borrow" data-id="item-a"/);assert.doesNotMatch(html,/data-action="member-equipment-borrow" data-id="paused"/);assert.match(html,/내가 대여 중인 비품/);assert.match(html,/최근 반납 내역/);assert.doesNotMatch(html,/<script>/);assert.match(html,/&lt;script&gt;/);assert.doesNotMatch(html,/승인 요청|운영진 승인/);
  assert.match(equipmentLoanRow({...loan,dueDate:'2000-01-01'}),/반납 예정일 지남/);
 });
 test('catalog administration uses inventory permission and offers configurable data without approval controls',async()=>{

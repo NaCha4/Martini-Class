@@ -9,6 +9,7 @@ import { filterListRows } from './list-filters.js';
 import { isMemberRoute, getMemberSessionKey, memberStorage, MEMBER_SESSION_CHANNEL } from './member-session.js';
 import { mountMemberDetail } from './member-detail.js';
 import { mountPartnerViews, clearPartnerViews } from './partner-stamps.js';
+import { mountMemberEquipmentRefresh, clearMemberEquipmentRefresh } from './equipment.js';
 import { clearAdminData } from './admin-session.js';
 import { isRequestViewer } from '../../functions/src/permissions.js';
 export const state={profile:null,user:null,authReady:false,data:{},settings:{},search:'',filter:'all',eventType:'all'};
@@ -57,7 +58,7 @@ window.addEventListener('focus',expireMemberView);
 window.addEventListener('pageshow',expireMemberView);
 window.addEventListener('pageshow',event=>{if(event.persisted&&(isMerchantScreen()||isMemberRoute()||isAdminScreen())){void closeModal({discard:true});void render({focus:true});}});
 window.addEventListener('hashchange',()=>{if(isMerchantScreen())void render({focus:true});});
-window.addEventListener('pagehide',()=>clearPartnerViews(ctx));
+window.addEventListener('pagehide',()=>{clearPartnerViews(ctx);clearMemberEquipmentRefresh();});
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')expireMemberView();});
 try{if(window.BroadcastChannel){const channel=new window.BroadcastChannel(MEMBER_SESSION_CHANNEL);channel.addEventListener('message',expireMemberView);}}catch{}
 let currentIndex=Number(history.state?.martiniIndex||0),currentUrl=location.pathname+location.search+location.hash,restoringHistory=false;
@@ -198,6 +199,7 @@ document.addEventListener('change',async event=>{
 });
 const filterRows=()=>filterListRows(app,state);
 export async function render({focus=false,scroll}={}) {
+  clearMemberEquipmentRefresh();
   const current=++renderNumber,savedFocus=captureFocus(),savedScroll=scrollY;
   const session=isMemberRoute()?getMemberSessionKey(ctx):'',memberLocked=isMemberRoute()&&(!session||session!==renderedMemberSession);
   const adminLocked=isAdminScreen()&&(!state.profile||isRequestViewer(state.profile));
@@ -234,6 +236,7 @@ export async function render({focus=false,scroll}={}) {
     }
     mountMemberDetail(ctx);
     mountPartnerViews(ctx);
+    mountMemberEquipmentRefresh(ctx,app);
   }catch(error){
     if(current!==renderNumber)return;
     if(isAdminScreen()){clearAdminData(state);await closeModal({discard:true});}

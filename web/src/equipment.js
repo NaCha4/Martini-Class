@@ -3,6 +3,7 @@ import { hasPermission } from '../../functions/src/permissions.js';
 import { memberState,getMemberSessionKey,clearMemberIdentity,isMemberAccessError,refreshMemberSession } from './member-session.js';
 import { activateMemberRequestView } from './member-navigation.js';
 import './equipment.css';
+import { bindEquipmentPullRefresh } from './equipment-pull-refresh.js';
 
 const info=item=>'<dl class="equipment-facts">'+[['보관 위치',item.location],['주의사항',item.precautions],...(item.details||[]).map(d=>[d.label,d.value])].filter(([,v])=>v).map(([label,value])=>'<div><dt>'+esc(label)+'</dt><dd>'+textBlock(value)+'</dd></div>').join('')+'</dl>';
 const overdue=loan=>loan.status==='borrowed'&&loan.dueDate&&Date.parse(loan.dueDate+'T23:59:59+09:00')<Date.now();
@@ -17,7 +18,30 @@ export function renderEquipmentMember(ctx){
   content='<section class="equipment-member-section"><h2>대여할 비품</h2>'+(available.length?'<div class="equipment-grid">'+available.map(item=>'<button type="button" class="equipment-choice" data-action="member-equipment-borrow" data-id="'+esc(item.id)+'"><span class="equipment-choice-heading"><strong>'+esc(item.name)+'</strong><span class="member-status '+(item.available?'approved':'cancelled')+'">'+(item.available?'대여 가능 '+item.available+'개':'모두 대여 중')+'</span></span>'+(item.description?'<span class="equipment-description">'+esc(item.description)+'</span>':'')+(item.location?'<span class="equipment-location">'+icon('map-pin')+esc(item.location)+'</span>':'')+'<span class="equipment-choice-link">상세 · 대여 기록 '+icon('arrow-right')+'</span></button>').join('')+'</div>':'<p class="member-quiet-empty">현재 대여 가능한 비품이 없습니다.</p>')+'</section>';
   for(const [mode,label] of [['borrowed','내가 대여 중인 비품'],['returned','최근 반납 내역']]){const rows=loans.filter(l=>l.status===mode);content+='<section class="equipment-member-section"><h2>'+label+'</h2>'+(rows.length?'<div class="member-record-list">'+rows.map(equipmentLoanRow).join('')+'</div>':'<p class="member-quiet-empty">'+(mode==='borrowed'?'대여 중인 비품이 없습니다.':'반납 내역이 없습니다.')+'</p>')+'</section>';}
  }
- return '<div class="equipment-member-heading"><div><h1 id="member-equipment-title">비품 신청</h1><p>승인 없이 직접 대여하고, 제자리에 돌려놓은 뒤 반납을 기록해 주세요.</p></div>'+button('새로고침','member-equipment-refresh',{class:'button secondary small',icon:'refresh-cw'})+'</div>'+content;
+ return content;
+}
+let mountedRefresh=null;
+export function clearMemberEquipmentRefresh(){mountedRefresh?.dispose();mountedRefresh=null;}
+async function refreshEquipmentContents(ctx){
+ const shot=memberSnapshot(ctx);
+ if(await loadMemberEquipment(ctx)&&shot.current()){
+  const node=document.querySelector('[data-equipment-member]');
+  if(node){node.innerHTML=renderEquipmentMember(ctx);refreshIcons();}
+ }
+}
+export function mountMemberEquipmentRefresh(ctx,scope=document){
+ clearMemberEquipmentRefresh();
+ const panel=scope.querySelector('#member-equipment-view');if(!panel)return;
+ const control=panel.querySelector('[data-action="member-equipment-refresh"]'),status=panel.querySelector('[data-equipment-pull-text]'),content=panel.querySelector('[data-equipment-member]');
+ const enabled=()=>!!getMemberSessionKey(ctx)&&ctx.state.memberAppTab==='visits'&&ctx.state.memberRequestView==='equipment'&&!panel.closest('[hidden],[inert]')&&!document.querySelector('dialog[open]');
+ const binding=bindEquipmentPullRefresh(panel,()=>refreshEquipmentContents(ctx),{enabled,onError:()=>ctx.toast('새로고침하지 못했습니다. 다시 시도해 주세요.'),onState:({phase,distance})=>{
+  const busy=phase==='refreshing',pulling=phase==='pulling'||phase==='ready';
+  panel.classList.toggle('is-pulling',pulling);panel.classList.toggle('is-refreshing',busy);
+  panel.style.setProperty('--equipment-pull',busy?'44px':distance+'px');
+  status.textContent=busy?'새로고침 중…':phase==='ready'?'놓으면 새로고침':phase==='pulling'?'아래로 당겨 새로고침':'';
+  control.disabled=busy;content.setAttribute('aria-busy',String(busy));
+ }});
+ mountedRefresh={ctx,panel,...binding};
 }
 function memberSnapshot(ctx){const view=memberState(ctx),sessionKey=getMemberSessionKey(ctx),route=location.href,generation=ctx.state.memberAppGeneration||0;return {view,sessionKey,current:()=>memberState(ctx)===view&&getMemberSessionKey(ctx)===sessionKey&&location.href===route&&(ctx.state.memberAppGeneration||0)===generation};}
 export async function loadMemberEquipment(ctx){
@@ -39,7 +63,7 @@ export async function memberEquipmentAction(ctx,action,id){
  if(!getMemberSessionKey(ctx))return ctx.render();
  if(['member-equipment-open','member-equipment-refresh'].includes(action)){
   if(!activateMemberRequestView(ctx,'equipment')){ctx.state.memberRequestView='equipment';ctx.state.memberAppTab='visits';return ctx.render();}
-  if(await loadMemberEquipment(ctx)){const node=document.querySelector('[data-equipment-member]');if(node){node.innerHTML=renderEquipmentMember(ctx);refreshIcons();}}return;
+  if(mountedRefresh?.ctx===ctx&&mountedRefresh.panel.isConnected)await mountedRefresh.refresh();else await refreshEquipmentContents(ctx);return;
  }
  const shot=memberSnapshot(ctx);
  if(!await loadMemberEquipment(ctx)||!shot.current())return;
