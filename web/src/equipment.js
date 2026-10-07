@@ -15,8 +15,7 @@ export function equipmentLoanRow(loan,item){return '<button type="button" class=
 function equipmentMemberCard(item,loans){
  const mine=loans.some(loan=>loan.itemId===item.id&&loan.status==='borrowed');
  return '<button type="button" class="equipment-choice'+(mine?' is-mine':'')+'" data-equipment-item="'+esc(item.id)+'" data-action="member-equipment-detail" data-id="'+esc(item.id)+'" aria-haspopup="dialog" aria-label="'+esc(item.name+' 상세 보기')+'">'
-  +'<strong class="equipment-card-title">'+esc(item.name)+'</strong>'
-  +(item.description?'<span class="equipment-description">'+esc(item.description)+'</span>':'')+'</button>';
+  +'<strong class="equipment-card-title">'+esc(item.name)+'</strong></button>';
 }
 export function renderEquipmentMember(ctx){
  const data=memberState(ctx).equipment;
