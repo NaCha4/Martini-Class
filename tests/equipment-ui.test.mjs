@@ -6,9 +6,9 @@ const hook=registerHooks({load(url,context,next){if(url.endsWith('.css'))return 
 const {renderEquipmentMember,renderEquipmentAdmin,equipmentLoanRow,loadMemberEquipment,equipmentAdminAction}=await import('../web/src/equipment.js');hook.deregister();
 const item={id:'item-a',name:'비품 <script>',description:'자세한 설명',location:'수납장',precautions:'주의 <img src=x>',details:[{label:'구성품 <b>',value:'본체와 뚜껑'}],quantity:2,borrowed:1,available:1,enabled:true,revision:2};
 const loan={id:'loan-a',itemId:item.id,item,quantity:1,status:'borrowed',borrowedAt:new Date().toISOString(),dueDate:'',note:''};
-test('member equipment cards show availability and personal records with escaped text',()=>{
+test('member equipment cards show availability and personal status with escaped text',()=>{
  const ctx={state:{}};memberState(ctx).equipment={items:[item,{...item,id:'paused',enabled:false}],loans:[loan,{...loan,id:'returned',status:'returned',returnedAt:new Date().toISOString()}]};
- const html=renderEquipmentMember(ctx);assert.match(html,/대여 가능 1개/);assert.doesNotMatch(html,/equipment-member-heading|승인 없이|<h1/);assert.match(html,/data-action="member-equipment-borrow" data-id="item-a"/);assert.doesNotMatch(html,/data-action="member-equipment-borrow" data-id="paused"/);assert.match(html,/내가 대여 중인 비품/);assert.match(html,/최근 반납 내역/);assert.doesNotMatch(html,/<script>/);assert.match(html,/&lt;script&gt;/);assert.doesNotMatch(html,/승인 요청|운영진 승인/);
+ const html=renderEquipmentMember(ctx);assert.match(html,/대여 가능 1개/);assert.doesNotMatch(html,/equipment-member-heading|승인 없이|<h1/);assert.match(html,/data-action="member-equipment-borrow" data-id="item-a"/);assert.doesNotMatch(html,/data-action="member-equipment-borrow" data-id="paused"/);assert.match(html,/내가 대여 중 1개/);assert.match(html,/data-action="member-equipment-loan" data-id="loan-a"/);assert.doesNotMatch(html,/내가 대여 중인 비품|최근 반납 내역|대여할 비품|member-record-list/);assert.doesNotMatch(html,/<script>/);assert.match(html,/&lt;script&gt;/);assert.doesNotMatch(html,/승인 요청|운영진 승인/);
  assert.match(equipmentLoanRow({...loan,dueDate:'2000-01-01'}),/반납 예정일 지남/);
  const single={...item,quantity:1,borrowed:0,available:1};
  memberState(ctx).equipment={items:[single],loans:[loan]};
@@ -18,6 +18,18 @@ test('member equipment cards show availability and personal records with escaped
  assert.match(equipmentLoanRow(loan,item),/ · 1개/);
  assert.match(equipmentLoanRow({...loan,quantity:2},single),/ · 2개/);
  assert.match(equipmentLoanRow(loan),/ · 1개/);
+});
+test('cards retain paused borrowed items and route multiple active loans to a return picker',()=>{
+ const ctx={state:{}};
+ memberState(ctx).equipment={items:[{...item,enabled:false,borrowed:2,available:0}],loans:[loan,{...loan,id:'loan-b'}, {...loan,id:'returned',status:'returned'}]};
+ const html=renderEquipmentMember(ctx);
+ assert.equal((html.match(/<article /g)||[]).length,1);
+ assert.match(html,/내가 대여 중 2개/);assert.match(html,/신규 대여 중지/);
+ assert.match(html,/data-action="member-equipment-returns" data-id="item-a"/);
+ assert.doesNotMatch(html,/data-action="member-equipment-borrow"|returned/);
+ memberState(ctx).equipment={items:[{...item,borrowed:2,available:0}],loans:[]};
+ assert.match(renderEquipmentMember(ctx),/대여 중 2개/);assert.doesNotMatch(renderEquipmentMember(ctx),/내가 대여 중|반납하기/);
+ memberState(ctx).equipment={items:[],loans:[]};assert.match(renderEquipmentMember(ctx),/현재 대여 가능한 비품이 없습니다/);
 });
 test('catalog administration uses inventory permission and offers configurable data without approval controls',async()=>{
  const calls=[],ctx={state:{user:{uid:'admin'},profile:{permissions:['inventory']}},api:async(op)=>{calls.push(op);return {items:[item]};}};

@@ -12,15 +12,32 @@ const singleItem=item=>item?.quantity===1;
 const singleLoan=(loan,item)=>singleItem(item)&&loan.quantity===1;
 const loanTitle=(loan,item)=>loan.item.name+(singleLoan(loan,item)?'':' · '+loan.quantity+'개');
 export function equipmentLoanRow(loan,item){return '<button type="button" class="member-request-row" data-action="member-equipment-loan" data-id="'+esc(loan.id)+'"><span class="member-request-icon">'+icon('package')+'</span><span class="member-request-content"><span class="member-request-kind">비품 대여</span><strong>'+esc(loanTitle(loan,item))+'</strong><small>'+esc(loan.status==='returned'?date(loan.returnedAt,true)+' 반납':loan.dueDate?'반납 예정 '+loan.dueDate:date(loan.borrowedAt,true)+' 대여')+'</small></span><span class="member-status '+(loan.status==='returned'?'cancelled':overdue(loan)?'rejected':'approved')+'">'+status(loan)+'</span>'+icon('arrow-right')+'</button>';}
+function equipmentMemberCard(item,loans){
+ const mine=loans.filter(loan=>loan.itemId===item.id&&loan.status==='borrowed');
+ const mineQuantity=mine.reduce((sum,loan)=>sum+loan.quantity,0),single=singleItem(item);
+ const badge=(text,style)=>'<span class="member-status '+style+'">'+esc(text)+'</span>';
+ const action=(text,name,id,secondary=false)=>'<button type="button" class="button'+(secondary?' secondary':'')+'" data-action="'+name+'" data-id="'+esc(id)+'" aria-label="'+esc(item.name+' '+text)+'">'+text+'</button>';
+ let badges='';
+ if(mine.length)badges+=badge('내가 대여 중'+(single?'':' '+mineQuantity+'개'),'approved equipment-mine');
+ if(item.borrowed>mineQuantity)badges+=badge('대여 중'+(single?'':' '+item.borrowed+'개'),'cancelled');
+ if(!item.enabled)badges+=badge('신규 대여 중지','cancelled');
+ else if(item.available>0)badges+=badge('대여 가능'+(single?'':' '+item.available+'개'),'approved');
+ if(mine.some(overdue))badges+=badge('반납 기한 지남','rejected');
+ let actions='';
+ if(item.enabled&&(!mine.length||item.available>0))actions+=action(mine.length?'추가 대여':item.available>0?'상세 · 대여':'상세 보기','member-equipment-borrow',item.id,!!mine.length);
+ if(mine.length)actions+=action('반납하기',mine.length===1?'member-equipment-loan':'member-equipment-returns',mine.length===1?mine[0].id:item.id);
+ return '<article class="equipment-choice'+(mine.length?' is-mine':'')+'" data-equipment-item="'+esc(item.id)+'">'
+  +'<div class="equipment-card-status">'+badges+'</div><h2 class="equipment-card-title">'+esc(item.name)+'</h2>'
+  +(item.description?'<p class="equipment-description">'+esc(item.description)+'</p>':'')
+  +(item.location?'<p class="equipment-location">'+icon('map-pin')+'<span>'+esc(item.location)+'</span></p>':'')
+  +'<div class="equipment-card-actions">'+actions+'</div></article>';
+}
 export function renderEquipmentMember(ctx){
  const data=memberState(ctx).equipment;
- let content='<p role="status">'+(data?.error?esc(data.error):'비품 목록을 불러와 주세요.')+'</p>';
- if(data?.items){
-  const available=data.items.filter(item=>item.enabled),loans=data.loans||[];
-  content='<section class="equipment-member-section"><h2>대여할 비품</h2>'+(available.length?'<div class="equipment-grid">'+available.map(item=>'<button type="button" class="equipment-choice" data-action="member-equipment-borrow" data-id="'+esc(item.id)+'"><span class="equipment-choice-heading"><strong>'+esc(item.name)+'</strong><span class="member-status '+(item.available?'approved':'cancelled')+'">'+(item.available?'대여 가능'+(singleItem(item)?'':' '+item.available+'개'):singleItem(item)?'대여 중':'모두 대여 중')+'</span></span>'+(item.description?'<span class="equipment-description">'+esc(item.description)+'</span>':'')+(item.location?'<span class="equipment-location">'+icon('map-pin')+esc(item.location)+'</span>':'')+'<span class="equipment-choice-link">상세 · 대여 기록 '+icon('arrow-right')+'</span></button>').join('')+'</div>':'<p class="member-quiet-empty">현재 대여 가능한 비품이 없습니다.</p>')+'</section>';
-  for(const [mode,label] of [['borrowed','내가 대여 중인 비품'],['returned','최근 반납 내역']]){const rows=loans.filter(l=>l.status===mode);content+='<section class="equipment-member-section"><h2>'+label+'</h2>'+(rows.length?'<div class="member-record-list">'+rows.map(loan=>equipmentLoanRow(loan,data.items.find(item=>item.id===loan.itemId))).join('')+'</div>':'<p class="member-quiet-empty">'+(mode==='borrowed'?'대여 중인 비품이 없습니다.':'반납 내역이 없습니다.')+'</p>')+'</section>';}
- }
- return content;
+ if(!data?.items)return '<p role="status">'+(data?.error?esc(data.error):'비품 목록을 불러와 주세요.')+'</p>';
+ const loans=data.loans||[],owned=new Set(loans.filter(loan=>loan.status==='borrowed').map(loan=>loan.itemId));
+ const items=data.items.filter(item=>item.enabled||owned.has(item.id));
+ return items.length?'<div class="equipment-grid">'+items.map(item=>equipmentMemberCard(item,loans)).join('')+'</div>':'<p class="member-quiet-empty">현재 대여 가능한 비품이 없습니다.</p>';
 }
 let mountedRefresh=null;
 export function clearMemberEquipmentRefresh(){mountedRefresh?.dispose();mountedRefresh=null;}
@@ -71,6 +88,15 @@ export async function memberEquipmentAction(ctx,action,id){
  if(!await loadMemberEquipment(ctx)||!shot.current())return;
  const data=shot.view.equipment;
  if(!data?.items)throw Error('비품 목록을 불러온 뒤 다시 시도해 주세요.');
+ if(action==='member-equipment-returns'){
+  const item=data.items.find(item=>item.id===id),loans=data.loans.filter(loan=>loan.itemId===id&&loan.status==='borrowed');
+  if(!loans.length)throw Error('대여 중인 기록이 없습니다. 목록을 새로고침해 주세요.');
+  if(loans.length===1){action='member-equipment-loan';id=loans[0].id;}
+  else{
+   const dialog=modal('반납할 내역 선택','<div class="member-record-list">'+loans.map(loan=>equipmentLoanRow(loan,item)).join('')+'</div>',null,{contentOnly:true,wide:true});
+   dialog.classList.add('member-dialog');return;
+  }
+ }
  if(action==='member-equipment-borrow'){
   const item=data.items.find(i=>i.id===id&&i.enabled);if(!item)throw Error('현재 대여할 수 없는 비품입니다.');
   const canBorrow=item.available>0,single=singleItem(item);
@@ -87,7 +113,7 @@ export async function memberEquipmentAction(ctx,action,id){
  if(action==='member-equipment-loan'){
   const loan=data.loans.find(l=>l.id===id);if(!loan)throw Error('대여 기록을 찾을 수 없습니다.');
   const currentItem=data.items.find(i=>i.id===loan.itemId),borrowed=loan.status==='borrowed',single=singleLoan(loan,currentItem);
-  const body='<div class="wide"><p class="equipment-availability">'+status(loan)+'</p>'+info({...loan.item,location:currentItem?.location??loan.item.location})+'<dl class="equipment-facts">'+(single?'':'<div><dt>대여 수량</dt><dd>'+loan.quantity+'개</dd></div>')+'<div><dt>대여 일시</dt><dd>'+date(loan.borrowedAt,true)+'</dd></div>'+(loan.dueDate?'<div><dt>반납 예정일</dt><dd>'+esc(loan.dueDate)+'</dd></div>':'')+(loan.returnedAt?'<div><dt>반납 일시</dt><dd>'+date(loan.returnedAt,true)+'</dd></div>':'')+'</dl>'+textBlock(loan.note)+'</div>'+(borrowed?field('confirmed',(single?'':loan.quantity+'개 모두 ')+'보관 위치에 반납했습니다',false,{type:'checkbox',required:true,wide:true})+'<p class="wide help">실제로 반납한 뒤 기록해 주세요. 기록하면 다른 부원이 대여할 수 있습니다.</p>':'');
+  const body='<div class="wide"><p class="equipment-availability">'+status(loan)+'</p>'+textBlock(loan.item.description)+info({...loan.item,location:currentItem?.location??loan.item.location})+'<dl class="equipment-facts">'+(single?'':'<div><dt>대여 수량</dt><dd>'+loan.quantity+'개</dd></div>')+'<div><dt>대여 일시</dt><dd>'+date(loan.borrowedAt,true)+'</dd></div>'+(loan.dueDate?'<div><dt>반납 예정일</dt><dd>'+esc(loan.dueDate)+'</dd></div>':'')+(loan.returnedAt?'<div><dt>반납 일시</dt><dd>'+date(loan.returnedAt,true)+'</dd></div>':'')+'</dl>'+textBlock(loan.note)+'</div>'+(borrowed?field('confirmed',(single?'':loan.quantity+'개 모두 ')+'보관 위치에 반납했습니다',false,{type:'checkbox',required:true,wide:true})+'<p class="wide help">실제로 반납한 뒤 기록해 주세요. 기록하면 다른 부원이 대여할 수 있습니다.</p>':'');
   let dialog;dialog=modal(loanTitle(loan,currentItem),body,borrowed?async f=>{
    if(!shot.current()||!dialog.open)throw Error('로그인 상태가 변경되었습니다. 다시 열어 주세요.');
    await ctx.api('returnEquipment',{sessionKey:shot.sessionKey,id,confirmed:f.has('confirmed')});if(!shot.current())return;await ctx.render();ctx.toast('반납을 기록했습니다.');
