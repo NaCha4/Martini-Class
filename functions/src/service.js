@@ -10,6 +10,7 @@ import { createDeletion } from './deletion.js';
 import { createDecisionCategories } from './decision-categories.js';
 import { createInventoryBoard, inventoryCategoryId } from './inventory-board.js';
 import { createMemberPortal } from './member-portal.js';
+import { createEquipment } from './equipment.js';
 import { createPartnerStamps } from './partner-stamps.js';
 import { createOnTheRock } from './on-the-rock.js';
 import { createBudgetPlanner } from './budget-planner.js';
@@ -76,7 +77,8 @@ export function createService(db,clock=Date.now){
   await db.runTransaction(async tx=>{const snap=await tx.get(ref);const count=snap.data()?.count||0;if(count>=limit)fail('resource-exhausted','요청이 많습니다. 잠시 후 다시 시도해 주세요.');tx.set(ref,{count:count+1,expiresAt:Timestamp.fromMillis(clock()+3600000)});});
  }
  async function settings(){return (await col('settings').doc('club').get()).data()||null;}
- const memberPortal=createMemberPortal({db,col,clock,now,roster,throttle,audit});
+ const equipment=createEquipment({db,col,clock,now,audit,throttle,authenticate:(...args)=>memberPortal.authenticate(...args),identityFingerprint:member=>memberPortal.identityFingerprint(member)});
+ const memberPortal=createMemberPortal({db,col,clock,now,roster,throttle,audit,equipment});
  const partnerStamps=createPartnerStamps({db,col,clock,now,roster,throttle,audit,authenticate:memberPortal.authenticate,authenticateSessionHash:memberPortal.authenticateSessionHash,identityFingerprint:memberPortal.identityFingerprint});
  async function verifyEvent(eventId,key,tx){
   const ref=col('events').doc(eventId),s=tx?await tx.get(ref):await ref.get(),e=snapshot(s);
@@ -418,6 +420,7 @@ export function createService(db,clock=Date.now){
   if(op==='memberAccess')return memberPortal.access(data,ctx);
   if(op==='memberLogout')return memberPortal.logout(data,ctx);
   if(op==='memberPortal')return memberPortal.portal(data,ctx);
+  if(['memberEquipment','borrowEquipment','returnEquipment'].includes(op))return equipment[op](data,ctx);
   if(op==='memberEventAccess')return memberPortal.eventAccess(data,ctx);
   if(op==='memberApplications')return memberApplications(data,ctx);
   if(op==='memberApplication')return memberApplication(data,ctx);
@@ -442,6 +445,7 @@ export function createService(db,clock=Date.now){
   if(op==='budgetPlanner')return budgetPlanner.read(data,who);
   if(op==='saveBudgetPlanner')return budgetPlanner.save(data,who);
   if(['onTheRockBoard','saveOnTheRockGroup','recordOnTheRockMission','updateOnTheRockRecord','voidOnTheRockRecord'].includes(op))return onTheRock(op,data,who);
+  if(['equipmentCatalog','saveEquipmentItem','deleteEquipmentItem'].includes(op))return equipment[op](data,who);
   if(op==='clubRequests')return memberPortal.list(data,who);
   if(op==='clubRequestCommand')return memberPortal.command(data,who);
   if(op==='profile')return {uid:who.uid,displayName:who.displayName,role:who.role,roleName:who.roleName,permissions:who.permissions,expiresAt:who.expiresAt,...(who.sessionExpiresAt?{sessionExpiresAt:who.sessionExpiresAt}:{})};

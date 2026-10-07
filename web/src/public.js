@@ -91,6 +91,12 @@ export async function publicAction(ctx,action,id,target){
   delete ctx.state.memberInlineDetail;delete ctx.state.currentEvent;delete ctx.state.currentReceipt;delete ctx.state.memberScrollTarget;
   return true;
  }
+ if(action.startsWith('member-equipment-')){
+  const sessionKey=getMemberSessionKey(ctx),path=location.pathname;
+  if(ctx.mayLeave&&!await ctx.mayLeave({preserveVisitDraft:true}))return false;
+  if(location.pathname!==path||getMemberSessionKey(ctx)!==sessionKey)return false;
+  return memberPortalAction(ctx,action,id,target);
+ }
  if(action.startsWith('partner-'))return partnerAction(ctx,action,id,target);
  const refreshSelection=['member-refresh','public-refresh'].includes(action)?ctx.state.memberInlineDetail:null;
  if(isMemberRoute()&&['member-refresh','public-refresh','member-request','member-events','member-partners'].includes(action)&&ctx.mayLeave&&!await ctx.mayLeave())return;
