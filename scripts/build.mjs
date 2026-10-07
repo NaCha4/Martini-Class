@@ -2,6 +2,7 @@ import { build } from 'vite';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { execFileSync } from 'node:child_process';
 const root=path.resolve(fileURLToPath(new URL('../',import.meta.url)));
 process.chdir(root);
 await build();
@@ -20,9 +21,26 @@ if(process.argv.includes('--stage-pages')){
  const allowed=name=>name==='index.html'||name==='404.html'||name==='.nojekyll'||name==='CNAME'||/^assets\/[\w./-]+$/.test(name)||routes.some(route=>name===route+'/index.html');
  const safe=name=>{if(!allowed(name)||name.includes('..'))throw Error('Unsafe generated path');const p=path.resolve(root,name);if(!p.startsWith(root+path.sep))throw Error('Outside workspace');return p;};
  async function walk(dir,prefix=''){const files=[];for(const entry of await fs.readdir(dir,{withFileTypes:true})){const name=prefix+entry.name;if(entry.isDirectory())files.push(...await walk(path.join(dir,entry.name),name+'/'));else files.push(name);}return files;}
+ const currentFiles=await walk(output);
+ // Keep one previous release's JS/CSS so an already-open page can still load
+ // its deferred screens during a release. Do not retain older generations.
+ const currentManifest=path.join(root,'.pages-current-assets.json');
+ let previous=old;
+ try{previous=JSON.parse(await fs.readFile(currentManifest,'utf8'));}catch(error){if(error.code!=='ENOENT')throw error;}
+ // Repeated local builds retain the last committed release, not an intermediate build.
+ for(const name of ['.pages-current-assets.json','.pages-assets.json']){
+  try{previous=JSON.parse(execFileSync('git',['show','HEAD:'+name],{encoding:'utf8',stdio:['ignore','pipe','ignore']}));break;}catch{}
+ }
+ for(const name of previous){
+  if(!/^assets\/[\w-]+\.(?:js|css)$/.test(name)||currentFiles.includes(name))continue;
+  const destination=path.resolve(output,name);
+  if(!destination.startsWith(output+path.sep))throw Error('Outside build output');
+  try{await fs.copyFile(safe(name),destination);}catch(error){if(error.code!=='ENOENT')throw error;}
+ }
  const files=await walk(output);
  for(const name of files){const destination=safe(name);await fs.mkdir(path.dirname(destination),{recursive:true});await fs.copyFile(path.join(output,name),destination);}
  for(const name of old){if(!files.includes(name))await fs.rm(safe(name),{force:true});}
  await fs.writeFile(manifest,JSON.stringify(files.sort(),null,2)+'\n');
+ await fs.writeFile(currentManifest,JSON.stringify(currentFiles.sort(),null,2)+'\n');
  console.log('Prepared '+files.length+' files for the existing GitHub Pages main/root deployment.');
 }

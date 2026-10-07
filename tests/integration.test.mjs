@@ -29,6 +29,25 @@ beforeEach(async()=>{
  await batch.commit();
 });
 after(async()=>{await deleteApp(app);});
+test('dashboard returns exact current-term counts and bounded public summaries under existing permissions',async()=>{
+ const batch=db.batch();
+ for(let i=0;i<7;i++)batch.set(db.doc('martini_v2_events/future-'+i),{...event,id:'future-'+i,startsAt:time(86400000+i*1000),endsAt:time(90000000+i*1000)});
+ batch.set(db.doc('martini_v2_events/old-term'),{...event,semester:'2026-1'});
+ batch.set(db.doc('martini_v2_events/deleted'),{...event,deletedAt:stamp});
+ batch.set(db.doc('martini_v2_events/draft'),{...event,status:'draft'});
+ batch.set(db.doc('martini_v2_semesters/2026-2/members/member-1'),{...member(1),removedAt:stamp});
+ batch.set(db.doc('martini_v2_semesters/2026-2/members/member-2'),{...member(2),anonymizedAt:stamp});
+ for(let i=0;i<8;i++)batch.set(db.doc('martini_v2_inventory/low-'+i),{...meta,name:'부족 '+i,quantity:0,unit:'each',minimum:1,note:'INTERNAL NOTE'});
+ await batch.commit();
+ const summary=await service.handle({op:'dashboard'},owner);
+ assert.deepEqual(summary.counts,{events:8,members:6,inventory:8});
+ assert.equal(summary.events.length,4);assert.equal(summary.inventory.length,5);
+ for(const row of [...summary.events,...summary.inventory])for(const key of ['phone','studentId','linkHash','note','description','memberId'])assert.equal(key in row,false);
+ const restricted=await service.handle({op:'dashboard'},education);
+ assert.equal('members' in restricted.counts,false);assert.equal(restricted.counts.events,8);
+ await assert.rejects(service.handle({op:'dashboard'},{ip:'anonymous'}),error=>error.code==='unauthenticated');
+ await assert.rejects(service.handle({op:'dashboard',semester:'2026-1'},owner),error=>error.code==='invalid-argument');
+});
 test('simultaneous last-seat submissions never overbook; duplicate retry does not count twice',async()=>{
  const results=await Promise.all(Array.from({length:6},(_,i)=>service.handle(application(i+1),{ip:'member-'+i})));
  assert.equal(results.filter(r=>r.status==='registered').length,1);

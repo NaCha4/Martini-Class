@@ -1,9 +1,42 @@
-import { renderPublic, publicAction, publicSubmit } from './public.js';
-import { renderAdmin, adminAction, adminSubmit } from './admin.js';
-import { renderMerchant, merchantAction, merchantSubmit } from './partner-stamps.js';
+import { isMemberRoute } from './member-session.js';
+import { renderPublicInfo } from './public-info.js';
 
-export const isAdminScreen = (path = location.pathname) => path === '/admin' || path.startsWith('/admin/');
-export const isMerchantScreen = (path = location.pathname) => path.replace(/\/+$/,'') === '/partners/feelingfine';
-export const renderScreen = ctx => isAdminScreen() ? renderAdmin(ctx) : isMerchantScreen() ? renderMerchant(ctx) : renderPublic(ctx);
-export const screenAction = (ctx, action, id, target) => isAdminScreen() ? adminAction(ctx, action, id, target) : isMerchantScreen() ? merchantAction(ctx, action, id, target) : publicAction(ctx, action, id, target);
-export const screenSubmit = (ctx, form, data, node) => isAdminScreen() ? adminSubmit(ctx, form, data, node) : isMerchantScreen() ? merchantSubmit(ctx, form, data, node) : publicSubmit(ctx, form, data, node);
+export const isAdminScreen=(path=location.pathname)=>path==='/admin'||path.startsWith('/admin/');
+export const isMerchantScreen=(path=location.pathname)=>path.replace(/\/+$/,'')==='/partners/feelingfine';
+const kind=(path=location.pathname)=>isAdminScreen(path)?'admin':isMerchantScreen(path)?'merchant':isMemberRoute(path)||/^\/(e|r)(\/|$)/.test(path)?'member':'public';
+const loaders={admin:()=>import('./admin.js'),merchant:()=>import('./partner-stamps.js'),member:()=>import('./public.js')};
+const loaded={},pending={};
+async function load(key){
+ if(!pending[key])pending[key]=loaders[key]().then(module=>loaded[key]=module).catch(error=>{delete pending[key];throw error;});
+ return pending[key];
+}
+export async function renderScreen(ctx,options){
+ const path=location.pathname,key=kind(path);
+ if(key==='public')return renderPublicInfo(ctx);
+ const module=await load(key);
+ if(location.pathname!==path)return '';
+ return module[key==='admin'?'renderAdmin':key==='merchant'?'renderMerchant':'renderPublic'](ctx,options);
+}
+export async function screenAction(ctx,...args){
+ const path=location.pathname,key=kind(path);
+ if(key==='public'){if(args[0]==='public-refresh'){delete ctx.state.publicInfo;return ctx.render();}return;}
+ const module=await load(key);
+ if(location.pathname!==path)return;
+ return module[key==='admin'?'adminAction':key==='merchant'?'merchantAction':'publicAction'](ctx,...args);
+}
+export async function screenSubmit(ctx,...args){
+ const path=location.pathname,key=kind(path);
+ if(key==='public')return;
+ const module=await load(key);
+ if(location.pathname!==path)return;
+ return module[key==='admin'?'adminSubmit':key==='merchant'?'merchantSubmit':'publicSubmit'](ctx,...args);
+}
+export function screenChange(ctx,target){return loaded.admin?.sortMemberRows(ctx,target);}
+export function mountScreen(ctx,app){
+ const key=kind();
+ if(key==='admin')loaded.admin?.mountAdminView(ctx,app);
+ else if(key==='member')loaded.member?.mountPublicView(ctx,app);
+ else if(key==='merchant')loaded.merchant?.mountPartnerViews(ctx);
+}
+export function prepareScreenRender(){loaded.member?.preparePublicView();}
+export function clearScreen(ctx){loaded.member?.clearPublicView(ctx);loaded.merchant?.clearPartnerViews(ctx);}

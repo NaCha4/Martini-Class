@@ -64,6 +64,21 @@
 
 docs의 배경·로고 파일은 public/assets/background.png, logo.png, wordmark.png로 이동했다. 공개 산출물의 assets는 빌드가 만드는 복사본이다.
 
+### 2026-10-08 구조 정리
+
+- `main.js`는 화면 렌더링을 조율하며, 이동·입력 이벤트·세션 수명 관리는 `app-navigation.js`, `app-events.js`, `app-session.js`에서 처리한다.
+- `screen-router.js`는 공개 안내, 부원·행사, 운영실, 제휴처 화면을 구분한다. 운영실·부원·제휴처와 Firebase SDK는 필요한 시점에 로드한다. 정적 홈페이지는 Firebase 초기화를 기다리지 않는다.
+- `home.js`에 홈의 네 구역을 분리하고 활동 목록을 데이터로 관리한다. 공개 안내와 개인정보 본문은 `public-info.js`에 둔다.
+- 공통 스타일은 `styles/`의 기능별 파일을 `style.css`에서 순서대로 가져온다. 운영실 전용 스타일은 `styles/admin.css`로 분리해 운영실 진입 시 로드한다.
+- 운영실 조회와 페이지네이션은 `admin-data.js`에서 처리한다. 추가 페이지는 렌더 인자로 전달하며 API 함수를 교체하지 않는다. 화면 이동·로그아웃 뒤 도착한 응답은 캐시에 반영하지 않는다. 부원 요청의 화면·세션 확인은 `view-request.js`를 공유한다.
+- 운영 홈의 `dashboard` API는 권한이 있는 업무의 정확한 합계와 행사 4개·부족 재고 5개만 반환한다. 현재 학기와 기존 명부 호환을 유지하며, 명부 개인정보를 홈으로 내려보내지 않는다. 일반 목록·상세 조회는 기존 API를 유지한다.
+- 서버의 기존 인증·권한 관문은 `service.js`에 유지한다. 행사 신청·대기·개인 조회는 `event-applications.js`, 기록 조회·저장·재고·정산은 `records.js`, 홈 요약은 `dashboard.js`에 분리했다.
+- 홈페이지 배경은 데스크톱·모바일 WebP를 사용하고 글꼴은 모든 글리프를 보존한 WOFF2를 사용한다. 원본은 보존한다. 재생성은 Pillow·fonttools·brotli가 있는 Python에서 `python scripts/optimize-assets.py`로 실행하며 일반 빌드에는 Python이 필요하지 않다.
+- 일부 UI 테스트는 HTML 파서로 구조와 속성을 확인해 속성 순서 변경에 영향을 받지 않는다. `tests/refactor.test.mjs`는 홈 구조, 페이지네이션, 로그아웃·화면 전환 중 응답을 검증한다.
+- 배포는 새 읽기 API가 포함된 Functions를 먼저 반영한다. Pages 빌드는 `.pages-current-assets.json`에 현재 산출물을 기록하고 이전 커밋의 JS·CSS 한 세대를 보존해 열린 화면의 지연 로딩을 지원한다.
+
+검증: 단위 테스트 426개, 에뮬레이터 통합 테스트 141개, JavaScript 문법 및 비밀정보 검사 통과. BrowserAct의 Chrome에서 공개 안내·운영실·부원·제휴처 전환, 폼 입력 보호, 모바일 390px 메뉴와 라운지를 확인했다. 기존 CSS와 주요 5개 화면의 요소 크기·글꼴·색상 비교에서도 차이가 없었다. 빌드 파일의 압축 전 기준으로 초기 JS는 약 448KB → 65KB, CSS는 약 163KB → 38KB이며 실제 응답 시간은 환경에 따라 달라진다.
+
 ## 로컬 실행
 
 Node.js 22, Java 21 이상을 사용한다.

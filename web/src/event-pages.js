@@ -1,3 +1,4 @@
+import { memberRequestGuard } from './view-request.js';
 import { shortLink, linkKey } from './share-links.js';
 import { publicShell as shell } from './public-shell.js';
 import { getMemberSessionKey, getVerifiedMember, clearMemberIdentity, isMemberAccessError, refreshMemberSession } from './member-session.js';
@@ -76,7 +77,8 @@ export async function renderEventPage(ctx,id,{member=false,embedded=false}={}){
  const accessKey=key(),accessUrl=location.href;
  const sessionKey=member?getMemberSessionKey(ctx):'';
  const selection=ctx.state.memberInlineDetail;
- const current=()=>location.href===accessUrl&&(!member||getMemberSessionKey(ctx)===sessionKey)&&(!embedded||ctx.state.memberInlineDetail===selection);
+ const ownsView=()=>location.href===accessUrl&&(!embedded||ctx.state.memberInlineDetail===selection);
+  const current=member?memberRequestGuard(ctx,ownsView):ownsView;
  if(member&&!sessionKey)return memberGate(ctx,'등록된 이름과 학번으로 로그인하면 이 행사를 확인할 수 있어요.');
  let e;
  try{e=await ctx.api(member?'memberEventAccess':'eventAccess',{eventId:id,...(member?{sessionKey}:{key:accessKey})});}
@@ -111,7 +113,8 @@ export async function renderApplicationPage(ctx,id,{member=false,embedded=false}
  const accessKey=key(),accessUrl=location.href;
  const sessionKey=member?getMemberSessionKey(ctx):'';
  const selection=ctx.state.memberInlineDetail;
- const current=()=>location.href===accessUrl&&(!member||getMemberSessionKey(ctx)===sessionKey)&&(!embedded||ctx.state.memberInlineDetail===selection);
+ const ownsView=()=>location.href===accessUrl&&(!embedded||ctx.state.memberInlineDetail===selection);
+  const current=member?memberRequestGuard(ctx,ownsView):ownsView;
  if(member&&!sessionKey)return memberGate(ctx,'등록된 이름과 학번으로 로그인하면 신청 내역을 확인할 수 있어요.');
  let result;
  try{result=await ctx.api(member?'memberApplication':'receipt',{id,...(member?{sessionKey}:{key:accessKey}),action:'get'});}

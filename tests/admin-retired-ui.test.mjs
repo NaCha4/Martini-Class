@@ -30,12 +30,13 @@ const settings={id:'current',semester:'2026-2',contact:'동아리 문의 채널'
 const event=(extra={})=>({id:'event-a',title:'가을 교육',type:'class',semester:'2026-2',status:'open',location:'교육실',startsAt:new Date(Date.now()+86400000).toISOString(),endsAt:new Date(Date.now()+90000000).toISOString(),registered:1,waiting:0,capacity:20,fee:5000,staffFee:2000,staffFeeRevision:1,description:'칵테일 교육',policy:'환불 안내',...extra});
 const application={id:'application-a',name:'김부원',status:'registered',attendance:'present',payment:'paid',paidAmount:5000,fee:5000,createdAt:'2026-10-01T03:00:00.000Z',isStaff:false};
 
-function context({operator=profile(),rows={},roles=[]}={}){
+function context({operator=profile(),rows={},roles=[],overview={counts:{},events:[],inventory:[]}}={}){
  const calls=[],navigations=[];
  const ctx={state:{authReady:true,user:{uid:operator.uid},profile:operator,data:{},settings:{...settings}},
   api:async(op,data)=>{
    calls.push({op,data});
    if(op==='profile')return operator;
+   if(op==='dashboard')return overview;
    if(op==='listRoles')return {rows:roles};
    if(op==='listInventoryCategories')return {rows:rows.inventoryCategories||[]};
    if(op==='read'){
@@ -280,14 +281,14 @@ test('all retired routes redirect before authentication and API reads, including
  }
 });
 
-test('dashboard loads only active operational records and renders current-term metrics without retired work',async()=>{
- const {ctx,calls}=context({rows:{
-  events:[event(),event({id:'past',endsAt:'2025-01-01T00:00:00.000Z'}),event({id:'draft',status:'draft'}),event({id:'other-term',semester:'2026-1'})],
-  members:[{id:'current',semester:'2026-2'},{id:'old',semester:'2026-1'},{id:'anonymous',semester:'2026-2',anonymizedAt:'2026-10-01'}],
-  inventory:[{id:'low',name:'레몬',unit:'each',quantity:1,minimum:2},{id:'enough',name:'컵',unit:'each',quantity:3,minimum:2}],
+test('dashboard renders the summary without downloading whole operational collections',async()=>{
+ const {ctx,calls}=context({overview:{
+  counts:{events:1,members:1,inventory:1},events:[event()],
+  inventory:[{id:'low',name:'레몬',unit:'each',quantity:1,minimum:2}],
  }});
  const html=await at('/admin',()=>renderAdmin(ctx)),body=main(html);
- assert.deepEqual(calls.filter(call=>call.op==='read').map(call=>call.data.kind).sort(),['events','inventory','members','settings']);
+ assert.deepEqual(calls.filter(call=>call.op==='read').map(call=>call.data.kind),['settings']);
+ assert.equal(calls.filter(call=>call.op==='dashboard').length,1);
  for(const label of ['다가오는 행사','등록 부원','확인할 재고'])assert.match(body,new RegExp(label+'<\\/span><strong>1<small>'));
  assert.match(body,/가을 교육/);
  assert.match(body,/레몬/);
