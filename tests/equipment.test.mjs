@@ -19,7 +19,7 @@ test('catalog holds configurable information and is visible only to authenticate
 });
 test('members borrow and return without admin review, immediately adjusting availability',async()=>{
  const f=await setup();const first=await borrow(f,{quantity:2,note:'연습'});
- assert.equal(first.loan.status,'borrowed');assert.equal(f.item(f.itemId).borrowed,2);
+ assert.equal(first.loan.status,'borrowed');assert.equal(first.loan.dueDate,'');assert.equal(f.item(f.itemId).borrowed,2);
  const during=await f.handle({op:'memberEquipment',sessionKey});assert.equal(during.items[0].available,0);assert.equal(during.loans.length,1);
  assert.equal((await f.handle({op:'memberPortal',sessionKey})).equipmentLoans[0].id,'borrow-one');
  await returnLoan(f);assert.equal(f.item(f.itemId).borrowed,0);assert.equal(f.loan('borrow-one').status,'returned');assert.ok(f.loan('borrow-one').returnedAt);
