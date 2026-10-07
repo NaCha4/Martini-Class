@@ -40,7 +40,7 @@ async function loginHere(page) {
 async function verifyMember(page) {
   await page.goto('/members');
   await loginHere(page);
-  await expect(page.locator('.member-account-bar')).toContainText(member.name);
+  await expect(page.locator('.member-app-identity')).toHaveText(member.name);
 }
 
 async function loginAdmin(page, baseURL) {
@@ -68,17 +68,20 @@ async function selectVisitDay(dialog, day) {
 
 async function submitVisit(page, purpose) {
   const destination = page.url();
-  await page.locator('#member-visits').scrollIntoViewIfNeeded();
+  await page.getByRole('navigation', { name: '부원 메뉴', exact: true }).getByRole('button', { name: '신청', exact: true }).click();
   await action(page, 'member-visit').click();
-  const dialog = page.getByRole('dialog');
-  await selectVisitDay(dialog, visitDay());
-  await dialog.locator('[name=startTime]').fill('18:00');
-  await expect(dialog.locator('[name=endTime], [name=endNextDay]')).toHaveCount(0);
-  await dialog.locator('.visit-guest-option').filter({ hasText: '2명' }).click();
-  await dialog.locator('[name=guestNames]').fill('가상 방문자 가, 가상 방문자 나');
-  await dialog.locator('[name=purpose]').fill(purpose);
-  await dialog.locator('[name=consent]').check();
-  await submitDialog(page, '출입 승인 요청');
+  const form = page.locator('form[data-form="member-visit"]');
+  await expect(form).toBeVisible();
+  await selectVisitDay(form, visitDay());
+  await form.locator('[name=startTime]').fill('18:00');
+  await expect(form.locator('[name=endTime], [name=endNextDay]')).toHaveCount(0);
+  await form.locator('.visit-guest-option').filter({ hasText: '2명' }).click();
+  await form.locator('[name=guestNames]').fill('가상 방문자 가, 가상 방문자 나');
+  await form.locator('[name=purpose]').fill(purpose);
+  await form.locator('[name=consent]').check();
+  await form.getByRole('button', { name: '출입 승인 요청', exact: true }).click();
+  await expect(form).toBeHidden();
+  await page.getByRole('navigation', { name: '부원 메뉴', exact: true }).getByRole('button', { name: '내 현황', exact: true }).click();
   await expect(page).toHaveURL(destination);
   await expect(ownRequest(page, purpose).locator('.member-status')).toHaveText('승인 대기');
 }
@@ -263,7 +266,7 @@ test('visitor request passes through officer approval and both future and pendin
     await submitDialog(admin, '승인');
     await expect(adminRequest(admin, purpose).locator('.request-status')).toHaveText('승인');
     expect(await admin.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBeTruthy();
-    await action(page, 'member-refresh').click();
+    await page.reload();
     await expect(ownRequest(page, purpose).locator('.member-status')).toHaveText('승인');
     await ownRequest(page, purpose).click();
     await expect(page.getByRole('dialog')).not.toContainText('방문 종료');

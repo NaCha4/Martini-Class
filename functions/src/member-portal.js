@@ -152,7 +152,7 @@ export function createMemberPortal({db,col,clock,now,roster,throttle,audit}){
   });
  }
  async function list(data,who){
-  ensureScope(who,'members',clock());const input=parse(z.object({cursor:idSchema.optional()}).strict(),data);
+  ensureScope(who,'requestsRead',clock());const input=parse(z.object({cursor:idSchema.optional()}).strict(),data);
   let query=col('clubRequests').orderBy('updatedAt','desc').limit(101);
   if(input.cursor){const cursor=await col('clubRequests').doc(input.cursor).get();if(!cursor.exists)fail('invalid-argument','목록을 새로고침해 주세요.');query=query.startAfter(cursor);}
   const result=await query.get(),docs=result.docs.slice(0,100);

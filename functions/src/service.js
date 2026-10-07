@@ -1,7 +1,8 @@
 import { billingFee } from './billing.js';
 import { createStaffPricing } from './staff-pricing.js';
 import { createRoster, semesterSchema } from './roster.js';
-import { defaultRoles, hasPermission } from './permissions.js';
+import { defaultRoles, hasPermission, isRequestViewer, REQUEST_VIEWER_ROLE } from './permissions.js';
+import { requestViewerSessionExpiry } from './admin-session.js';
 import { openChatUrl } from './public-links.js';
 import { z } from 'zod';
 import { createPrivacy } from './privacy.js';
@@ -27,16 +28,23 @@ export function createService(db,clock=Date.now){
  function protectedRole(builtin,stored){return {...builtin,permissions:[...builtin.permissions,...(!stored?.deletedAt&&Array.isArray(stored?.permissions)&&stored.permissions.includes('budget')?['budget']:[])],revision:stored?.revision||0};}
  async function roleDefinition(id,tx){
   const builtin=defaultRoles.find(r=>r.id===id);
+  if(id===REQUEST_VIEWER_ROLE)return {...builtin,revision:0};
   const ref=col('roles').doc(id),doc=tx?await tx.get(ref):await ref.get();
   if(['owner','chair'].includes(id))return protectedRole(builtin,doc.data());
   return doc.exists?(doc.data().deletedAt?null:{...doc.data(),id,system:!!builtin}):builtin?{...builtin,revision:0}:null;
  }
- async function admin(ctx){
+ async function admin(ctx,assigned){
   if(!ctx.uid)fail('unauthenticated','임원 계정으로 로그인해 주세요.');
-  const profile=snapshot(await col('admins').doc(ctx.uid).get());
+  const profile=assigned||snapshot(await col('admins').doc(ctx.uid).get());
   if(!profile?.active||!profile.expiresAt||!Number.isFinite(Date.parse(profile.expiresAt))||Date.parse(profile.expiresAt)<=clock())fail('permission-denied','등록된 임원 계정이 아니거나 임기가 종료되었습니다.');
   const role=await roleDefinition(profile.role);if(!role)fail('permission-denied','배정된 역할을 확인해 주세요.');
-  return {...profile,uid:ctx.uid,permissions:role.permissions,roleName:role.name};
+  let sessionExpiresAt;
+  if(isRequestViewer(profile)){
+   sessionExpiresAt=requestViewerSessionExpiry(profile,ctx.authTime,clock());
+   if(typeof ctx.verifyAuthSession!=='function')fail('unauthenticated','인증 상태를 확인할 수 없습니다. 다시 로그인해 주세요.');
+   await ctx.verifyAuthSession();
+  }
+  return {...profile,uid:ctx.uid,permissions:role.permissions,roleName:role.name,...(sessionExpiresAt?{sessionExpiresAt}:{})};
  }
  function visible(kind,record,who){
   const result=clean(record);
@@ -382,6 +390,15 @@ export function createService(db,clock=Date.now){
  async function handle(payload,ctx={}){
   if(!payload||typeof payload.op!=='string')fail('invalid-argument','요청을 확인해 주세요.');
   const {op,...data}=payload;
+  let who;
+  if(ctx.uid){
+   const assigned=snapshot(await col('admins').doc(ctx.uid).get());
+   if(isRequestViewer(assigned)){
+    who=await admin(ctx,assigned);
+    // Enforce before public/capability routes too; signing in never grants a write path.
+    if(!['profile','clubRequests','adminLogout'].includes(op))fail('permission-denied','신청 · 문의 조회만 허용된 계정입니다.');
+   }
+  }
   if(op==='publicRead'){
    await throttle(ctx,'public:'+parseInt(secret().slice(0,2),16)%16,100);
    const [config,content]=await Promise.all([settings(),col('content').where('published','==',true).limit(50).get()]);
@@ -408,14 +425,26 @@ export function createService(db,clock=Date.now){
   if(op==='submitClubRequest')return memberPortal.submit(data,ctx);
   if(op==='clubRequestReceipt')return memberPortal.getReceipt(data,ctx);
   if(op==='cancelClubRequest')return memberPortal.cancel(data,ctx);
-  const who=await admin(ctx);
+  who||=await admin(ctx);
+  // Also blocks legacy operations available to every staff member.
+  if(isRequestViewer(who)&&!['profile','clubRequests','adminLogout'].includes(op))fail('permission-denied','신청 · 문의 조회만 허용된 계정입니다.');
+  if(op==='adminLogout'){
+   if(!isRequestViewer(who))fail('permission-denied','조회 전용 계정의 세션 종료 기능입니다.');
+   parse(z.object({}).strict(),data);
+   await db.runTransaction(async tx=>{
+    const ref=col('admins').doc(who.uid),current=(await tx.get(ref)).data();
+    if(!current)return;
+    tx.update(ref,{sessionsRevokedThrough:Math.max(current.sessionsRevokedThrough||0,ctx.authTime,Math.floor(clock()/1000))});
+   });
+   return {saved:true};
+  }
   if(['couponSettings','couponHistory','saveCouponSettings','resetCouponData'].includes(op))return partnerStamps[op](data,who);
   if(op==='budgetPlanner')return budgetPlanner.read(data,who);
   if(op==='saveBudgetPlanner')return budgetPlanner.save(data,who);
   if(['onTheRockBoard','saveOnTheRockGroup','recordOnTheRockMission','updateOnTheRockRecord','voidOnTheRockRecord'].includes(op))return onTheRock(op,data,who);
   if(op==='clubRequests')return memberPortal.list(data,who);
   if(op==='clubRequestCommand')return memberPortal.command(data,who);
-  if(op==='profile')return {uid:who.uid,displayName:who.displayName,role:who.role,roleName:who.roleName,permissions:who.permissions,expiresAt:who.expiresAt};
+  if(op==='profile')return {uid:who.uid,displayName:who.displayName,role:who.role,roleName:who.roleName,permissions:who.permissions,expiresAt:who.expiresAt,...(who.sessionExpiresAt?{sessionExpiresAt:who.sessionExpiresAt}:{})};
 
   if(['decisionCategories','createDecisionCategory','deleteDecisionCategory'].includes(op))return decisionCategories(op,data,who);
   if(['listInventoryCategories','saveInventoryCategory','deleteInventoryCategory','moveInventoryItem'].includes(op))return inventoryBoard.handle(op,data,who);
@@ -436,6 +465,7 @@ export function createService(db,clock=Date.now){
    const stored=await col('roles').get(),assigned=await col('admins').get();
    const map=new Map(defaultRoles.map(r=>[r.id,{...r,revision:0}]));
    stored.docs.forEach(doc=>{if(['owner','chair'].includes(doc.id)){map.set(doc.id,protectedRole(defaultRoles.find(role=>role.id===doc.id),doc.data()));return;}if(doc.data().deletedAt)map.delete(doc.id);else map.set(doc.id,{...doc.data(),id:doc.id,system:defaultRoles.some(r=>r.id===doc.id)});});
+   map.set(REQUEST_VIEWER_ROLE,{...defaultRoles.find(r=>r.id===REQUEST_VIEWER_ROLE),revision:0});
    return {rows:[...map.values()].map(r=>({...r,assigned:assigned.docs.filter(a=>a.data().role===r.id).length}))};
   }
   if(op==='setRoleBudget'){
@@ -450,6 +480,7 @@ export function createService(db,clock=Date.now){
   }
   if(op==='saveRole'){
    ensureScope(who,'admins',clock());const input=parse(schemas.role,data),id=input.id||col('roles').doc().id;
+   if(id===REQUEST_VIEWER_ROLE)fail('failed-precondition','조회 전용 역할의 권한은 변경할 수 없습니다.');
    if(['owner','chair'].includes(id))fail('failed-precondition','회장·부회장의 필수 관리 권한은 변경할 수 없습니다.');
    return db.runTransaction(async tx=>{
     const old=await roleDefinition(id,tx);if(input.id&&!old)fail('not-found','역할을 찾을 수 없습니다.');
@@ -462,6 +493,7 @@ export function createService(db,clock=Date.now){
   }
   if(op==='deleteRole'){
    ensureScope(who,'admins',clock());const input=parse(z.object({id:idSchema,revision:z.number().int().min(0)}).strict(),data);
+   if(input.id===REQUEST_VIEWER_ROLE)fail('failed-precondition','조회 전용 역할은 삭제할 수 없습니다. 계정의 접근 허용을 해제해 주세요.');
    if(['owner','chair'].includes(input.id))fail('failed-precondition','회장·부회장 역할은 삭제할 수 없습니다.');
    return db.runTransaction(async tx=>{
     const role=await roleDefinition(input.id,tx),assigned=await tx.get(col('admins').where('role','==',input.id));
@@ -554,7 +586,7 @@ export function createService(db,clock=Date.now){
    ensureScope(who,'admins',clock());const input=parse(schemas.admin,data);
    if(input.uid===who.uid&&(!input.active||!['owner','chair'].includes(input.role)||Date.parse(input.expiresAt)<=clock()))fail('failed-precondition','본인의 최종 운영 권한을 제거할 수 없습니다.');
    const ref=col('admins').doc(input.uid);
-   await db.runTransaction(async tx=>{await tx.get(ref);const role=await roleDefinition(input.role,tx);if(!role)fail('invalid-argument','존재하는 역할을 선택해 주세요.');tx.set(ref,{...input,updatedAt:now(),updatedBy:who.uid});audit(tx,who,'admins',input.uid,'임원 권한 설정');});return {saved:true};
+   await db.runTransaction(async tx=>{const previous=(await tx.get(ref)).data();const role=await roleDefinition(input.role,tx);if(!role)fail('invalid-argument','존재하는 역할을 선택해 주세요.');const sessionsRevokedThrough=Math.max(previous?.sessionsRevokedThrough||0,input.active?0:Math.floor(clock()/1000));tx.set(ref,{...input,sessionsRevokedThrough,updatedAt:now(),updatedBy:who.uid});audit(tx,who,'admins',input.uid,'임원 권한 설정');});return {saved:true};
   }
   if(op==='recordExport'){
    const input=parse(z.object({kind:z.enum(['members','applications','finance','inventory','meetings','decisions']),reason:z.string().min(1).max(200)}).strict(),data);

@@ -12,6 +12,7 @@ const hook=registerHooks({load(url,context,nextLoad){
  if(url===firebaseUrl)return {format:'module',shortCircuit:true,source:`
   export const auth={},local=false;
   export const signInWithEmailAndPassword=async()=>{throw Error('Unexpected authentication call');};
+  export const signInAdmin=async()=>{throw Error('Unexpected authentication call');};
   export const signOut=async()=>{throw Error('Unexpected authentication call');};
   export const sendPasswordResetEmail=async()=>{throw Error('Unexpected authentication call');};
  `};
@@ -31,7 +32,7 @@ const application={id:'application-a',name:'김부원',status:'registered',atten
 
 function context({operator=profile(),rows={},roles=[]}={}){
  const calls=[],navigations=[];
- const ctx={state:{authReady:true,profile:operator,data:{},settings:{...settings}},
+ const ctx={state:{authReady:true,user:{uid:operator.uid},profile:operator,data:{},settings:{...settings}},
   api:async(op,data)=>{
    calls.push({op,data});
    if(op==='profile')return operator;

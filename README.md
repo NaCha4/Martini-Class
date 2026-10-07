@@ -111,6 +111,8 @@ npm run build:pages
 
 ## 인증과 링크
 
+2026-10-07: dot용 고정 신청 조회 역할과 관리자 로그인 유지·만료·해제 정책은 [조회 전용 접근 문서](docs/dot-readonly-access.md)를 참고한다. 실제 전용 계정 발급과 지속 접근 권한 부여는 코드 배포와 별도로 승인받아야 한다.
+
 프로덕션 App Check는 기본 활성화되어 있으며 기존 reCAPTCHA Enterprise 등록을 사용한다. 허용된 도메인은 hyu-martini.site이다. localhost에서는 항상 Emulator를 사용한다. 실제 로그인 검증을 위해 보호 설정을 끄지 않는다.
 
 2026-09-08 실제 공개 화면 16회(데스크톱·모바일)는 정상 표시됐지만 자동화 Chrome의 App Check는 403 App attestation failed로 거절됐다. 키와 허용 도메인은 일치한다. 이후 사용자가 일반 Chrome에서 운영자 로그인 성공을 직접 확인했다. 보호 설정을 내려 자동화 테스트를 통과시키지 않는다.

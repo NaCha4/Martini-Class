@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, connectAuthEmulator, signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail } from 'firebase/auth';
+import { getAuth, connectAuthEmulator, signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail, setPersistence, browserLocalPersistence, browserSessionPersistence } from 'firebase/auth';
 import { getFunctions, connectFunctionsEmulator, httpsCallable } from 'firebase/functions';
 import { initializeAppCheck, ReCaptchaEnterpriseProvider } from 'firebase/app-check';
 export const local = import.meta.env.DEV;
@@ -22,6 +22,12 @@ if (local) {
   connectFunctionsEmulator(functions, '127.0.0.1', 5001);
 }
 const invoke = httpsCallable(functions, 'martiniApi', { timeout: 60000 });
+export async function signInAdmin(email,password,remember=true){
+ // Change persistence only for an explicit login, never during session restoration.
+ try{await setPersistence(auth,remember?browserLocalPersistence:browserSessionPersistence);}
+ catch{throw new Error('브라우저에서 로그인 저장소를 사용할 수 없습니다. 사이트 데이터 저장을 허용한 뒤 다시 시도해 주세요.');}
+ return signInWithEmailAndPassword(auth,email,password);
+}
 export async function api(op, data = {}) {
   try { return (await invoke({ op, ...data })).data; }
   catch (error) {

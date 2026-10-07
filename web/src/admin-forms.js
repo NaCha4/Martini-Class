@@ -118,6 +118,7 @@ async function settingsEdit(ctx){
 async function roleEdit(ctx,id){
  if(!hasPermission(ctx.state.profile,'admins'))throw Error('역할 관리 권한이 없습니다.');
  const r=id?(await ctx.api('listRoles')).rows.find(role=>role.id===id):null;
+ if(r?.id==='requestsViewer')throw Error('조회 전용 역할은 고정된 권한을 사용합니다.');
  if(r&&['owner','chair'].includes(r.id)){
   modal(r.name+' · 예산 업무 설정',field('permission-budget','예산 업무',r.permissions.includes('budget'),{type:'checkbox',wide:true})+'<p class="wide help">체크하면 독립 예산 페이지를 조회하고 수정할 수 있습니다. 기존 필수 관리 권한은 유지됩니다.</p>',async f=>save(ctx,'setRoleBudget',{id:r.id,revision:r.revision,enabled:f.has('permission-budget')}));return;
  }
@@ -131,6 +132,7 @@ async function roleEdit(ctx,id){
 async function roleDelete(ctx,id){
  const r=(await ctx.api('listRoles')).rows.find(role=>role.id===id);
  if(!r)throw Error('역할을 찾을 수 없습니다.');
+ if(r.id==='requestsViewer')throw Error('조회 전용 역할은 삭제할 수 없습니다. 계정의 접근 허용을 해제해 주세요.');
  if(['owner','chair'].includes(r.id))throw Error('회장·부회장 역할은 삭제할 수 없습니다.');
  if(r.assigned)throw Error('이 역할을 배정받은 임원의 역할을 먼저 변경해 주세요.');
  modal('역할 삭제','<p class="wide">'+esc(r.name)+' 역할을 삭제합니다. 삭제한 역할은 임원에게 배정할 수 없으며, 되돌릴 수 없습니다.</p>',async()=>save(ctx,'deleteRole',{id:r.id,revision:r.revision}),{submit:'역할 삭제',submitClass:'button danger'});
@@ -145,7 +147,7 @@ async function adminDelete(ctx,id){
 async function adminEdit(ctx,id){
  const availableRoles=(await ctx.api('listRoles')).rows;
  const r=await record(ctx,'admins',id);
- modal('임원 계정 권한',field('uid','Firebase Authentication UID',r?.id,{required:true,wide:true,maxLength:100,readOnly:!!r,autocomplete:'off',spellcheck:false})+field('displayName','표시 이름',r?.displayName,{required:true,maxLength:80})+field('role','부서 · 역할',r?.role||'execution',{choices:availableRoles.map(role=>[role.id,role.name])})+field('expiresAt','임기 종료',localTime(r?.expiresAt||new Date(Date.now()+120*86400000)),{type:'datetime-local',required:true})+field('active','관리자 접근 허용',r?.active??true,{type:'checkbox'})+'<p class="wide help">계정을 새로 만들거나 비밀번호를 변경하지 않습니다. 지정한 계정의 시스템 내 권한만 변경합니다.</p>',async f=>save(ctx,'saveAdmin',{uid:val(f,'uid'),displayName:val(f,'displayName'),role:val(f,'role'),expiresAt:toISO(val(f,'expiresAt')),active:f.has('active')}),{wide:true});
+ modal('임원 계정 권한',field('uid','Firebase Authentication UID',r?.id,{required:true,wide:true,maxLength:100,readOnly:!!r,autocomplete:'off',spellcheck:false})+field('displayName','표시 이름',r?.displayName,{required:true,maxLength:80})+field('role','부서 · 역할',r?.role||'execution',{choices:availableRoles.map(role=>[role.id,role.name])})+field('expiresAt','임기 종료',localTime(r?.expiresAt||new Date(Date.now()+120*86400000)),{type:'datetime-local',required:true})+field('active','관리자 접근 허용',r?.active??true,{type:'checkbox'})+'<p class="wide help">계정을 새로 만들거나 비밀번호를 변경하지 않습니다. 지정한 계정의 시스템 내 권한만 변경합니다. dot · 신청 조회 전용 역할은 신청·문의만 읽으며, 접근 허용 해제 시 기존 로그인도 해제됩니다.</p>',async f=>save(ctx,'saveAdmin',{uid:val(f,'uid'),displayName:val(f,'displayName'),role:val(f,'role'),expiresAt:toISO(val(f,'expiresAt')),active:f.has('active')}),{wide:true});
 }
 async function exportRecords(ctx,kind){
  const rows=ctx.state.pages[kind]?.rows||Object.values(ctx.state.data[kind]||{}),more=!!ctx.state.pages[kind]?.nextCursor;

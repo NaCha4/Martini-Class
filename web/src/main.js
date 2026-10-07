@@ -9,11 +9,36 @@ import { filterListRows } from './list-filters.js';
 import { isMemberRoute, getMemberSessionKey, memberStorage, MEMBER_SESSION_CHANNEL } from './member-session.js';
 import { mountMemberDetail } from './member-detail.js';
 import { mountPartnerViews, clearPartnerViews } from './partner-stamps.js';
+import { clearAdminData } from './admin-session.js';
+import { isRequestViewer } from '../../functions/src/permissions.js';
 export const state={profile:null,user:null,authReady:false,data:{},settings:{},search:'',filter:'all',eventType:'all'};
 export const ctx={state,api,toast,navigate,render,mayLeave};
 const app=document.querySelector('#app');
 let renderNumber=0,rendering=false,trackedForm=null,navigating=false;
 let memberExpiryTimer,renderedMemberSession='';
+let adminExpiryTimer,checkingAdmin=false;
+function scheduleAdminExpiry(){
+ clearTimeout(adminExpiryTimer);
+ if(!isAdminScreen()||!isRequestViewer(state.profile))return;
+ const remaining=Date.parse(state.profile.sessionExpiresAt)-Date.now();
+ if(!Number.isFinite(remaining))return;
+ adminExpiryTimer=setTimeout(refreshAdminSession,Math.max(1000,Math.min(remaining+20,60000)));
+}
+async function refreshAdminSession(){
+ if(!isAdminScreen()||!isRequestViewer(state.profile)||checkingAdmin)return;
+ checkingAdmin=true;const user=state.user;
+ try{
+  const profile=await api('profile');
+  if(state.user!==user)return;
+  if(profile.role!==state.profile?.role){clearAdminData(state);await closeModal({discard:true});await render();}
+  else state.profile=profile;
+ }catch{
+  if(state.user!==user)return;
+  clearAdminData(state);await closeModal({discard:true});await render();
+ }finally{checkingAdmin=false;scheduleAdminExpiry();}
+}
+window.addEventListener('focus',refreshAdminSession);
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')void refreshAdminSession();});
 function expireMemberView(){
   if(!isMemberRoute())return;
   const session=getMemberSessionKey(ctx);
@@ -30,7 +55,7 @@ function scheduleMemberExpiry(){
 }
 window.addEventListener('focus',expireMemberView);
 window.addEventListener('pageshow',expireMemberView);
-window.addEventListener('pageshow',event=>{if(event.persisted&&(isMerchantScreen()||isMemberRoute())){void closeModal({discard:true});void render({focus:true});}});
+window.addEventListener('pageshow',event=>{if(event.persisted&&(isMerchantScreen()||isMemberRoute()||isAdminScreen())){void closeModal({discard:true});void render({focus:true});}});
 window.addEventListener('hashchange',()=>{if(isMerchantScreen())void render({focus:true});});
 window.addEventListener('pagehide',()=>clearPartnerViews(ctx));
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')expireMemberView();});
@@ -175,12 +200,13 @@ const filterRows=()=>filterListRows(app,state);
 export async function render({focus=false,scroll}={}) {
   const current=++renderNumber,savedFocus=captureFocus(),savedScroll=scrollY;
   const session=isMemberRoute()?getMemberSessionKey(ctx):'',memberLocked=isMemberRoute()&&(!session||session!==renderedMemberSession);
+  const adminLocked=isAdminScreen()&&(!state.profile||isRequestViewer(state.profile));
   if(memberLocked)void closeModal({discard:true});
   rendering=true;app.setAttribute('aria-busy','true');
   let progress=document.querySelector('#page-progress');
   if(!progress){progress=document.createElement('div');progress.id='page-progress';progress.setAttribute('role','status');progress.innerHTML='<span class="sr-only">화면을 불러오고 있습니다.</span>';document.body.append(progress);}
   const hasView=!!app.querySelector('h1');
-  if(!hasView||memberLocked){app.innerHTML='<div class="loading" role="status">'+icon('loader-circle')+'<span>불러오는 중</span></div>';refreshIcons();}
+  if(!hasView||memberLocked||adminLocked){app.innerHTML='<div class="loading" role="status">'+icon('loader-circle')+'<span>불러오는 중</span></div>';refreshIcons();}
   else{
     app.style.minHeight=app.getBoundingClientRect().height+'px';
     const view=app.querySelector('.workspace-content,main');if(view)view.inert=true;
@@ -210,14 +236,16 @@ export async function render({focus=false,scroll}={}) {
     mountPartnerViews(ctx);
   }catch(error){
     if(current!==renderNumber)return;
+    if(isAdminScreen()){clearAdminData(state);await closeModal({discard:true});}
     app.innerHTML='<main class="connection-page"><a href="/" data-nav class="brand">MARTINI</a><h1 tabindex="-1">연결을 확인해 주세요</h1><p>'+esc(error.message)+'</p><button class="button" type="button" id="retry-page">다시 시도</button></main>';
     app.querySelector('#retry-page').onclick=()=>render({focus:true});trackedForm=null;app.style.minHeight='';restoreFocus(null);
-  }finally{if(current===renderNumber){rendering=false;app.removeAttribute('aria-busy');progress.remove();scheduleMemberExpiry();}}
+  }finally{if(current===renderNumber){rendering=false;app.removeAttribute('aria-busy');progress.remove();scheduleMemberExpiry();scheduleAdminExpiry();}}
 }
-onAuthStateChanged(auth,async user=>{
-  if(state.user?.uid!==user?.uid){delete state.budgetPlannerView;delete state.partnerAdminView;if(document.querySelector('.budgetplanner-dialog,.partneradmin-dialog'))await closeModal({discard:true});}
-  state.user=user;state.profile=null;
-  if(user){try{state.profile=await api('profile');}catch(error){state.authError=error.message;}}
+onAuthStateChanged(auth,user=>{
+  clearTimeout(adminExpiryTimer);
+  clearAdminData(state);state.authError='';
+  if(isAdminScreen()){void closeModal({discard:true});app.replaceChildren();}
+  state.user=user;
   state.authReady=true;if(isAdminScreen())render();
 });
 render();
