@@ -5,6 +5,7 @@ import { esc, icon, field, button, date, label, money, textBlock, modal } from '
 import { memberState as state, memberStorage as storage, persistMemberStorage as persist, clearMemberIdentity as clearIdentity, validMemberReceipt as validReceipt, getMemberSessionKey, getVerifiedMember, setMemberSession, refreshMemberSession, isMemberAccessError, safeMemberReturnTarget, forgetMemberDevice } from './member-session.js';
 import { memberShell, currentMemberTab, activateMemberRequestView } from './member-navigation.js';
 import { openMemberPartner } from './partner-stamps.js';
+import { renderEquipmentMember,loadMemberEquipment,memberEquipmentAction,equipmentLoanRow } from './equipment.js';
 export { getMemberSessionKey } from './member-session.js';
 
 // Keep labels and receipt recovery for requests submitted before online joining closed.
@@ -100,12 +101,12 @@ async function loadPortal(ctx){
  }
  if(!current())return {status:'stale'};
  if(!portal.member||typeof portal.member.name!=='string'){clearIdentity(ctx);return {status:'login',message:'부원 정보를 확인할 수 없습니다. 다시 로그인해 주세요.'};}
- view.member=portal.member;view.events=(portal.events||[]).filter(event=>event.memberVisible!==false);view.requests=portal.requests||[];refreshMemberSession(ctx,portal.expiresAt);
+ view.member=portal.member;view.events=(portal.events||[]).filter(event=>event.memberVisible!==false);view.requests=portal.requests||[];view.equipmentLoans=portal.equipmentLoans||[];refreshMemberSession(ctx,portal.expiresAt);
  if(!current())return {status:'stale'};
  try{
   const result=await ctx.api('memberApplications',{sessionKey});
   if(!current())return {status:'stale'};
-  view.applications=(result.applications||[]).filter(row=>row.event?.memberVisible!==false);refreshMemberSession(ctx,result.expiresAt);
+  view.applications=result.applications||[];refreshMemberSession(ctx,result.expiresAt);
  }catch(error){
   if(!current())return {status:'stale'};
   if(isMemberAccessError(error)){clearIdentity(ctx);return {status:'login',message:'로그인이 만료되었거나 부원 정보가 변경되었습니다. 다시 로그인해 주세요.'};}
@@ -150,9 +151,10 @@ function appIntro(title){return '<h1 class="sr-only" tabindex="-1">'+title+'</h1
 function appPanel(id,title,content,activeTab){return '<section class="member-app-panel" id="member-panel-'+id+'" data-member-panel="'+id+'" aria-label="'+title+'" tabindex="-1"'+(activeTab===id?'':' hidden')+'>'+content+'</section>';}
 function appEmpty(symbol,message){return '<div class="member-app-empty">'+icon(symbol)+'<p>'+message+'</p></div>';}
 function visitsPanel(ctx){
- const visiting=ctx.state.memberRequestView==='visit';
- return '<div id="member-request-menu" data-member-request-view="menu" tabindex="-1" aria-labelledby="member-request-title"'+(visiting?' hidden':'')+'><h1 id="member-request-title" class="sr-only">신청</h1><button type="button" class="member-request-option" data-action="member-visit" aria-controls="member-visit-view"><span class="member-request-option-icon" aria-hidden="true">'+icon('door-open')+'</span><span class="member-request-option-copy"><strong>출입 신청</strong><small>외부인과 함께 동아리방을 방문할 때</small></span>'+icon('arrow-right')+'</button></div>'
-  +'<div id="member-visit-view" data-member-request-view="visit" tabindex="-1" aria-labelledby="member-visit-title"'+(visiting?'':' hidden')+'><button type="button" class="member-app-link member-request-back" data-action="member-request-back" aria-controls="member-request-menu">'+icon('arrow-left')+' 신청 목록</button><div class="member-app-intro"><h1 id="member-visit-title">출입 신청</h1><p>방문 일정과 외부인 정보를 입력해 주세요.</p></div><form class="member-visit-form" data-form="member-visit" aria-labelledby="member-visit-title">'+visitBody(ctx)+'<p class="form-error" role="alert"></p><button type="submit" class="button full">출입 승인 요청</button></form></div>';
+ const visiting=ctx.state.memberRequestView==='visit',equipment=ctx.state.memberRequestView==='equipment';
+ return '<div id="member-request-menu" data-member-request-view="menu" tabindex="-1" aria-labelledby="member-request-title"'+(visiting||equipment?' hidden':'')+'><h1 id="member-request-title" class="sr-only">신청</h1><button type="button" class="member-request-option" data-action="member-visit" aria-controls="member-visit-view"><span class="member-request-option-icon" aria-hidden="true">'+icon('door-open')+'</span><span class="member-request-option-copy"><strong>출입 신청</strong><small>외부인과 함께 동아리방을 방문할 때</small></span>'+icon('arrow-right')+'</button><button type="button" class="member-request-option" data-action="member-equipment-open" aria-controls="member-equipment-view"><span class="member-request-option-icon" aria-hidden="true">'+icon('package')+'</span><span class="member-request-option-copy"><strong>비품 신청</strong><small>직접 대여하고 반납을 기록해요</small></span>'+icon('arrow-right')+'</button></div>'
+  +'<div id="member-visit-view" data-member-request-view="visit" tabindex="-1" aria-labelledby="member-visit-title"'+(visiting?'':' hidden')+'><button type="button" class="member-app-link member-request-back" data-action="member-request-back" aria-controls="member-request-menu">'+icon('arrow-left')+' 신청 목록</button><div class="member-app-intro"><h1 id="member-visit-title">출입 신청</h1><p>방문 일정과 외부인 정보를 입력해 주세요.</p></div><form class="member-visit-form" data-form="member-visit" aria-labelledby="member-visit-title">'+visitBody(ctx)+'<p class="form-error" role="alert"></p><button type="submit" class="button full">출입 승인 요청</button></form></div>'
+  +'<div id="member-equipment-view" data-member-request-view="equipment" tabindex="-1" aria-labelledby="member-equipment-title"'+(equipment?'':' hidden')+'><button type="button" class="member-app-link member-request-back" data-action="member-request-back" aria-controls="member-request-menu">'+icon('arrow-left')+' 신청 목록</button><div data-equipment-member>'+renderEquipmentMember(ctx)+'</div></div>';
 }
 function benefitsPanel(){
  return appIntro('혜택')+'<button type="button" class="member-benefit-feature" data-action="member-partners" aria-haspopup="dialog" aria-label="필링파인 열기"><span class="member-benefit-photo"><img src="/assets/feelingfine-bar-hero.jpg" alt="" loading="lazy"></span><span class="member-benefit-copy"><strong class="member-benefit-title">필링파인</strong><span class="member-benefit-cta" aria-hidden="true">'+icon('arrow-up-right')+'</span></span></button>';
@@ -164,6 +166,7 @@ function activityPanel(ctx){
   groups[group].push({at:row.event.startsAt||row.application.createdAt,html:applicationRow(row)});
  }
  for(const row of allRequests(ctx).filter(row=>row.kind==='visit'))groups[currentRequest(row)?'current':'past'].push({at:row.startsAt||row.createdAt,html:requestRow(row)});
+ for(const loan of view.equipmentLoans||[])groups[loan.status==='borrowed'?'current':'past'].push({at:loan.returnedAt||loan.borrowedAt,html:equipmentLoanRow(loan)});
  const incomplete=Boolean(view.applicationsError||view.receiptErrors);
  let records='';
  for(const [group,title,emptyMessage] of [['action','확인 필요','확인할 내역이 없습니다.'],['current','진행 중','진행 중인 내역이 없습니다.'],['past','지난 내역','지난 내역이 없습니다.']]){
@@ -195,6 +198,7 @@ export async function renderMemberPortal(ctx){
  if(loaded.status==='stale')return '';
  if(loaded.status==='login'||!getMemberSessionKey(ctx))return renderMemberVerificationGate(ctx,{message:loaded.message});
  if(loaded.status!=='ok')return portalUnavailable();
+ if(ctx.state.memberRequestView==='equipment'){await loadMemberEquipment(ctx);if(!getMemberSessionKey(ctx))return renderMemberVerificationGate(ctx);}
  const view=state(ctx);
  // A private receipt link lands on its history; ordinary tab changes keep that hash intact.
  if((view.linkedId||view.linkError)&&ctx.state.memberAppReceiptHash!==location.hash){ctx.state.memberAppTab='activity';ctx.state.memberAppReceiptHash=location.hash;}
@@ -233,6 +237,7 @@ export async function memberPortalAction(ctx,action,id){
   ctx.toast(removalError?.message||(serverCleared?'로그아웃했습니다.':'이 기기에서 로그아웃했습니다. 서버 연결이 끊겨 인증 해제를 확인하지 못했습니다.'));return;
  }
  if(!getMemberSessionKey(ctx))return ctx.render();
+ if(action.startsWith('member-equipment-'))return memberEquipmentAction(ctx,action,id);
  if(action==='member-visit')return getVerifiedMember(ctx)?openVisitTab(ctx):ctx.render();
  if(action==='member-events'){
   if(!getVerifiedMember(ctx))return ctx.render();

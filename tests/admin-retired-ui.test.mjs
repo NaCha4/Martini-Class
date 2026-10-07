@@ -300,7 +300,7 @@ test('desktop groups and mobile quick navigation retain active menus for an oper
  const html=await at('/admin/events',()=>renderAdmin(ctx));
  const desktop=nav(html,'운영 메뉴');
  assert.ok(desktop,'Grouped desktop navigation must render');
- assert.deepEqual(hrefs(desktop),['/admin','/admin/events','/admin/members','/admin/requests','/admin/on-the-rock','/admin/partners','/admin/inventory','/admin/settings','/admin/roles','/admin/admins','/admin/privacy','/admin/audit']);
+ assert.deepEqual(hrefs(desktop),['/admin','/admin/events','/admin/members','/admin/requests','/admin/on-the-rock','/admin/partners','/admin/equipment','/admin/inventory','/admin/settings','/admin/roles','/admin/admins','/admin/privacy','/admin/audit']);
  assert.match(desktop,/<a href="\/admin\/events"[^>]*aria-current="page"/);
  const mobile=html.match(/<nav class="mobile-admin-nav"[^>]*>([\s\S]*?)<\/nav>/)?.[1];
  assert.ok(mobile,'Mobile quick navigation must render');

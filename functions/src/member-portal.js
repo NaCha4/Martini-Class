@@ -25,7 +25,7 @@ const live=record=>record&&!record.deletedAt&&!record.removedAt&&!record.anonymi
 const fingerprint=member=>hash(JSON.stringify([member.name,member.studentId,normalizePhone(member.phone)]));
 const requestFingerprint=record=>record.memberIdentityHash||fingerprint(record);
 
-export function createMemberPortal({db,col,clock,now,roster,throttle,audit}){
+export function createMemberPortal({db,col,clock,now,roster,throttle,audit,equipment}){
  const read=tx=>tx||{get:ref=>ref.get()};
  const scope=member=>hash(member.semester+':'+member.id);
  async function currentSemester(tx){
@@ -86,7 +86,8 @@ export function createMemberPortal({db,col,clock,now,roster,throttle,audit}){
    const {member,expiresAt}=await authenticate(input.sessionKey,tx);
    const events=await tx.get(col('events').where('semester','==',member.semester));
    const requests=await tx.get(col('clubRequests').where('memberScope','==',scope(member)).orderBy('createdAt','desc').limit(100));
-   return {member:{name:member.name,semester:member.semester},expiresAt,
+   const equipmentLoans=equipment?await equipment.memberLoansFor(member,tx):[];
+   return {member:{name:member.name,semester:member.semester},expiresAt,equipmentLoans,
     events:events.docs.map(doc=>({...doc.data(),id:doc.id})).filter(event=>!event.deletedAt&&event.memberVisible!==false&&['open','closed'].includes(event.status)&&Date.parse(event.endsAt)>clock()).sort((a,b)=>a.startsAt.localeCompare(b.startsAt)).map(event=>({...publicEvent(event),eventId:event.id})),
     requests:requests.docs.filter(doc=>!doc.data().deletedAt&&!doc.data().anonymizedAt&&requestFingerprint(doc.data())===fingerprint(member)).map(doc=>safeRequest({...doc.data(),id:doc.id}))};
   },{readOnly:true});

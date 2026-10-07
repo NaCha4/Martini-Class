@@ -50,7 +50,7 @@ function announceSessionChange(){
  try{if(globalThis.window?.BroadcastChannel){const channel=new window.BroadcastChannel(MEMBER_SESSION_CHANNEL);channel.postMessage('changed');channel.close();}}catch{}
 }
 function resetPrivateView(ctx){
- const view=memberState(ctx);view.member=null;view.events=[];view.requests=[];view.applications=[];view.coupons=null;view.receiptRows=[];view.loaded=false;
+ const view=memberState(ctx);view.member=null;view.events=[];view.requests=[];view.applications=[];view.coupons=null;view.receiptRows=[];view.loaded=false;view.equipmentLoans=[];delete view.equipment;delete view.equipmentPending;view.equipmentLoad=(view.equipmentLoad||0)+1;
  delete ctx.state.currentEvent;delete ctx.state.currentReceipt;delete ctx.state.memberInlineDetail;delete ctx.state.memberRouteSource;delete ctx.state.memberScrollTarget;delete ctx.state.memberActiveSection;
 }
 function writeSessionCookie(ctx,session){

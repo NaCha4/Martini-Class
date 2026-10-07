@@ -48,17 +48,21 @@ export function activateMemberTab(ctx, tab) {
 
 // Menu and form stay mounted so returning to the menu keeps an unfinished draft.
 export function activateMemberRequestView(ctx, view) {
-  if (!['menu', 'visit'].includes(view)) return false;
+  if (!['menu', 'visit', 'equipment'].includes(view)) return false;
   const doc = globalThis.document, app = doc?.querySelector('[data-member-app]');
   const menu = app?.querySelector('[data-member-request-view="menu"]');
   const form = app?.querySelector('[data-member-request-view="visit"]');
   if (!menu || !form) return false;
-  const changed = (view === 'visit' ? form : menu).hidden;
+  const equipment=app?.querySelector('[data-member-request-view="equipment"]');
+  const target=view==='equipment'?equipment:view==='visit'?form:menu;if(!target)return false;
+  const changed = target.hidden;
   if (!activateMemberTab(ctx, 'visits')) return false;
+  if(changed)ctx.state.memberAppGeneration=(ctx.state.memberAppGeneration||0)+1;
   ctx.state.memberRequestView = view;
   menu.hidden = view !== 'menu';
   form.hidden = view !== 'visit';
-  (view === 'visit' ? form : menu).focus?.({ preventScroll: true });
+  if(equipment)equipment.hidden=view!=='equipment';
+  target.focus?.({ preventScroll: true });
   if (changed) {
     ctx.state.memberAppScroll ??= {};
     ctx.state.memberAppScroll.visits = 0;

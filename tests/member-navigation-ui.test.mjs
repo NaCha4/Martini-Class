@@ -32,7 +32,7 @@ test('member shell exposes four accessible tabs and selects only the requested p
 test('request menu and visit form switch without replacing the mounted draft', () => {
   const previous = Object.getOwnPropertyDescriptor(globalThis, 'document'), scrolls = [], focuses = [];
   const draft = { purpose: '작성 중인 방문 사유', date: '2026-10-07', time: '18:00', guests: 2, consent: true };
-  const views = ['menu', 'visit'].map(view => ({ dataset: { memberRequestView: view }, hidden: view !== 'menu', draft, focus: options => focuses.push({ view, options }) }));
+  const views = ['menu', 'visit', 'equipment'].map(view => ({ dataset: { memberRequestView: view }, hidden: view !== 'menu', draft, focus: options => focuses.push({ view, options }) }));
   const panels = ids.map(id => ({ dataset: { memberPanel: id }, hidden: id !== 'activity', focus() {} }));
   const buttons = ids.map(id => ({ dataset: { id }, setAttribute() {}, removeAttribute() {} }));
   const app = {
@@ -53,6 +53,8 @@ test('request menu and visit form switch without replacing the mounted draft', (
     assert.equal(activateMemberRequestView(ctx, 'visit'), true);assert.equal(views[1].draft, draft);
     assert.deepEqual(draft, { purpose: '작성 중인 방문 사유', date: '2026-10-07', time: '18:00', guests: 2, consent: true });
     const scrollCount = scrolls.length;assert.equal(activateMemberRequestView(ctx, 'visit'), true);assert.equal(scrolls.length, scrollCount);
+    assert.equal(activateMemberRequestView(ctx, 'equipment'), true);assert.deepEqual(views.filter(view=>!view.hidden).map(view=>view.dataset.memberRequestView),['equipment']);
+    assert.equal(activateMemberRequestView(ctx, 'visit'), true);
     assert.equal(activateMemberRequestView(ctx, 'unknown'), false);assert.equal(ctx.state.memberRequestView, 'visit');
     views.splice(0, 1);assert.equal(activateMemberRequestView(ctx, 'menu'), false);assert.equal(ctx.state.memberRequestView, 'visit');
   } finally {

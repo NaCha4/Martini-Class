@@ -42,7 +42,7 @@ function memberPanels(html,active='activity'){
 }
 function requestViews(html,active='menu'){
  const entries=[...html.matchAll(/<div\b[^>]*data-member-request-view="([^"]+)"[^>]*>/g)];
- assert.deepEqual(entries.map(entry=>entry[1]),['menu','visit']);
+ assert.deepEqual(entries.map(entry=>entry[1]),['menu','visit','equipment']);
  for(const entry of entries){assert.equal(/\shidden(?:\s|=|>)/.test(entry[0]),entry[1]!==active,entry[1]);assert.match(entry[0],/tabindex="-1"/);}
 }
 function route(path){const url=new URL(path,'https://martini.test');Object.assign(location,{pathname:url.pathname,search:url.search,hash:url.hash,href:url.href,origin:url.origin});}
@@ -140,7 +140,7 @@ test('the member app mounts four management panels without a separate welcome or
  const requests=[{id:'visit-one',kind:'visit',purpose:'private visit purpose',guestNames:'private guest',status:'pending'}];
  const {html,ctx,calls}=await view('home',{events,requests,applications:[application('needs-payment'),application('offer','offered','none'),application('paid','registered','paid'),application('wait','waiting','none')]});
  const panels=memberPanels(html);assert.match(html,/<header\b[^>]*>[\s\S]*?테스트 부원[\s\S]*?data-action="member-forget"[\s\S]*?<\/header>/);
- for(const [id,panel] of Object.entries(panels))assert.equal((panel.match(/<h1\b/g)||[]).length,id==='visits'?2:1);
+ for(const [id,panel] of Object.entries(panels))assert.equal((panel.match(/<h1\b/g)||[]).length,id==='visits'?3:1);
  requestViews(panels.visits);
  assert.equal((panels.events.match(/data-action="member-event-open"/g)||[]).length,4);
  assert.equal((panels.activity.match(/data-action="member-application-open"/g)||[]).length,4);
@@ -177,16 +177,16 @@ test('the request tab starts with a menu button and opens the complete visit for
  assert.doesNotMatch(panels.visits,/기존 방문|신청 현황|member-receipt-banner/);
  ctx.state.memberRequestView='visit';requestViews(memberPanels(await renderMemberPortal(ctx),'visits').visits,'visit');
 });
-test('private events stay out of the event popup and application history while legacy public events remain visible',async()=>{
+test('unlisted events stay out of discovery while the member retains their own application history',async()=>{
  const privateApplication=application('private-request');privateApplication.event.memberVisible=false;
  const {html,ctx}=await view('home',{events:[event('legacy'),event('public',{memberVisible:true}),event('private',{memberVisible:false})],applications:[application('legacy-request'),privateApplication]});
  const choices=renderMemberEventChoices(ctx);
  for(const id of ['legacy','public'])assert.match(choices,new RegExp('data-action="member-event-open"[^>]*data-id="'+id+'"'));
  assert.doesNotMatch(choices,/data-id="private"|행사 private/);
  assert.match(html,/data-action="member-application-open"[^>]*data-id="legacy-request"/);
- assert.doesNotMatch(html,/private-request/);
+ assert.match(html,/data-action="member-application-open"[^>]*data-id="private-request"/);
  assert.deepEqual(memberState(ctx).events.map(row=>row.id),['legacy','public']);
- assert.deepEqual(memberState(ctx).applications.map(row=>row.application.id),['legacy-request']);
+ assert.deepEqual(memberState(ctx).applications.map(row=>row.application.id),['legacy-request','private-request']);
 });
 
 test('activity groups applications and visits without secret links or retired inquiry history',async()=>{
