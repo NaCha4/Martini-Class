@@ -88,6 +88,7 @@ main.member-public-page.member-app-page{width:100%;max-width:680px;min-height:10
 /* The request menu leads to a single-column visit form without losing its draft. */
 .member-app-shell [data-member-request-view]:focus{outline:none}
 .member-app-shell .member-request-option{display:grid;grid-template-columns:44px minmax(0,1fr) 18px;align-items:center;gap:14px;width:100%;min-height:96px;margin:0;padding:18px 16px;border:1px solid #ddbd842b;border-radius:15px;background:var(--app-surface);color:var(--text);font:inherit;text-align:left;cursor:pointer}
+.member-app-shell .member-request-option+.member-request-option{margin-top:16px}
 .member-app-shell .member-request-option-icon{display:grid;place-items:center;width:44px;height:44px;border-radius:12px;background:#ddbd840b;color:var(--app-accent)}
 .member-app-shell .member-request-option-icon>svg{width:23px;height:23px;stroke-width:1.6}
 .member-app-shell .member-request-option-copy{display:grid;gap:5px;min-width:0}
