@@ -97,14 +97,6 @@ dialog.partner-dialog.member-dialog .dialog-content{width:100%;min-width:0;paddi
 .partner-dialog .partner-qr-timer::before{border:2px solid #ddbd8426}
 .partner-dialog .partner-qr-timer::after{background:conic-gradient(#ddbd84 calc(var(--qr-progress,1) * 1turn),transparent 0);mask:radial-gradient(farthest-side,transparent calc(100% - 2px),#000 0);-webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 2px),#000 0)}
 
-.partner-admin-card{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:20px;padding:24px 28px}
-.partner-admin-summary{min-width:0}
-.partner-admin-summary h2{margin:0 0 6px;font-size:20px;line-height:1.5;letter-spacing:-.03em}
-.partner-admin-summary p{margin:0;color:var(--muted);font-size:13px;line-height:1.7}
-.partner-admin-actions{display:flex;justify-content:flex-end;flex-wrap:wrap;gap:8px;max-width:100%;margin-left:auto}
-.partner-admin-actions .button{min-height:44px;white-space:nowrap}
-.partner-admin-actions .partner-reset-trigger{color:var(--danger,#ef8984);background:transparent;border-color:#ef898440;font-size:12px}
-.partner-admin-actions .partner-reset-trigger:hover{background:#ef898410;border-color:#ef898480}
 .partner-reset-scope{font-size:14px;line-height:1.8;color:var(--muted)}
 .partner-reset-scope strong{color:var(--text)}
 .partner-reset-scope ul{padding-left:20px;margin:12px 0}
@@ -164,8 +156,6 @@ dialog.partner-dialog.member-dialog .dialog-content{width:100%;min-width:0;paddi
  .partner-qr-timer{margin-top:14px;font-size:15px}
 }
 @media(max-width:540px){
- .partner-admin-card{padding:20px;gap:16px}
- .partner-admin-actions{width:100%}
  .partner-history-dialog .dialog-content{padding:18px 16px}
  .merchant-page{padding:32px 16px 22px}
  .merchant-panel{padding:22px 18px}

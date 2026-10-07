@@ -13,7 +13,7 @@ test('member equipment cards show availability and personal records with escaped
 });
 test('catalog administration uses inventory permission and offers configurable data without approval controls',async()=>{
  const calls=[],ctx={state:{user:{uid:'admin'},profile:{permissions:['inventory']}},api:async(op)=>{calls.push(op);return {items:[item]};}};
- const html=await renderEquipmentAdmin(ctx);assert.deepEqual(calls,['equipmentCatalog']);for(const text of ['비품 추가','보관 위치','주의사항','구성품 &lt;b&gt;','정보 수정','전체 2개 · 대여 중 1개'])assert.ok(html.includes(text),text);assert.doesNotMatch(html,/<img src=x>|승인|반려/);
+ const html=await renderEquipmentAdmin(ctx);assert.deepEqual(calls,['equipmentCatalog']);for(const text of ['비품 추가','보관 위치','상세 정보','정보 수정','대여 중','admin-catalog-grid'])assert.ok(html.includes(text),text);assert.doesNotMatch(html,/구성품 &lt;b&gt;|주의 &lt;img/);assert.match(html,/data-action="equipment-detail" data-id="item-a"/);assert.doesNotMatch(html,/<img src=x>|승인|반려/);
  ctx.state.profile={permissions:[]};calls.length=0;assert.match(await renderEquipmentAdmin(ctx),/접근 권한/);assert.deepEqual(calls,[]);await assert.rejects(equipmentAdminAction(ctx,'equipment-edit'),/재고 관리 권한/);
 });
 test('a late catalog response cannot repopulate private equipment state after logout',async()=>{

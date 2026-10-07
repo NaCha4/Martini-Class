@@ -1,5 +1,5 @@
 import { hasPermission } from '../../functions/src/permissions.js';
-import { esc, field, button, modal, empty, refreshIcons } from './ui.js';
+import { esc, icon, field, button, modal, empty, refreshIcons } from './ui.js';
 
 const allowed=ctx=>hasPermission(ctx.state.profile,'settings');
 const onPage=()=>location.pathname.replace(/\/$/,'')==='/admin/partners';
@@ -112,7 +112,13 @@ export async function renderPartnerAdmin(ctx){
  if(!current(ctx,view))return '';
  view.settings=settings;
  const resetting=!!resetPending(settings);
- return '<div class="page-heading"><h1 id="page-title" tabindex="-1">제휴 관리</h1></div><section class="panel partner-admin-card" aria-labelledby="partner-admin-title"><div class="partner-admin-summary"><h2 id="partner-admin-title">필링파인</h2><p>'+(resetting?'초기화 진행 중':settings.enabled&&settings.configured?'적립 사용 중':'적립 중지')+' · 코드 '+(settings.configured?'설정됨':'미설정')+'</p></div><div class="partner-admin-actions">'+button('적립 기록','partneradmin-history',{class:'button secondary',icon:'history',disabled:resetting})+button('설정','partneradmin-edit',{icon:'settings-2',disabled:resetting})+button(resetting?'초기화 이어서':'스탬프 초기화 (임시)','partneradmin-reset',{class:'button partner-reset-trigger'})+'</div></section>';
+ const active=!resetting&&settings.enabled&&settings.configured;
+ return '<div class="page-heading"><h1 id="page-title" tabindex="-1">제휴 관리</h1></div><div class="admin-catalog-grid"><section class="admin-catalog-card partner-admin-card" aria-labelledby="partner-admin-title">'
+  +'<div class="admin-catalog-top"><span class="admin-catalog-icon" aria-hidden="true">'+icon('ticket')+'</span><span class="admin-catalog-status '+(active?'is-active':'')+'">'+(resetting?'초기화 진행 중':active?'적립 사용 중':'적립 중지')+'</span></div>'
+  +'<h2 class="admin-catalog-title" id="partner-admin-title">필링파인</h2><p class="admin-catalog-description">부원 스탬프 적립 제휴</p>'
+  +'<dl class="admin-catalog-meta"><div><dt>스탬프 적립</dt><dd>'+(resetting?'초기화 진행 중':active?'사용 중':'중지')+'</dd></div><div><dt>매장 로그인 코드</dt><dd>'+(settings.configured?'설정됨':'미설정')+'</dd></div></dl>'
+  +'<div class="admin-catalog-footer partner-admin-actions"><div class="admin-catalog-actions">'+button('적립 기록','partneradmin-history',{class:'button secondary',icon:'history',disabled:resetting})+button('설정','partneradmin-edit',{icon:'settings-2',disabled:resetting})+'</div>'
+  +button(resetting?'초기화 이어서':'스탬프 초기화 (임시)','partneradmin-reset',{class:'button admin-catalog-utility partner-reset-trigger',icon:'refresh-cw'})+'</div></section></div>';
 }
 
 export async function partnerAdminAction(ctx,action){

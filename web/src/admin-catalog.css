@@ -1,0 +1,40 @@
+/* Keep sparse catalogs compact, with the same card rhythm on both admin pages. */
+.admin-catalog-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,300px),1fr));gap:20px;align-items:stretch}
+.admin-catalog-card{display:flex;flex-direction:column;min-width:0;padding:18px;border:1px solid var(--line);border-radius:16px;background:var(--surface);overflow-wrap:anywhere}
+.admin-catalog-top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+.admin-catalog-icon{display:grid;place-items:center;flex-shrink:0;width:32px;height:32px;border:1px solid #ddbd841c;border-radius:12px;background:#ddbd840b;color:var(--gold)}
+.admin-catalog-icon svg{width:19px;height:19px}
+.admin-catalog-status{max-width:70%;padding:5px 9px;border-radius:7px;background:#ffffff07;color:var(--muted);font-size:12px;line-height:1.5;text-align:right}
+.admin-catalog-status.is-active{background:#a9c8b311;color:#a9c8b3}
+.admin-catalog-title{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin:0;font-size:18px;font-weight:600;line-height:1.5;letter-spacing:-.03em}
+.admin-catalog-description{display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden;min-height:20px;margin:6px 0 12px;color:var(--muted);font-size:13px;line-height:20px;white-space:pre-line}
+.admin-catalog-location{display:flex;align-items:flex-start;gap:7px;min-height:18px;margin:0 0 12px;color:var(--muted);font-size:12px;line-height:18px}
+.admin-catalog-location svg{flex-shrink:0;width:16px;height:16px;margin-top:1px;color:var(--gold)}
+.admin-catalog-location>span{display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden;min-width:0}
+.admin-catalog-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:0 0 14px;padding:12px 0;border-block:1px solid #ffffff0b}
+.admin-catalog-stats>div{min-width:0}
+.admin-catalog-stats dt{color:var(--muted);font-size:11px;line-height:1.5}
+.admin-catalog-stats dd{margin:5px 0 0;font-size:24px;font-weight:600;line-height:1.2;font-variant-numeric:tabular-nums}
+.admin-catalog-stats dd small{margin-left:3px;color:var(--muted);font-size:11px;font-weight:400}
+.admin-catalog-stats>div:last-child dd{color:var(--gold)}
+.admin-catalog-meta{display:grid;gap:13px;margin:0 0 22px;padding:17px 0;border-block:1px solid #ffffff0b;font-size:13px;line-height:1.5}
+.admin-catalog-meta>div{display:flex;justify-content:space-between;gap:12px}
+.admin-catalog-meta dt{color:var(--muted)}
+.admin-catalog-meta dd{margin:0;text-align:right}
+.admin-catalog-footer{margin-top:auto}
+.admin-catalog-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.admin-catalog-actions .button{min-width:0;min-height:42px;padding:10px 8px;gap:6px;font-size:13px;line-height:1.4}
+.admin-catalog-actions .button svg{width:16px;height:16px}
+.admin-catalog-card .admin-catalog-utility{display:flex;width:fit-content;min-height:28px;margin:8px 0 -4px auto;padding:5px 0;gap:6px;border:0;background:transparent;color:var(--muted);font-size:12px;font-weight:400}
+.admin-catalog-card .admin-catalog-utility svg{width:14px;height:14px}
+.admin-catalog-card .admin-catalog-utility:hover{color:#efaaa5}
+.admin-catalog-card .partner-reset-trigger{color:#d29890}
+.equipment-admin-detail>.prose{font-size:14px}
+.equipment-admin-detail .equipment-facts{grid-template-columns:repeat(2,minmax(0,1fr));gap:24px}
+@media(max-width:600px){
+ .admin-catalog-grid{grid-template-columns:minmax(0,1fr);gap:16px}
+ .admin-catalog-card{padding:20px}
+ .admin-catalog-actions .button{min-height:44px}
+ .admin-catalog-card .admin-catalog-utility{min-height:40px}
+ .equipment-admin-detail .equipment-facts{grid-template-columns:minmax(0,1fr)}
+}
