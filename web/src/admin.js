@@ -12,6 +12,7 @@ import { renderBudgetPlanner, budgetPlannerAction } from './budget-planner.js';
 import { renderPartnerAdmin, partnerAdminAction } from './partner-admin.js';
 import { renderEquipmentAdmin,equipmentAdminAction } from './equipment.js';
 import { clearAdminData, isAdminAuthError } from './admin-session.js';
+import './admin-catalog.css';
 const navigation=[['','layout-dashboard','오늘의 운영'],['events','calendar-days','행사 · 교육'],['members','users-round','부원 명부'],['inventory','package','재고 관리'],['settings','settings-2','학기 · 운영 설정'],['roles','list-checks','역할 관리'],['admins','shield-check','임원 배정'],['privacy','shield-check','학기말 정보 정리'],['audit','history','변경 이력']];
 navigation.splice(3,0,['requests','door-open','신청 · 문의'],['equipment','package','비품 대여']);
 navigation.splice(4,0,['on-the-rock','martini','마티니 온더락'],['budget','wallet','예산'],['partners','ticket','제휴 관리']);

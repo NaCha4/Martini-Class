@@ -69,12 +69,23 @@ export async function memberEquipmentAction(ctx,action,id){
  }
 }
 
+function equipmentAdminCard(item){
+ const availability=!item.enabled?'신규 대여 중지':item.available?'대여 가능':'모두 대여 중';
+ return '<article class="admin-catalog-card equipment-admin-card">'
+  +'<div class="admin-catalog-top"><span class="admin-catalog-icon" aria-hidden="true">'+icon('package')+'</span><span class="admin-catalog-status '+(item.enabled&&item.available?'is-active':'')+'">'+availability+'</span></div>'
+  +'<h2 class="admin-catalog-title" title="'+esc(item.name)+'">'+esc(item.name)+'</h2>'
+  +'<p class="admin-catalog-description">'+esc(item.description||'등록된 설명이 없습니다.')+'</p>'
+  +'<p class="admin-catalog-location" title="'+esc(item.location||'보관 위치 미입력')+'">'+icon('map-pin')+'<span><span class="sr-only">보관 위치: </span>'+esc(item.location||'보관 위치 미입력')+'</span></p>'
+  +'<dl class="admin-catalog-stats">'+[['전체',item.quantity],['대여 중',item.borrowed],['대여 가능',item.available]].map(([label,value])=>'<div><dt>'+label+'</dt><dd>'+value+'<small>개</small></dd></div>').join('')+'</dl>'
+  +'<div class="admin-catalog-footer"><div class="admin-catalog-actions">'+button('상세 정보','equipment-detail',{id:item.id,class:'button secondary',icon:'clipboard-list'})+button('정보 수정','equipment-edit',{id:item.id,icon:'pencil'})+'</div>'
+  +button('목록에서 삭제','equipment-delete',{id:item.id,class:'button admin-catalog-utility',icon:'x'})+'</div></article>';
+}
 export async function renderEquipmentAdmin(ctx){
  if(!hasPermission(ctx.state.profile,'inventory'))return '<h1>접근 권한이 없습니다</h1>';
  const version=ctx.state.adminDataVersion||0,uid=ctx.state.user?.uid;
  const data=await ctx.api('equipmentCatalog',{});if(version!==(ctx.state.adminDataVersion||0)||uid!==ctx.state.user?.uid)return '';
  ctx.state.equipmentAdmin=data;
- return '<div class="page-heading"><div><h1 tabindex="-1">비품 대여</h1><p>부원이 직접 대여·반납을 기록합니다. 비품 목록과 안내만 설정해 주세요.</p></div>'+button('비품 추가','equipment-edit',{icon:'plus'})+'</div>'+(data.items.length?'<div class="equipment-grid equipment-admin-grid">'+data.items.map(item=>'<article class="equipment-admin-card"><div class="equipment-choice-heading"><h2>'+esc(item.name)+'</h2><span class="muted">'+(item.enabled?'대여 가능':'신규 대여 중지')+'</span></div>'+textBlock(item.description)+info(item)+'<p class="equipment-availability">전체 '+item.quantity+'개 · 대여 중 '+item.borrowed+'개 · 남은 수량 '+item.available+'개</p><div class="row-actions">'+button('정보 수정','equipment-edit',{id:item.id,class:'button secondary',icon:'pencil'})+button('목록에서 삭제','equipment-delete',{id:item.id,class:'button secondary small'})+'</div></article>').join('')+'</div>':'<div class="empty-state"><h2>등록된 비품이 없습니다</h2><p>비품 이름과 보관 위치, 주의사항을 등록해 주세요.</p></div>');
+ return '<div class="page-heading"><div><h1 tabindex="-1">비품 대여</h1><p>부원이 직접 대여·반납을 기록합니다. 비품 목록과 안내만 설정해 주세요.</p></div>'+button('비품 추가','equipment-edit',{icon:'plus'})+'</div>'+(data.items.length?'<div class="admin-catalog-grid">'+data.items.map(equipmentAdminCard).join('')+'</div>':'<div class="empty-state"><h2>등록된 비품이 없습니다</h2><p>비품 이름과 보관 위치, 주의사항을 등록해 주세요.</p></div>');
 }
 function extraRow(detail={}){return '<div class="equipment-extra-row" data-equipment-detail>'+field('extraLabel','항목명',detail.label||'',{maxLength:60,placeholder:'예: 구성품, 사용 방법, 담당자'})+field('extraValue','내용',detail.value||'',{type:'textarea',maxLength:2000,rows:2})+'<button type="button" class="icon-button x-button" data-equipment-remove aria-label="추가 정보 삭제">'+icon('x')+'</button></div>';}
 export async function equipmentAdminAction(ctx,action,id){
@@ -83,6 +94,10 @@ export async function equipmentAdminAction(ctx,action,id){
  const current=()=>uid===ctx.state.user?.uid&&version===(ctx.state.adminDataVersion||0)&&hasPermission(ctx.state.profile,'inventory')&&location.pathname.replace(/\/$/,'')==='/admin/equipment';
  const data=await ctx.api('equipmentCatalog',{});if(!current())return;
  const item=id?data.items.find(i=>i.id===id):null;if(id&&!item)throw Error('비품 목록을 새로고침해 주세요.');
+ if(action==='equipment-detail'){
+  if(!item)throw Error('비품 목록을 새로고침해 주세요.');
+  return modal(item.name,'<div class="equipment-admin-detail">'+textBlock(item.description)+info(item)+'<p class="equipment-availability">전체 '+item.quantity+'개 · 대여 중 '+item.borrowed+'개 · 남은 수량 '+item.available+'개</p></div>',null,{contentOnly:true,wide:true});
+ }
  if(action==='equipment-delete'){
   if(item.borrowed)throw Error('대여 중인 비품은 삭제할 수 없습니다. 정보 수정에서 신규 대여를 중지할 수 있습니다.');
   return modal('비품 목록에서 삭제','<p class="wide">'+esc(item.name)+'을(를) 목록에서 삭제합니다. 기존 대여·반납 기록은 유지됩니다.</p>',async()=>{if(!current())throw Error('권한이나 화면이 변경되었습니다.');await ctx.api('deleteEquipmentItem',{id,revision:item.revision,confirmed:true});if(!current())return;await ctx.render();ctx.toast('비품을 목록에서 삭제했습니다.');},{submit:'목록에서 삭제',submitClass:'button danger'});
