@@ -201,11 +201,12 @@ dialog {
 dialog.wide-dialog {
   width: min(840px,calc(100% - 32px));
 }
-dialog>form {
+dialog>form,dialog>.dialog-frame {
   display: flex;
   flex-direction: column;
   max-height: inherit;
   min-height: 0;
+  min-width: 0;
 }
 dialog header {
   flex: none;
@@ -218,10 +219,16 @@ dialog h2 {
   overflow-wrap: anywhere;
 }
 .dialog-scroll {
+  flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
+}
+dialog .dialog-content {
+  min-width: 0;
+  padding: 24px 26px 28px;
+  overflow-wrap: anywhere;
 }
 dialog .form-grid {
   padding: 24px 26px 6px;
@@ -414,6 +421,9 @@ td .title-button {
   dialog .form-grid {
     padding: 20px 18px 4px;
     grid-template-columns: 1fr;
+  }
+  dialog .dialog-content {
+    padding: 20px 18px;
   }
   dialog footer {
     padding: 12px 18px max(12px,env(safe-area-inset-bottom));
