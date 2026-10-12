@@ -1,3 +1,4 @@
+import { createMeetingNotes } from './meeting-notes.js';
 import { eventStatus } from './event-status.js';
 import { createEventApplications } from './event-applications.js';
 import { createRecords } from './records.js';
@@ -25,7 +26,7 @@ export function createService(db,clock=Date.now){
  const now=()=>new Date(clock()).toISOString();
  const roster=createRoster(col);
  const snapshot=snap=>snap.exists&&!snap.data().deletedAt?{...snap.data(),id:snap.id}:null;
- const clean=record=>{const {linkHash,receiptHash,identityHash,memberIdentityHash,isStaff,staffFee,staffFeeRevision,pricingRevision,...safe}=record;return safe;};
+ const clean=record=>{const {meetingSaveRequestId,meetingSaveHash,linkHash,receiptHash,identityHash,memberIdentityHash,isStaff,staffFee,staffFeeRevision,pricingRevision,...safe}=record;return safe;};
  function protectedRole(builtin,stored){return {...builtin,permissions:[...builtin.permissions,...(!stored?.deletedAt&&Array.isArray(stored?.permissions)&&stored.permissions.includes('budget')?['budget']:[])],revision:stored?.revision||0};}
  async function roleDefinition(id,tx){
   const builtin=defaultRoles.find(r=>r.id===id);
@@ -76,6 +77,7 @@ export function createService(db,clock=Date.now){
  const {verifyEvent,apply,receipt,memberApplications,memberApplication,applicationCommand}=createEventApplications({db,col,clock,now,snapshot,clean,audit,roster,throttle,memberPortal});
  const {save,read,stock,finance}=createRecords({db,col,clock,now,snapshot,visible,audit,roster,settings,inventoryBoard});
  const dashboard=createDashboard({col,clock,roster,settings});
+ const saveMeetingNote=createMeetingNotes({db,col,clock,now,audit,visible});
  async function handle(payload,ctx={}){
   if(!payload||typeof payload.op!=='string')fail('invalid-argument','요청을 확인해 주세요.');
   const {op,...data}=payload;
@@ -215,6 +217,7 @@ export function createService(db,clock=Date.now){
   if(op==='rosterTerms'){ensureScope(who,'membersRead',clock());const current=(await settings())?.semester;return {rows:[...new Set([...(await roster.terms()),...(semesterSchema.safeParse(current).success?[current]:[])])].sort().reverse()};}
   if(op==='dashboard')return dashboard(data,who);
   if(op==='read')return read(data,who);
+  if(op==='saveMeetingNote')return saveMeetingNote(data,who);
   if(op==='deleteRecord')return deleteRecord(data,who);
   if(op==='privacyCandidates')return privacy.candidates(data,who);
   if(op==='privacyReview')return privacy.review(data,who);

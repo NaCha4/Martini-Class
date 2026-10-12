@@ -39,4 +39,4 @@ export function mountScreen(ctx,app){
  else if(key==='merchant')loaded.merchant?.mountPartnerViews(ctx);
 }
 export function prepareScreenRender(){loaded.member?.preparePublicView();}
-export function clearScreen(ctx){loaded.member?.clearPublicView(ctx);loaded.merchant?.clearPartnerViews(ctx);}
+export function clearScreen(ctx){loaded.admin?.clearAdminView(ctx);loaded.member?.clearPublicView(ctx);loaded.merchant?.clearPartnerViews(ctx);}

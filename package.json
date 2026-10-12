@@ -19,6 +19,9 @@
     "check:syntax": "node scripts/check-syntax.mjs"
   },
   "dependencies": {
+    "@tiptap/core": "3.31.4",
+    "@tiptap/extension-text-align": "3.31.4",
+    "@tiptap/starter-kit": "3.31.4",
     "firebase": "12.18.0",
     "lucide": "0.577.0",
     "qrcode": "1.5.4"

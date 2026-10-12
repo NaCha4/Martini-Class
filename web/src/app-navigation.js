@@ -13,6 +13,7 @@ function rememberPosition(){positions.set(currentIndex,{scroll:scrollY,search:st
 function dirtyApplication(){return runtime.trackedForm?.node.isConnected&&formSignature(runtime.trackedForm.node)!==runtime.trackedForm.signature;}
 async function mayLeave({preserveVisitDraft=false}={}) {
   if(document.querySelector('form[data-form][aria-busy=true]')){toast('요청을 처리하고 있습니다. 완료될 때까지 기다려 주세요.');return false;}
+  if(ctx.beforeLeaveEditor&&!await ctx.beforeLeaveEditor())return false;
   if(!await closeModal())return false;
   if(preserveVisitDraft&&runtime.trackedForm?.node.matches('form[data-form="member-visit"]'))return true;
   if(!dirtyApplication())return true;
@@ -55,7 +56,7 @@ window.addEventListener('popstate',async event=>{
 });
 window.addEventListener('beforeunload',event=>{
   const dialog=document.querySelector('#modal[open]');
-  if(dialog?.isDirty()||dialog?.isSaving()||dirtyApplication()||document.querySelector('form[aria-busy=true]')){event.preventDefault();event.returnValue='';}
+  if(ctx.hasUnsavedEditor?.()||dialog?.isDirty()||dialog?.isSaving()||dirtyApplication()||document.querySelector('form[aria-busy=true]')){event.preventDefault();event.returnValue='';}
 });
 return {navigate,mayLeave,syncUrl(){currentUrl=location.pathname+location.search+location.hash;}};
 }

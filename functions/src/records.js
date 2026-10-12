@@ -1,3 +1,4 @@
+import { meetingText,textDocument } from './meeting-document.js';
 import { eventStatus } from './event-status.js';
 import { billingFee } from './billing.js';
 import { openChatUrl } from './public-links.js';
@@ -84,6 +85,10 @@ export function createRecords({db,col,clock,now,snapshot,visible,audit,roster,se
     const meeting=snapshot(await tx.get(col('meetings').doc(input.meetingId)));
     if(!meeting)fail('not-found','연결할 회의를 찾을 수 없습니다.');
     if(input.agendaId&&!meeting.agendas.some(a=>a.id===input.agendaId))fail('invalid-argument','연결할 안건을 확인해 주세요.');
+   }
+   if(kind==='meetings'){
+    next.document=input.document||(old?.document&&input.body===old.body?old.document:textDocument(input.body));
+    next.body=meetingText(next.document);
    }
    if(kind==='meetings'&&old){
     const linked=await tx.get(col('decisions').where('meetingId','==',id));

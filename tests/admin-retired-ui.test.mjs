@@ -23,7 +23,7 @@ let renderAdmin,adminAction;
 try{({renderAdmin,adminAction}=await import('../web/src/admin.js'));}
 finally{hook.deregister();}
 
-const retired=['finance','meetings','decisions','content','notices'];
+const retired=['finance','decisions','content','notices'];
 const permissions=['events','members','inventory','finance','meetings','decisions','content','settings','audit','admins'];
 const profile=(extra={})=>({uid:'admin-a',role:'owner',roleName:'회장',displayName:'운영진',permissions:[...permissions],...extra});
 const settings={id:'current',semester:'2026-2',contact:'동아리 문의 채널'};
@@ -529,7 +529,8 @@ test('role summaries present retained event finance access and omit retired work
  assert.match(body,/운영팀/);
  assert.match(body,/행사 참가비 관리/);
  assert.match(body,/행사·참가자·출석 관리/);
- assert.doesNotMatch(body,/회비·정산|회의록|결정·할 일|공지·활동 게시|활동 기록 게시/);
+ assert.match(body,/회의록/);
+ assert.doesNotMatch(body,/회비·정산|결정·할 일|공지·활동 게시|활동 기록 게시/);
  noRetiredLinks(html);
 });
 
@@ -541,13 +542,14 @@ test('role editor still offers event finance permission while hiding retired wor
   const html=dialogs[0].innerHTML;
   assert.match(html,/name="permission-finance"[^>]*checked/);
   assert.match(html,/행사 참가비 관리/);
-  assert.doesNotMatch(html,/name="permission-(?:meetings|decisions|content)"|회비·정산|회의록|결정·할 일|공지·활동 게시/);
+  assert.match(html,/name="permission-meetings"[^>]*checked/);
+  assert.doesNotMatch(html,/name="permission-(?:decisions|content)"|회비·정산|결정·할 일|공지·활동 게시/);
  }));
  assert.deepEqual(calls,[{op:'listRoles',data:undefined}]);
 });
 
 test('saving an existing role updates active permission selections while preserving hidden historical permissions',async()=>{
- const legacy=['meetings','decisions','content'];
+ const legacy=['decisions','content'];
  const {ctx}=context({roles:[{id:'custom',name:'재무 담당',revision:3,permissions:['finance','inventory',...legacy],assigned:1}]});
  const saved=[],api=ctx.api;
  ctx.api=async(op,data)=>{if(op==='saveRole'){saved.push(data);return data;}return api(op,data);};
@@ -691,7 +693,7 @@ test('unchecking budget on an ordinary role removes only that grant and preserve
   await adminAction(ctx,'role-edit','planner');
   const dialog=dialogs[0],form=dialog.querySelector('form');
   assert.match(dialog.innerHTML,/name="permission-budget"[^>]*checked/);
-  form.entries=[['name','운영팀'],['permission-finance','on']];
+  form.entries=[['name','운영팀'],['permission-finance','on'],['permission-meetings','on']];
   await form.listeners.get('submit')({preventDefault(){}});
   assert.deepEqual(saved,[{id:'planner',revision:7,name:'운영팀',permissions:['finance','meetings','decisions','content']}]);
  }));
