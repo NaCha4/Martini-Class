@@ -1,3 +1,4 @@
+import { eventStatus } from './event-status.js';
 import { createEventApplications } from './event-applications.js';
 import { createRecords } from './records.js';
 import { createDashboard } from './dashboard.js';
@@ -48,6 +49,7 @@ export function createService(db,clock=Date.now){
  }
  function visible(kind,record,who){
   const result=clean(record);
+  if(kind==='events')result.status=eventStatus(record,clock());
   if(kind==='applications'&&hasPermission(who,'finance'))Object.assign(result,{isStaff:!!record.isStaff,staffFee:record.staffFee??record.fee,pricingRevision:record.pricingRevision||0});
   if(kind==='events'&&hasPermission(who,'finance'))Object.assign(result,{staffFee:record.staffFee??null,staffFeeRevision:record.staffFeeRevision||0});
   if(kind==='members'){delete result.duesPaid;delete result.status;}
@@ -99,7 +101,7 @@ export function createService(db,clock=Date.now){
    if(!record||record.anonymizedAt)fail('not-found','링크를 확인해 주세요.');
    return {id:rows.docs[0].id};
   }
-  if(op==='eventAccess'){const input=parse(z.object({eventId:idSchema,key:token}).strict(),data);await throttle(ctx,'event:'+input.eventId+':'+(parseInt(secret().slice(0,4),16)%16),100);return publicEvent(await verifyEvent(input.eventId,input.key));}
+  if(op==='eventAccess'){const input=parse(z.object({eventId:idSchema,key:token}).strict(),data);await throttle(ctx,'event:'+input.eventId+':'+(parseInt(secret().slice(0,4),16)%16),100);return publicEvent(await verifyEvent(input.eventId,input.key),clock());}
   if(op==='apply')return apply(data,ctx);
   if(op==='receipt')return receipt(data,ctx);
   if(op==='memberAccess')return memberPortal.access(data,ctx);

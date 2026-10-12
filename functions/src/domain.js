@@ -1,5 +1,6 @@
 import { defaultRoles, hasPermission, permissionKeys } from './permissions.js';
 import { openChatUrl } from './public-links.js';
+import { eventStatus } from './event-status.js';
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { z } from 'zod';
 import { MAX_INVENTORY_PHOTO_LENGTH, validInventoryPhoto } from './inventory-photo.js';
@@ -76,9 +77,9 @@ export function changeStock(item,input){
  if(next.quantity<0)fail('failed-precondition','보유 수량보다 많이 사용할 수 없습니다.');
  return next;
 }
-export function publicEvent(event){
+export function publicEvent(event,now=Date.now()){
  const keys=['id','title','type','description','location','startsAt','endsAt','opensAt','closesAt','cancelUntil','capacity','registered','waiting','fee','waitlist','status','questions','policy','accountNumber','bankName','accountHolder','semester'];
- return {...Object.fromEntries(keys.map(k=>[k,event[k]??null])),memberVisible:event.memberVisible!==false};
+ return {...Object.fromEntries(keys.map(k=>[k,event[k]??null])),status:eventStatus(event,now),memberVisible:event.memberVisible!==false};
 }
 export const occupied=status=>['registered','offered'].includes(status);
 export function requireRevision(record,revision){if(record && record.revision!==revision)fail('aborted','다른 임원이 먼저 수정했습니다. 새로고침한 뒤 다시 확인해 주세요.');}

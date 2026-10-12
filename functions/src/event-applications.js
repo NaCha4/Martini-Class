@@ -51,7 +51,7 @@ export function createEventApplications({db,col,clock,now,snapshot,clean,audit,r
   },{maxAttempts:8}));
  }
  const memberApplicationFields=['id','eventId','eventTitle','name','semester','status','payment','fee','paidAmount','refundAmount','attendance','answers','sequence','policy','offerExpiresAt','createdAt','updatedAt'];
- const memberApplicationView=(record,event)=>({application:Object.fromEntries(memberApplicationFields.filter(field=>record[field]!==undefined).map(field=>[field,record[field]])),event:publicEvent(event)});
+ const memberApplicationView=(record,event)=>({application:Object.fromEntries(memberApplicationFields.filter(field=>record[field]!==undefined).map(field=>[field,record[field]])),event:publicEvent(event,clock())});
  const memberSessionKey=z.string().regex(/^[a-f0-9]{64}$/);
  const memberApplicationActions=z.enum(['get','cancel','payment','accept','decline']).default('get');
  async function memberApplications(data,ctx){
@@ -120,7 +120,7 @@ export function createEventApplications({db,col,clock,now,snapshot,clean,audit,r
    const event=snapshot(await tx.get(col('events').doc(record.eventId)));
    if(!event)fail('not-found','행사를 찾을 수 없습니다.');
    const result=await applicationAction(tx,ref,record,event,input.action);
-   return input.action==='get'?{application:clean(result.record),event:publicEvent(result.event)}:{saved:true};
+   return input.action==='get'?{application:clean(result.record),event:publicEvent(result.event,clock())}:{saved:true};
   });
  }
  async function applicationCommand(data,who){

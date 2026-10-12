@@ -73,8 +73,9 @@ function fixture({applications=true}={}){
   records.set('martini_v2_events/'+id,{...eventInput(),id,title:id,revision:1,registered:applications?1:0,waiting:0,sequence:applications?1:0,linkHash:hash(key),createdAt:stamp,updatedAt:stamp,...(id==='legacy-event'?{}:{memberVisible:id==='public-event'})});
   if(applications)records.set('martini_v2_applications/'+appId(id),{id:appId(id),eventId:id,eventTitle:id,memberId:member.id,memberIdentityHash:fingerprint,name:member.name,semester:member.semester,status:'registered',payment:'unpaid',fee:1000,paidAmount:0,refundAmount:0,attendance:'absent',answers:[],receiptHash:hash(receiptKeys[id]),requestId:'request-'+id,sequence:1,policy:'취소 안내',createdAt:stamp,updatedAt:stamp});
  }
- const service=createService(db,()=>START);
- return {records,reads,writes,handle:(payload,context=memberContext)=>service.handle(payload,context),event:id=>clone(records.get('martini_v2_events/'+id)),application:id=>clone(records.get('martini_v2_applications/'+appId(id)))};
+ let currentTime=START;
+ const service=createService(db,()=>currentTime);
+ return {records,reads,writes,setTime:value=>{currentTime=value;},handle:(payload,context=memberContext)=>service.handle(payload,context),event:id=>clone(records.get('martini_v2_events/'+id)),application:id=>clone(records.get('martini_v2_applications/'+appId(id)))};
 }
 
 test('new events are public by default and explicit private creation remains private',async()=>{
@@ -249,4 +250,48 @@ test('unlisted application history still requires ownership and a live member se
  const f=fixture();
  f.records.get('martini_v2_memberSessions/'+hash(sessionKey)).expiresAt=Timestamp.fromMillis(START-1);
  await assert.rejects(f.handle({op:'memberApplication',sessionKey,id:appId('private-event')}),code('unauthenticated'));
+});
+
+test('all event read routes automatically close at the deadline without changing stored records or applications',async()=>{
+ for(const offset of [-1,0,1]){
+  const f=fixture(),id='public-event',before=f.event(id),application=f.application(id);
+  f.setTime(Date.parse(before.closesAt)+offset);
+  const expected=offset<0?'open':'closed';
+  const list=await f.handle({op:'read',kind:'events'},owner);
+  assert.equal(list.rows.find(row=>row.id===id).status,expected);
+  assert.equal((await f.handle({op:'read',kind:'events',recordId:id},owner)).rows[0].status,expected);
+  assert.equal((await f.handle({op:'eventAccess',eventId:id,key:eventKeys[id]})).status,expected);
+  assert.equal((await f.handle({op:'memberPortal',sessionKey})).events.find(row=>row.id===id).status,expected);
+  assert.equal((await f.handle({op:'memberEventAccess',eventId:id,sessionKey})).status,expected);
+  assert.equal((await f.handle({op:'memberApplications',sessionKey})).applications.find(row=>row.event.id===id).event.status,expected);
+  assert.equal((await f.handle({op:'memberApplication',sessionKey,id:appId(id)})).event.status,expected);
+  assert.equal((await f.handle({op:'receipt',id:appId(id),key:receiptKeys[id]})).event.status,expected);
+  assert.deepEqual(f.event(id),before);
+  assert.deepEqual(f.application(id),application);
+  assert.equal(f.writes.filter(write=>!write.path.startsWith('martini_v2_rateLimits/')).length,0);
+ }
+});
+
+test('expired open saves close, future deadlines allow explicit reopening, and manual states stay intact',async()=>{
+ const f=fixture(),id='public-event',closesAt=time(80000000);
+ f.setTime(Date.parse(closesAt));
+ let saved=await f.handle({op:'saveEvent',...eventInput({id,revision:1})},owner);
+ assert.equal(saved.status,'closed');assert.equal(f.event(id).status,'closed');
+ saved=await f.handle({op:'saveEvent',...eventInput({id,revision:saved.revision,closesAt:time(81000000)})},owner);
+ assert.equal(saved.status,'open');assert.equal(f.event(id).status,'open');
+ await assert.rejects(f.handle({op:'saveEvent',...eventInput({id,revision:1})},owner),code('aborted'));
+ for(const status of ['draft','closed','completed','cancelled']){
+  const other=fixture();other.setTime(Date.parse(closesAt));
+  const result=await other.handle({op:'saveEvent',...eventInput({id,revision:1,status})},owner);
+  assert.equal(result.status,status);assert.equal(other.event(id).status,status);
+ }
+});
+
+test('both application entry points reject requests at the deadline without changing capacity',async()=>{
+ for(const mode of ['session','legacy']){
+  const f=fixture({applications:false}),id='public-event',before=f.event(id);
+  f.setTime(Date.parse(before.closesAt));
+  await assert.rejects(f.handle({op:'apply',eventId:id,answers:[],consent:true,requestId:'deadline-'+mode,receiptKey:'9'.repeat(64),...(mode==='session'?{sessionKey}:{key:eventKeys[id],name:member.name,studentId:member.studentId})}),code('failed-precondition'));
+  assert.deepEqual(f.event(id),before);assert.equal(f.application(id),undefined);
+ }
 });

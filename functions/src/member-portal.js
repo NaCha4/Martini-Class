@@ -88,7 +88,7 @@ export function createMemberPortal({db,col,clock,now,roster,throttle,audit,equip
    const requests=await tx.get(col('clubRequests').where('memberScope','==',scope(member)).orderBy('createdAt','desc').limit(100));
    const equipmentLoans=equipment?await equipment.memberLoansFor(member,tx):[];
    return {member:{name:member.name,semester:member.semester},expiresAt,equipmentLoans,
-    events:events.docs.map(doc=>({...doc.data(),id:doc.id})).filter(event=>!event.deletedAt&&event.memberVisible!==false&&['open','closed'].includes(event.status)&&Date.parse(event.endsAt)>clock()).sort((a,b)=>a.startsAt.localeCompare(b.startsAt)).map(event=>({...publicEvent(event),eventId:event.id})),
+    events:events.docs.map(doc=>({...doc.data(),id:doc.id})).filter(event=>!event.deletedAt&&event.memberVisible!==false&&['open','closed'].includes(event.status)&&Date.parse(event.endsAt)>clock()).sort((a,b)=>a.startsAt.localeCompare(b.startsAt)).map(event=>({...publicEvent(event,clock()),eventId:event.id})),
     requests:requests.docs.filter(doc=>!doc.data().deletedAt&&!doc.data().anonymizedAt&&requestFingerprint(doc.data())===fingerprint(member)).map(doc=>safeRequest({...doc.data(),id:doc.id}))};
   },{readOnly:true});
  }
@@ -101,7 +101,7 @@ export function createMemberPortal({db,col,clock,now,roster,throttle,audit,equip
  async function eventAccess(data,ctx){
   const input=parse(z.object({sessionKey:key,eventId:idSchema}).strict(),data);
   await guard(ctx,'member-event',input.sessionKey,120);
-  return db.runTransaction(async tx=>publicEvent((await verifyEvent(input.eventId,input.sessionKey,tx)).event),{readOnly:true});
+  return db.runTransaction(async tx=>publicEvent((await verifyEvent(input.eventId,input.sessionKey,tx)).event,clock()),{readOnly:true});
  }
  function validateVisit(input){
   const startsAt=Date.parse(input.startsAt);

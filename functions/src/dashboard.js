@@ -1,3 +1,4 @@
+import { eventStatus } from './event-status.js';
 import { z } from 'zod';
 import { parse, fail, stockTotal } from './domain.js';
 import { hasPermission, isRequestViewer } from './permissions.js';
@@ -13,11 +14,11 @@ export function createDashboard({col,clock,roster,settings}){
   const result={counts:{},events:[],inventory:[]};
   const tasks=[];
   if(hasPermission(who,'eventRead'))tasks.push((async()=>{
-   const snapshot=await col('events').where('semester','==',semester).select('title','startsAt','endsAt','location','status','deletedAt').get();
+   const snapshot=await col('events').where('semester','==',semester).select('title','startsAt','endsAt','location','status','closesAt','deletedAt').get();
    const events=snapshot.docs.map(doc=>({...doc.data(),id:doc.id})).filter(event=>!event.deletedAt&&!['cancelled','completed','draft'].includes(event.status)&&Date.parse(event.endsAt)>=clock());
    events.sort((a,b)=>a.startsAt.localeCompare(b.startsAt)||a.id.localeCompare(b.id));
    result.counts.events=events.length;
-   result.events=events.slice(0,4).map(({deletedAt,...event})=>event);
+   result.events=events.slice(0,4).map(({deletedAt,...event})=>({...event,status:eventStatus(event,clock())}));
   })());
   if(hasPermission(who,'members'))tasks.push((async()=>{
    result.counts.members=await roster.countActive(semester);

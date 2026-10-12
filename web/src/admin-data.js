@@ -1,3 +1,4 @@
+import { eventStatus } from '../../functions/src/event-status.js';
 import { adminRequestGuard } from './view-request.js';
 
 export const rosterSemester=ctx=>/^20\d{2}-[12]$/.test(new URLSearchParams(location.search).get('semester')||'')&&location.pathname.replace(/\/$/,'')==='/admin/members'?new URLSearchParams(location.search).get('semester'):ctx.state.settings.semester;
@@ -15,6 +16,7 @@ function memberParams(ctx,kind,params){
  return {...params,semester,removed};
 }
 function remember(ctx,kind,result,params){
+ if(kind==='events')result.rows=result.rows.map(row=>({...row,status:eventStatus(row)}));
  ctx.state.data[kind]||={};
  result.rows.forEach(row=>ctx.state.data[kind][row.id]=row);
  ctx.state.pages||={};

@@ -1,3 +1,4 @@
+import { eventStatus } from './event-status.js';
 import { billingFee } from './billing.js';
 import { openChatUrl } from './public-links.js';
 import { semesterSchema } from './roster.js';
@@ -30,6 +31,7 @@ export function createRecords({db,col,clock,now,snapshot,visible,audit,roster,se
    }
    if(kind==='budgets'){if(old?.status==='executed')fail('failed-precondition','집행 완료한 계획은 수정할 수 없습니다.');next.status='planned';}
    if(kind==='events'){
+    next.status=eventStatus(input,clock());
     // Cached editors that omit visibility must not make a private event public.
     next.memberVisible=input.memberVisible??(old?.memberVisible!==false);
     for(const key of ['staffFee','staffFeeRevision'])if(old?.[key]!==undefined)next[key]=old[key];

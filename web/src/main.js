@@ -1,3 +1,4 @@
+import { watchEventDeadlines } from './event-deadline.js';
 import './style.css';
 import { api } from './api.js';
 import { esc, icon, refreshIcons, toast, closeModal, formSignature, captureFocus, restoreFocus } from './ui.js';
@@ -21,6 +22,7 @@ export function navigate(...args){return navigation.navigate(...args);}
 function mayLeave(...args){return navigation.mayLeave(...args);}
 const filterRows=()=>filterListRows(app,state);
 bindAppEvents(ctx,app,runtime,filterRows);
+watchEventDeadlines(document,filterRows);
 export async function render({focus=false,scroll,pageData}={}) {
   prepareScreenRender();
   const current=++renderNumber,savedFocus=captureFocus(),savedScroll=scrollY;

@@ -1,3 +1,5 @@
+import { eventStatus } from '../../functions/src/event-status.js';
+import { eventDeadlineAttributes } from './event-deadline.js';
 import { memberRequestGuard, routeSnapshot } from './view-request.js';
 import './member-portal.css';
 import './member-app.css';
@@ -125,9 +127,9 @@ function eventCards(ctx,{past=false}={}){
  return '<div class="member-events">'+events.map(event=>{
   const when=event.startsAt&&!Number.isNaN(Date.parse(event.startsAt))?new Date(event.startsAt):null;
   const month=when?new Intl.DateTimeFormat('ko-KR',{month:'short',timeZone:'Asia/Seoul'}).format(when):'예정',day=when?new Intl.DateTimeFormat('ko-KR',{day:'numeric',timeZone:'Asia/Seoul'}).format(when).replace('일',''):'—';
-  const closed=event.status==='closed'||Date.parse(event.closesAt)<=Date.now(),upcoming=Date.parse(event.opensAt)>Date.now();
+  const closed=eventStatus(event)==='closed',upcoming=Date.parse(event.opensAt)>Date.now();
   const status=past?(event.status==='cancelled'?'행사 취소':'종료'):closed?'모집 마감':upcoming?'신청 예정':'신청 가능';
-  return '<button type="button" class="member-event" data-action="member-event-open" data-id="'+esc(event.id||event.eventId)+'"><span class="member-event-date"><span>'+esc(month)+'</span><strong>'+esc(day)+'</strong></span><span class="member-event-copy"><span class="member-event-meta"><span>'+esc(label(event.type))+'</span><span class="member-status '+(past||closed?'cancelled':upcoming?'pending':'approved')+'">'+status+'</span></span><strong class="member-event-title'+(closed?' is-closed':'')+'">'+esc(event.title)+'</strong><span class="member-event-summary">'+esc(shortStamp(event.startsAt))+' · '+esc(event.location||'장소 미정')+'</span><small>'+(event.fee?money(event.fee):'무료')+'</small></span>'+icon('arrow-right')+'</button>';
+  return '<button type="button" class="member-event"'+eventDeadlineAttributes(event)+' data-action="member-event-open" data-id="'+esc(event.id||event.eventId)+'"><span class="member-event-date"><span>'+esc(month)+'</span><strong>'+esc(day)+'</strong></span><span class="member-event-copy"><span class="member-event-meta"><span>'+esc(label(event.type))+'</span><span data-event-status-label class="member-status '+(past||closed?'cancelled':upcoming?'pending':'approved')+'">'+status+'</span></span><strong class="member-event-title'+(closed?' is-closed':'')+'">'+esc(event.title)+'</strong><span class="member-event-summary">'+esc(shortStamp(event.startsAt))+' · '+esc(event.location||'장소 미정')+'</span><small>'+(event.fee?money(event.fee):'무료')+'</small></span>'+icon('arrow-right')+'</button>';
  }).join('')+'</div>';
 }
 export function renderMemberEventChoices(ctx){
