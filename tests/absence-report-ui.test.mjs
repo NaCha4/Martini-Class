@@ -31,7 +31,7 @@ test('admin route uses the protected report API and provides a discoverable navi
  assert.match(html,/href="\/admin\/absences"[^>]*aria-current="page"/);
  assert.match(html,/결석자 관리|data-absence-page/);assert.match(html,/data-absence-semester/);assert.match(html,/data-action="absence-member"/);
  assert.deepEqual(calls.map(call=>call.op),['profile','absenceReport']);
- assert.match(html,/신청 시 기본 상태가 불참/);assert.match(html,/미확인 1건은 결석 횟수에서 제외/);
+ assert.doesNotMatch(html,/absence-guidance|종료된 행사 · 참가 등록자 기준|신청 시 기본 상태가 불참/);assert.match(html,/미확인 1건은 결석 횟수에서 제외/);
 });
 
 test('report escapes stored text and does not query or render for finance-only accounts',async()=>{
