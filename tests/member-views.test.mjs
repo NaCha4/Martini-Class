@@ -148,7 +148,8 @@ test('the member app mounts four management panels without a separate welcome or
  for(const id of ['one','two','three','four'])assert.match(choices,new RegExp('data-action="member-event-open"[^>]*data-id="'+id+'"'));
  assert.ok(choices.indexOf('data-id="one"')<choices.indexOf('data-id="two"'));
  assert.match(panels.visits,/출입 신청/);assert.doesNotMatch(panels.activity,/data-action="member-forget"/);
- assert.match(panels.benefits,/data-action="member-partners"[^>]*aria-haspopup="dialog"/);
+ assert.match(panels.benefits,/aria-label="제휴"/);assert.match(panels.benefits,/제휴를 준비 중입니다/);
+ assert.doesNotMatch(panels.benefits,/필링파인|feelingfine|data-action="member-partners"/);
  const records=panels.activity;
  assert.match(records,/data-action="member-request" data-id="visit-one"/);
  for(const status of ['action','current'])assert.match(records,new RegExp('data-member-status="'+status+'"'));
@@ -199,7 +200,7 @@ test('activity groups applications and visits without secret links or retired in
 });
 test('empty member panels retain their actions and refresh reloads server status',async()=>{
  const {html,ctx,calls}=await view('applications',{events:[]});
- const panels=memberPanels(html,'activity');assert.match(panels.visits,/data-form="member-visit"/);assert.match(panels.events,/행사/);assert.match(panels.benefits,/data-action="member-partners"/);
+ const panels=memberPanels(html,'activity');assert.match(panels.visits,/data-form="member-visit"/);assert.match(panels.events,/행사/);assert.match(panels.benefits,/제휴를 준비 중입니다/);
  assert.doesNotMatch(html,/data-action="member-section"|data-action="member-application-open"|data-action="member-request"/);
  const emptyGroups=[['action','확인 필요','확인할 내역이 없습니다.'],['current','진행 중','진행 중인 내역이 없습니다.'],['past','지난 내역','지난 내역이 없습니다.']];
  assert.deepEqual([...panels.activity.matchAll(/data-member-status="([^"]+)"/g)].map(match=>match[1]),emptyGroups.map(([id])=>id));
@@ -212,23 +213,19 @@ test('empty member panels retain their actions and refresh reloads server status
  assert.deepEqual(calls.map(call=>call.op),['memberPortal','memberApplications']);
 });
 
-test('event and partner service buttons open dialogs without navigation or history rows and load partner stamps on demand',async()=>{
+test('events open normally while unpublished partner actions cannot open dialogs or load stamps',async()=>{
  const {ctx,calls,navigations}=await view('home',{applications:[application('one')],requests:[{id:'visit-one',kind:'visit',purpose:'내 방문',status:'pending'}]});
  const initialCalls=calls.length,leaveOptions=[];ctx.mayLeave=async options=>{leaveOptions.push(options);return true;};
  await withDialogs(async({dialogs})=>{
   await publicAction(ctx,'member-events');const events=dialogs.at(-1);
   assert.ok(events.open);assert.ok(events.classList.contains('member-events-dialog'));assert.match(events.innerHTML,/data-action="member-event-open"/);assert.doesNotMatch(events.innerHTML,/member-application-row|member-request-row/);
   await events.requestClose();assert.equal(events.open,false);
-  await publicAction(ctx,'member-partners');const partners=dialogs.at(-1);
-  assert.ok(partners.open);assert.ok(partners.classList.contains('partner-dialog'));assert.match(partners.innerHTML,/<section class="partner-feelingfine" aria-labelledby="modal-title">[\s\S]*?class="partner-intro"[\s\S]*?<h2 id="modal-title" tabindex="-1">필링파인<\/h2>[\s\S]*?class="partner-benefits-copy"[\s\S]*?<div class="partner-coupon-area"><div data-partner-body/);
-  assert.match(partners.innerHTML,/data-coupon-reveal[^>]*aria-label="내 스탬프 쿠폰 열기"/);assert.match(partners.innerHTML,/FeelingFineCouponBack\.png/);assert.doesNotMatch(partners.innerHTML,/FeelingFineCoupon\.png|내 스탬프 보기|data-action="partner-qr"|partner-benefit-heading|partner-coupon-title|partner-information|안내 준비 중|member-application-row|member-request-row|data-action="member-event-open"/);
-  assert.equal(calls.length,initialCalls);await publicAction(ctx,'partner-qr');assert.equal(calls.length,initialCalls);
-  await publicAction(ctx,'partner-reveal');assert.match(partners.querySelector('[data-partner-body]').innerHTML,/data-action="partner-qr" aria-label="QR 표시"><i data-lucide="qr-code"/);
-  assert.equal((partners.innerHTML.match(/<h2\b/g)||[]).length,1);const partnerHeader=partners.innerHTML.match(/<header\b[^>]*>[\s\S]*?<\/header>/)?.[0];assert.ok(partnerHeader);assert.doesNotMatch(partnerHeader,/<h2\b/);
-  await partners.requestClose();assert.equal(partners.open,false);
+  await publicAction(ctx,'member-partners');
+  assert.equal(dialogs.length,1);assert.equal(events.open,false);assert.equal(ctx.state.memberPartner,undefined);
+  await publicAction(ctx,'partner-reveal');await publicAction(ctx,'partner-qr');assert.equal(calls.length,initialCalls);
  });
  assert.deepEqual(leaveOptions,[undefined,undefined]);
- assert.equal(calls.length,initialCalls+1);assert.equal(calls.at(-1).op,'memberCoupons');assert.deepEqual(navigations,[]);assert.equal(location.pathname,'/members');
+ assert.equal(calls.length,initialCalls);assert.deepEqual(navigations,[]);assert.equal(location.pathname,'/members');
 });
 
 test('service popup switching respects an unsaved form and does not clear its selection when leaving is declined',async()=>{
@@ -337,7 +334,7 @@ test('visit form and logout remain directly available while the inquiry form and
 });
 test('the old coupon URL requires login and selects benefits without eagerly fetching stamp data',async()=>{
  const anonymous=await view('coupons',{verified:false});assertLoginGate(anonymous.html);assert.deepEqual(anonymous.calls,[]);
- const verified=await view('coupons'),panels=memberPanels(verified.html,'benefits');assert.match(panels.benefits,/필링파인/);assert.match(panels.benefits,/data-action="member-partners"/);
+ const verified=await view('coupons'),panels=memberPanels(verified.html,'benefits');assert.match(panels.benefits,/제휴를 준비 중입니다/);assert.doesNotMatch(panels.benefits,/필링파인|feelingfine|data-action="member-partners"/);
  assert.doesNotMatch(verified.html,/data-coupon-state|data-action="(?:coupon|member-coupon)|\b0\s*\/\s*10\b|\bQR\b/);
  assert.deepEqual(verified.calls.map(call=>call.op),['memberPortal','memberApplications']);
 });

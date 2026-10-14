@@ -4,7 +4,7 @@ export const MEMBER_TABS = [
   { id: 'activity', label: '내 현황', icon: 'clipboard-list' },
   { id: 'events', label: '행사', icon: 'calendar-days' },
   { id: 'visits', label: '신청', icon: 'notebook-pen' },
-  { id: 'benefits', label: '혜택', icon: 'ticket' },
+  { id: 'benefits', label: '제휴', icon: 'ticket' },
 ];
 const validTab = tab => MEMBER_TABS.some(item => item.id === tab);
 

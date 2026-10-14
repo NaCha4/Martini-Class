@@ -152,7 +152,7 @@ export async function openMemberPartner(ctx){
  const dialog=modal('필링파인',content,null,{contentOnly:true,bodyTitle:true,footer:false,nonModal:true,onClose:()=>{if(ctx.state.memberPartner===view)disposeMember(ctx);}});
  dialog.classList.add('member-dialog','member-partners-dialog','partner-dialog','partner-expanded');view.dialog=dialog;ctx.state.memberPartner=view;
  const back=dialog.querySelector('[data-close]');
- if(back){back.innerHTML=icon('arrow-left');back.setAttribute('aria-label','혜택으로 돌아가기');back.setAttribute('title','뒤로');}
+ if(back){back.innerHTML=icon('arrow-left');back.setAttribute('aria-label','제휴로 돌아가기');back.setAttribute('title','뒤로');}
  const close=dialog.requestClose.bind(dialog);
  dialog.requestClose=discard=>{
   if(discard){view.expansion?.cancel();view.revealMotion?.cancel();view.closing=true;expireMemberQr(view);return close(true);}

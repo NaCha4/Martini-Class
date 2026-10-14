@@ -477,7 +477,7 @@ test('expanded member partner preserves header and navigation while isolating an
  const header=html.match(/<header\b[^>]*>[\s\S]*?<\/header>/)?.[0];assert.ok(header);assert.doesNotMatch(header,/<h2\b/);
  assert.doesNotMatch(html,/partner-coupon-title|partner-information|partner-info-card|안내 준비 중/);
  assert.doesNotMatch(html,/<footer\b/);assert.equal((html.match(/\bdata-close\b/g)||[]).length,1);
- assert.ok(dialog.classList.contains('partner-expanded'));const back=dialog.querySelector('[data-close]');assert.equal(back.getAttribute('aria-label'),'혜택으로 돌아가기');assert.match(back.innerHTML,/data-lucide="arrow-left"/);assert.doesNotMatch(back.innerHTML,/data-lucide="x"/);
+ assert.ok(dialog.classList.contains('partner-expanded'));const back=dialog.querySelector('[data-close]');assert.equal(back.getAttribute('aria-label'),'제휴로 돌아가기');assert.match(back.innerHTML,/data-lucide="arrow-left"/);assert.doesNotMatch(back.innerHTML,/data-lucide="x"/);
  assert.equal(dialog.querySelector('.dialog-actions'),null);assert.equal(dialog.querySelector('.dialog-status'),null);
  assert.doesNotMatch(body(),/data-action="partner-refresh"|방문하고 스탬프를 모아 보세요|매장에서 적립할 때 QR을 표시해 주세요/);
  await partnerAction(ctx,'partner-qr');await hidden(true);

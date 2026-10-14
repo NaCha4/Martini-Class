@@ -8,6 +8,7 @@ const ids = ['activity', 'events', 'visits', 'benefits'];
 test('member shell exposes four accessible tabs and selects only the requested panel', () => {
   assert.deepEqual(MEMBER_TABS.map(tab => tab.id), ids);
   assert.equal(MEMBER_TABS.find(tab => tab.id === 'visits').label, '신청');
+  assert.equal(MEMBER_TABS.find(tab => tab.id === 'benefits').label, '제휴');
   for (const activeTab of ids) {
     const content = '<section id="member-panel-' + activeTab + '">내용</section>';
     const html = memberShell(content, { activeTab, memberName: '테스트 부원' });

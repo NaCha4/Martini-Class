@@ -8,6 +8,7 @@ import { esc, icon, field, button, date, label, money, textBlock, modal } from '
 import { memberState as state, memberStorage as storage, persistMemberStorage as persist, clearMemberIdentity as clearIdentity, validMemberReceipt as validReceipt, getMemberSessionKey, getVerifiedMember, setMemberSession, refreshMemberSession, isMemberAccessError, safeMemberReturnTarget, forgetMemberDevice } from './member-session.js';
 import { memberShell, currentMemberTab, activateMemberRequestView } from './member-navigation.js';
 import { openMemberPartner } from './partner-stamps.js';
+import { publishedMemberPartners } from './partner-catalog.js';
 import { renderEquipmentMember,loadMemberEquipment,memberEquipmentAction,equipmentLoanRow } from './equipment.js';
 export { getMemberSessionKey } from './member-session.js';
 
@@ -158,8 +159,8 @@ function visitsPanel(ctx){
   +'<div id="member-visit-view" data-member-request-view="visit" tabindex="-1" aria-labelledby="member-visit-title"'+(visiting?'':' hidden')+'><button type="button" class="member-app-link member-request-back" data-action="member-request-back" aria-controls="member-request-menu">'+icon('arrow-left')+' 신청 목록</button><div class="member-app-intro"><h1 id="member-visit-title">출입 신청</h1><p>방문 일정과 외부인 정보를 입력해 주세요.</p></div><form class="member-visit-form" data-form="member-visit" aria-labelledby="member-visit-title">'+visitBody(ctx)+'<p class="form-error" role="alert"></p><button type="submit" class="button full">출입 승인 요청</button></form></div>'
   +'<div id="member-equipment-view" data-member-request-view="equipment" tabindex="-1" aria-labelledby="member-equipment-title"'+(equipment?'':' hidden')+'><h1 id="member-equipment-title" class="sr-only">비품 신청</h1><div class="equipment-toolbar" data-equipment-toolbar><button type="button" class="member-app-link member-request-back" data-action="member-request-back" aria-controls="member-request-menu">'+icon('arrow-left')+' 신청 목록</button><button type="button" class="icon-button equipment-refresh-control" data-action="member-equipment-refresh" aria-label="비품 목록 새로고침" title="새로고침">'+icon('refresh-cw')+'</button></div><div class="equipment-pull-indicator" aria-live="polite" role="status"><span aria-hidden="true">'+icon('refresh-cw')+'</span><span data-equipment-pull-text></span></div><div data-equipment-member>'+renderEquipmentMember(ctx)+'</div></div>';
 }
-function benefitsPanel(){
- return appIntro('혜택')+'<button type="button" class="member-benefit-feature" data-action="member-partners" aria-haspopup="dialog" aria-label="필링파인 열기"><span class="member-benefit-photo"><img src="/assets/feelingfine-bar-hero.jpg" alt="" loading="lazy"></span><span class="member-benefit-copy"><strong class="member-benefit-title">필링파인</strong><span class="member-benefit-cta" aria-hidden="true">'+icon('arrow-up-right')+'</span></span></button>';
+function partnershipsPanel(){
+ return appIntro('제휴')+(publishedMemberPartners.length?publishedMemberPartners.map(partner=>'<button type="button" class="member-benefit-feature" data-action="member-partners" data-id="'+esc(partner.id)+'" aria-haspopup="dialog" aria-label="'+esc(partner.name)+' 열기"><span class="member-benefit-photo"><img src="'+esc(partner.image)+'" alt="" loading="lazy"></span><span class="member-benefit-copy"><strong class="member-benefit-title">'+esc(partner.name)+'</strong><span class="member-benefit-cta" aria-hidden="true">'+icon('arrow-up-right')+'</span></span></button>').join(''):appEmpty('ticket','제휴를 준비 중입니다.'));
 }
 function activityPanel(ctx){
  const view=state(ctx),groups={action:[],current:[],past:[]};
@@ -208,7 +209,7 @@ export async function renderMemberPortal(ctx){
  let content=appPanel('activity','내 현황',activityPanel(ctx),activeTab)
   +appPanel('events','행사',appIntro('행사')+renderMemberEventChoices(ctx),activeTab)
   +appPanel('visits','신청',visitsPanel(ctx),activeTab)
-  +appPanel('benefits','혜택',benefitsPanel(),activeTab)
+  +appPanel('benefits','제휴',partnershipsPanel(),activeTab)
   +'<!--member-inline-detail-->';
  if(view.storageUnavailable&&allRequests(ctx).length)content+='<p class="member-history-warning" role="status">브라우저 저장 공간을 사용할 수 없습니다. 새로고침하거나 창을 닫으면 현재 접수 내역의 조회 권한이 사라질 수 있습니다.</p>';
  return memberShell('<div class="member-lounge member-app">'+content+'</div>',{memberName:view.member.name,activeTab});
@@ -247,6 +248,7 @@ export async function memberPortalAction(ctx,action,id){
   dialog.classList.add('member-dialog','member-events-dialog');return dialog;
  }
  if(action==='member-partners'){
+  if(!publishedMemberPartners.some(partner=>partner.id===(id||'feelingfine')))return;
   if(!getVerifiedMember(ctx))return ctx.render();
   return openMemberPartner(ctx);
  }
