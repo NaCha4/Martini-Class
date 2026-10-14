@@ -21,9 +21,9 @@ test('absolute expiry uses original auth time and the earlier assignment deadlin
  for(const cutoff of [authTime,authTime+1])assert.throws(()=>requestViewerSessionExpiry({...profile,sessionsRevokedThrough:cutoff},authTime,now),e=>e.code==='unauthenticated');
 });
 test('clearing administrator state removes request pages and other private caches',()=>{
- const state={user:{uid:'example'},profile:{role:'requestsViewer'},data:{members:{}},pages:{},settings:{},clubRequestPage:{rows:[{name:'private'}]},requestPageReuse:{},roles:[],budgetPlannerView:{},partnerAdminView:{}};
+ const state={user:{uid:'example'},profile:{role:'requestsViewer'},data:{members:{}},pages:{},settings:{},clubRequestPage:{rows:[{name:'private'}]},requestPageReuse:{},roles:[],budgetPlannerView:{},partnerAdminView:{},absenceReportView:{rows:[{name:'private'}]}};
  clearAdminData(state);
  assert.equal(state.profile,null);assert.deepEqual(state.data,{});assert.deepEqual(state.settings,{});
- for(const key of ['clubRequestPage','requestPageReuse','roles','budgetPlannerView','partnerAdminView'])assert.equal(key in state,false);
+ for(const key of ['clubRequestPage','requestPageReuse','roles','budgetPlannerView','partnerAdminView','absenceReportView'])assert.equal(key in state,false);
  assert.equal(state.user.uid,'example');
 });

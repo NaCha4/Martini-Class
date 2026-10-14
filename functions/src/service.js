@@ -1,4 +1,5 @@
 import { createMeetingNotes } from './meeting-notes.js';
+import { createAbsenceReport } from './absence-report.js';
 import { eventStatus } from './event-status.js';
 import { createEventApplications } from './event-applications.js';
 import { createRecords } from './records.js';
@@ -77,6 +78,7 @@ export function createService(db,clock=Date.now){
  const {verifyEvent,apply,receipt,memberApplications,memberApplication,applicationCommand}=createEventApplications({db,col,clock,now,snapshot,clean,audit,roster,throttle,memberPortal});
  const {save,read,stock,finance}=createRecords({db,col,clock,now,snapshot,visible,audit,roster,settings,inventoryBoard});
  const dashboard=createDashboard({col,clock,roster,settings});
+ const absenceReport=createAbsenceReport({db,col,clock,roster});
  const saveMeetingNote=createMeetingNotes({db,col,clock,now,audit,visible});
  async function handle(payload,ctx={}){
   if(!payload||typeof payload.op!=='string')fail('invalid-argument','요청을 확인해 주세요.');
@@ -132,6 +134,7 @@ export function createService(db,clock=Date.now){
   }
   if(['couponSettings','couponHistory','saveCouponSettings','resetCouponData'].includes(op))return partnerStamps[op](data,who);
   if(op==='budgetPlanner')return budgetPlanner.read(data,who);
+  if(op==='absenceReport')return absenceReport(data,who);
   if(op==='saveBudgetPlanner')return budgetPlanner.save(data,who);
   if(['onTheRockBoard','saveOnTheRockGroup','recordOnTheRockMission','updateOnTheRockRecord','voidOnTheRockRecord'].includes(op))return onTheRock(op,data,who);
   if(['equipmentCatalog','saveEquipmentItem','deleteEquipmentItem'].includes(op))return equipment[op](data,who);
