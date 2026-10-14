@@ -30,8 +30,12 @@ test('paused borrowed items and unavailable items retain one clickable detail ca
  assert.equal((html.match(/<button /g)||[]).length,1);
  assert.match(html,/data-action="member-equipment-detail" data-id="item-a"/);
  assert.doesNotMatch(html,/data-action="member-equipment-borrow"|data-action="member-equipment-returns"|returned/);
+ assert.match(html,/equipment-choice is-mine/);assert.doesNotMatch(html,/is-unavailable|equipment-unavailable-label/);
  memberState(ctx).equipment={items:[{...item,borrowed:2,available:0}],loans:[]};
- assert.match(renderEquipmentMember(ctx),/data-action="member-equipment-detail"/);
+ const unavailable=renderEquipmentMember(ctx);
+ assert.match(unavailable,/equipment-choice is-unavailable/);assert.match(unavailable,/equipment-unavailable-label" aria-hidden="true">대여 중/);
+ assert.match(unavailable,/aria-label="[^"]*현재 대여 불가/);assert.match(unavailable,/data-action="member-equipment-detail"/);assert.doesNotMatch(unavailable,/\sdisabled|aria-disabled/);
+ memberState(ctx).equipment.items=[item];assert.doesNotMatch(renderEquipmentMember(ctx),/is-unavailable|equipment-unavailable-label/);
  memberState(ctx).equipment={items:[],loans:[]};assert.match(renderEquipmentMember(ctx),/현재 대여 가능한 비품이 없습니다/);
 });
 test('catalog administration uses inventory permission and offers configurable data without approval controls',async()=>{

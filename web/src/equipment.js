@@ -14,8 +14,9 @@ const loanTitle=(loan,item)=>loan.item.name+(singleLoan(loan,item)?'':' · '+loa
 export function equipmentLoanRow(loan,item){return '<button type="button" class="member-request-row" data-action="member-equipment-loan" data-id="'+esc(loan.id)+'"><span class="member-request-icon">'+icon('package')+'</span><span class="member-request-content"><span class="member-request-kind">비품 대여</span><strong>'+esc(loanTitle(loan,item))+'</strong><small>'+esc(loan.status==='returned'?date(loan.returnedAt,true)+' 반납':date(loan.borrowedAt,true)+' 대여')+'</small></span><span class="member-status '+(loan.status==='returned'?'cancelled':'approved')+'">'+status(loan)+'</span>'+icon('arrow-right')+'</button>';}
 function equipmentMemberCard(item,loans){
  const mine=loans.some(loan=>loan.itemId===item.id&&loan.status==='borrowed');
- return '<button type="button" class="equipment-choice'+(mine?' is-mine':'')+'" data-equipment-item="'+esc(item.id)+'" data-action="member-equipment-detail" data-id="'+esc(item.id)+'" aria-haspopup="dialog" aria-label="'+esc(item.name+' 상세 보기')+'">'
-  +'<strong class="equipment-card-title">'+esc(item.name)+'</strong>'+equipmentPhoto(item.photo)+'</button>';
+ const unavailable=!mine&&item.available<=0;
+ return '<button type="button" class="equipment-choice'+(mine?' is-mine':'')+(unavailable?' is-unavailable':'')+'" data-equipment-item="'+esc(item.id)+'" data-action="member-equipment-detail" data-id="'+esc(item.id)+'" aria-haspopup="dialog" aria-label="'+esc(item.name+(unavailable?' · 대여 중, 현재 대여 불가':'')+' 상세 보기')+'">'
+  +'<strong class="equipment-card-title">'+esc(item.name)+'</strong>'+equipmentPhoto(item.photo)+(unavailable?'<span class="equipment-unavailable-label" aria-hidden="true">대여 중</span>':'')+'</button>';
 }
 export function renderEquipmentMember(ctx){
  const data=memberState(ctx).equipment;
