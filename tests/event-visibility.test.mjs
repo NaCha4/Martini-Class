@@ -78,6 +78,33 @@ function fixture({applications=true}={}){
  return {records,reads,writes,setTime:value=>{currentTime=value;},handle:(payload,context=memberContext)=>service.handle(payload,context),event:id=>clone(records.get('martini_v2_events/'+id)),application:id=>clone(records.get('martini_v2_applications/'+appId(id)))};
 }
 
+test('event staff can manually register after the deadline or capacity without altering the queue',async()=>{
+ const f=fixture({applications:false}),path='martini_v2_events/public-event';
+ f.records.set(path,{...f.event('public-event'),closesAt:time(-1),capacity:1,registered:1,waiting:2,questions:['준비물']});
+ await assert.rejects(f.handle({op:'apply',eventId:'public-event',key:eventKeys['public-event'],name:member.name,studentId:member.studentId,phone:member.phone,answers:['답변'],consent:true,requestId:'public-before',receiptKey:'8'.repeat(64)}),code('failed-precondition'));
+ const payload={op:'manualApplication',eventId:'public-event',name:member.name,studentId:member.studentId,answers:[''],requestId:'manual-test'};
+ const result=await f.handle(payload,owner),a=f.application('public-event');
+ assert.equal(a.status,'registered');assert.deepEqual(a.answers,['']);assert.equal(a.payment,'unpaid');assert.equal(a.consentedAt,undefined);
+ assert.equal(f.event('public-event').registered,2);assert.equal(f.event('public-event').waiting,2);
+ assert.ok(f.writes.some(w=>w.path.startsWith('martini_v2_audit/')&&w.value.entityId===result.id));
+ assert.equal((await f.handle(payload,owner)).duplicate,true);assert.equal(f.event('public-event').registered,2);
+ await assert.rejects(f.handle({...payload,requestId:'another'},owner),code('already-exists'));
+ await assert.rejects(f.handle({op:'apply',eventId:'public-event',key:eventKeys['public-event'],name:member.name,studentId:member.studentId,phone:member.phone,answers:['답변'],consent:true,requestId:'public-test',receiptKey:'9'.repeat(64)}),code('already-exists'));
+});
+
+test('manual registration rejects unauthorized, cancelled, removed, and unpaid prior records',async()=>{
+ const f=fixture({applications:false}),payload={op:'manualApplication',eventId:'public-event',name:member.name,studentId:member.studentId,answers:[],requestId:'manual-test'};
+ f.records.set('martini_v2_admins/finance',{role:'finance',displayName:'재무',active:true,expiresAt:time(86400000)});
+ await assert.rejects(f.handle(payload,{uid:'finance'}),code('permission-denied'));
+ const path='martini_v2_events/public-event',base=f.event('public-event');
+ f.records.set(path,{...base,status:'cancelled'});await assert.rejects(f.handle(payload,owner),code('failed-precondition'));
+ f.records.set(path,base);const memberPath='martini_v2_semesters/2026-2/members/'+member.id;
+ f.records.set(memberPath,{...member,removedAt:stamp});await assert.rejects(f.handle(payload,owner),code('failed-precondition'));
+ f.records.set(memberPath,member);f.records.set('martini_v2_applications/'+appId('public-event'),{status:'cancelled',paidAmount:1000,refundAmount:0});
+ await assert.rejects(f.handle(payload,owner),code('failed-precondition'));
+ assert.equal(f.event('public-event').registered,0);
+});
+
 test('new events are public by default and explicit private creation remains private',async()=>{
  for(const visibility of [undefined,true,false]){
   const f=fixture();

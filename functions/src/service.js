@@ -75,7 +75,7 @@ export function createService(db,clock=Date.now){
  const equipment=createEquipment({db,col,clock,now,audit,throttle,authenticate:(...args)=>memberPortal.authenticate(...args),identityFingerprint:member=>memberPortal.identityFingerprint(member)});
  const memberPortal=createMemberPortal({db,col,clock,now,roster,throttle,audit,equipment});
  const partnerStamps=createPartnerStamps({db,col,clock,now,roster,throttle,audit,authenticate:memberPortal.authenticate,authenticateSessionHash:memberPortal.authenticateSessionHash,identityFingerprint:memberPortal.identityFingerprint});
- const {verifyEvent,apply,receipt,memberApplications,memberApplication,applicationCommand}=createEventApplications({db,col,clock,now,snapshot,clean,audit,roster,throttle,memberPortal});
+ const {verifyEvent,apply,receipt,memberApplications,memberApplication,manualApplication,applicationCommand}=createEventApplications({db,col,clock,now,snapshot,clean,audit,roster,throttle,memberPortal});
  const {save,read,stock,finance}=createRecords({db,col,clock,now,snapshot,visible,audit,roster,settings,inventoryBoard});
  const dashboard=createDashboard({col,clock,roster,settings});
  const absenceReport=createAbsenceReport({db,col,clock,roster});
@@ -250,6 +250,7 @@ export function createService(db,clock=Date.now){
   if(['setEventStaffFee','setApplicationStaff','setApplicationPricing'].includes(op))return staffPricing(op,data,who);
   if(op==='finance')return finance(data,who);
   if(op==='applicationCommand')return applicationCommand(data,who);
+  if(op==='manualApplication')return manualApplication(data,who);
   if(op==='rotateEventLink'){
    ensureScope(who,'events',clock());const input=parse(z.object({id:idSchema,revision:z.number().int()}).strict(),data),key=secret(),ref=col('events').doc(input.id);
    await db.runTransaction(async tx=>{const old=snapshot(await tx.get(ref));if(!old)fail('not-found','행사를 찾을 수 없습니다.');requireRevision(old,input.revision);tx.update(ref,{linkHash:hash(key),revision:old.revision+1,updatedAt:now()});audit(tx,who,'events',input.id,'신청 링크 재발급');});return {linkKey:key};

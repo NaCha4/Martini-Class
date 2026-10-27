@@ -81,6 +81,10 @@ async function itemView(ctx,id){
  const moves=await linkedRecords(ctx,'stockMoves',{itemId:id});
  modal(r.name,'<div class="wide detail-grid"><p>보유량<br><strong>'+total(r).toLocaleString()+' '+unit(r)+'</strong></p></div><div class="wide row-actions">'+button('품목 수정','item-edit',{id,class:'button secondary'})+button('카테고리 이동','inventory-move',{id,class:'button secondary',icon:'folder'})+button('입고 · 사용 · 실사','stock-record',{id})+'</div>'+(r.note?'<div class="wide"><h3>메모</h3>'+textBlock(r.note)+'</div>':'')+'<div class="wide"><h3>변경 이력</h3>'+ (moves.length?moves.map(m=>'<div class="history-entry"><strong>'+esc(m.reason)+'</strong><p>'+m.before+' → '+m.after+' · '+esc(m.actor)+' · '+date(m.createdAt,true)+'</p></div>').join(''):'<p class="help">기록 없음</p>')+'</div><div class="wide row-actions"><button type="button" class="button danger secondary" data-action="record-delete" data-kind="inventory" data-id="'+esc(id)+'">품목 삭제</button></div>',null,{wide:true});
 }
+async function applicationAdd(ctx,id){
+ const e=await record(ctx,'events',id),requestId=uuid();
+ modal('참가자 수동 추가 · '+e.title,'<p class="wide help">행사 학기 명부의 이름과 학번을 입력하세요. 모집 마감이나 정원 초과 여부와 관계없이 참가 등록됩니다. 기존 대기 순서는 바뀌지 않습니다.</p>'+field('name','이름','',{required:true,maxLength:40,autocomplete:'off'})+field('studentId','학번','',{required:true,maxLength:30,autocomplete:'off'})+(e.questions||[]).map((q,i)=>field('answer'+i,q,'',{type:'textarea',wide:true,rows:2,maxLength:500,hint:'확인한 답변이 있으면 입력하세요.'})).join('')+'<p class="wide help">수동 등록은 신청자의 동의 기록을 대신하지 않습니다. 개인 확인 링크가 필요하면 등록 후 신청 상세에서 재발급해 주세요.</p>',async f=>save(ctx,'manualApplication',{eventId:id,name:val(f,'name'),studentId:val(f,'studentId'),answers:(e.questions||[]).map((_,i)=>val(f,'answer'+i)),requestId}),{wide:true,submit:'참가 등록'});
+}
 async function applicationManage(ctx,id){
  const a=await record(ctx,'applications',id),e=await record(ctx,'events',a.eventId),contact=await ctx.api('participantContact',{id});
  const showFinance=hasPermission(ctx.state.profile,'finance'),canEvent=!a.anonymizedAt&&hasPermission(ctx.state.profile,'events'),canFinance=!a.anonymizedAt&&showFinance;
@@ -228,6 +232,7 @@ export async function handleAdminAction(ctx,action,id,target){
  }
  if(action==='receipt-reissue'){modal('개인 확인 링크 재발급',field('reason','본인 확인 및 재발급 사유','',{required:true,wide:true,maxLength:200})+'<p class="wide help">기존 확인 링크는 즉시 만료됩니다. 신원을 확인한 본인에게만 새 링크를 전달해 주세요.</p>',async f=>{const result=await save(ctx,'rotateReceipt',{id,reason:val(f,'reason')});setTimeout(()=>share('개인 신청 확인 링크',location.origin+shortLink('r',result.key)),0);});return;}
  if(action==='application-manage')return applicationManage(ctx,id);
+ if(action==='application-add')return applicationAdd(ctx,id);
  if(action.startsWith('attendance-'))return applicationChange(ctx,id,'attendance',action.replace('attendance-',''));
  if(action==='application-offer')return applicationChange(ctx,id,'offer');
  if(action==='application-expire')return applicationChange(ctx,id,'expire');

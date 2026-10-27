@@ -61,6 +61,22 @@ test('detail closes while an open editor keeps its unsaved input',async({page})=
  await expect(page.getByRole('dialog').locator('[name=title]')).toHaveValue('작성 중인 새 행사 이름');
 });
 
+test('admin manually adds a participant to a closed event',async({page})=>{
+ await page.evaluate(()=>{
+  const previous=window.deadlineCtx.api;
+  window.deadlineCtx.api=async(op,data)=>{if(op==='manualApplication'){window.manualInput=data;return {id:'new-participant'};}return previous(op,data);};
+ });
+ await page.locator('.event-card').filter({hasText:'마감된 행사'}).click();
+ await page.getByRole('button',{name:'참가자 수동 추가'}).click();
+ const dialog=page.getByRole('dialog');
+ await expect(dialog).toContainText('정원 초과');
+ await dialog.getByLabel('이름').fill('가상 부원');
+ await dialog.getByLabel('학번').fill('TEST-100');
+ await dialog.getByRole('button',{name:'참가 등록'}).click();
+ await expect(dialog).not.toBeVisible();
+ expect(await page.evaluate(()=>({eventId:window.manualInput.eventId,name:window.manualInput.name,studentId:window.manualInput.studentId,answers:window.manualInput.answers}))).toEqual({eventId:'expired',name:'가상 부원',studentId:'TEST-100',answers:[]});
+});
+
 test('application closes and disables submission without discarding typed information',async({page})=>{
  await page.evaluate(async()=>{await window.deadlineCtx.navigate('/e/soon#key='+'a'.repeat(24));});
  await expect(page.locator('form[data-form="apply"]')).toBeVisible();

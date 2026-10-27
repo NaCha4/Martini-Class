@@ -1,7 +1,7 @@
 import { billingFee } from './billing.js';
 import { hasPermission } from './permissions.js';
 import { z } from 'zod';
-import { parse, fail, hash, normalizePhone, allocate, matches, publicEvent, occupied, idSchema } from './domain.js';
+import { parse, fail, hash, secret, normalizePhone, allocate, matches, publicEvent, occupied, idSchema } from './domain.js';
 const token=z.string().regex(/^(?:[a-f0-9]{24}|[a-f0-9]{64})$/);
 const requestKey=idSchema;
 export function createEventApplications({db,col,clock,now,snapshot,clean,audit,roster,throttle,memberPortal}){
@@ -123,6 +123,35 @@ export function createEventApplications({db,col,clock,now,snapshot,clean,audit,r
    return input.action==='get'?{application:clean(result.record),event:publicEvent(result.event,clock())}:{saved:true};
   });
  }
+ async function manualApplication(data,who){
+  if(!hasPermission(who,'events'))fail('permission-denied','행사 운영 권한이 없습니다.');
+  const input=parse(z.object({eventId:idSchema,name:z.string().trim().min(1).max(40),studentId:z.string().trim().min(1).max(30),answers:z.array(z.string().trim().max(500)).max(3),requestId:requestKey}).strict(),data);
+  return serializeEvent(input.eventId,()=>db.runTransaction(async tx=>{
+   const eRef=col('events').doc(input.eventId),event=snapshot(await tx.get(eRef));
+   if(!event)fail('not-found','행사를 찾을 수 없습니다.');
+   if(['draft','cancelled'].includes(event.status))fail('failed-precondition','초안 또는 취소된 행사에는 참가자를 추가할 수 없습니다.');
+   const members=(await roster.findStudent(input.studentId,event.semester,tx)).filter(m=>m.name===input.name&&!m.removedAt&&!m.anonymizedAt);
+   if(members.length!==1)fail('failed-precondition','행사 학기의 부원 명부에서 이름과 학번을 확인해 주세요.');
+   const member=members[0];let priorId=null;
+   if(event.hasSemesterChanges){
+    const previous=await tx.get(col('applications').where('eventId','==',event.id));
+    for(const d of previous.docs){const a=d.data();if(a.name!==member.name||a.semester===event.semester||a.deletedAt||a.anonymizedAt)continue;const original=await roster.get(a.memberId,a.semester,tx);if(original?.studentId===member.studentId){if(priorId&&priorId!==d.id)fail('failed-precondition','이전 신청 기록을 운영진에게 확인해 주세요.');priorId=d.id;}}
+   }
+   const id=priorId||hash(event.id+':'+member.id),ref=col('applications').doc(id),prior=await tx.get(ref),existing=prior.exists?{...prior.data(),id}:null;
+   if(existing?.requestId===input.requestId&&existing.manualBy===who.uid)return {id,duplicate:true};
+   if(existing?.deletedAt||existing?.anonymizedAt)fail('failed-precondition','정리된 신청 기록은 수동으로 다시 등록할 수 없습니다.');
+   if(existing&&!['cancelled','expired'].includes(existing.status))fail('already-exists','이미 신청한 부원입니다. 기존 신청을 확인해 주세요.');
+   if(existing&&(existing.paidAmount||0)>(existing.refundAmount||0))fail('failed-precondition','이전 신청의 환불 처리를 먼저 확인해 주세요.');
+   if(input.answers.length!==event.questions.length)fail('invalid-argument','행사별 질문을 확인해 주세요.');
+   const sequence=event.sequence+1;
+   const record={id,eventId:event.id,eventTitle:event.title,memberId:member.id,memberIdentityHash:memberPortal.identityFingerprint(member),name:member.name,semester:event.semester,status:'registered',payment:event.fee===0?'none':'unpaid',fee:event.fee,paidAmount:0,refundAmount:0,attendance:'absent',answers:input.answers,receiptHash:hash(secret()),requestId:input.requestId,sequence,policy:event.policy,manualBy:who.uid,createdAt:now(),updatedAt:now()};
+   if(existing)tx.create(ref.collection('history').doc(),existing);
+   tx.set(ref,record);
+   tx.update(eRef,{registered:event.registered+1,sequence,updatedAt:now(),revision:event.revision+1});
+   audit(tx,who,'applications',id,'관리자 수동 참가 등록');
+   return {id};
+  },{maxAttempts:8}));
+ }
  async function applicationCommand(data,who){
   if(!hasPermission(who,'events'))fail('permission-denied','행사 운영 권한이 없습니다.');
   const input=parse(z.object({id:idSchema,action:z.enum(['attendance','offer','expire','cancel']),attendance:z.enum(['present','absent','unchecked']).optional(),offerExpiresAt:z.string().datetime().optional(),reason:z.string().trim().min(1).max(500)}).strict(),data);
@@ -151,5 +180,5 @@ export function createEventApplications({db,col,clock,now,snapshot,clean,audit,r
   });
  }
 
- return {verifyEvent,apply,receipt,memberApplications,memberApplication,applicationCommand};
+ return {verifyEvent,apply,receipt,memberApplications,memberApplication,manualApplication,applicationCommand};
 }
