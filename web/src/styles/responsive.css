@@ -4,9 +4,6 @@
   }
 }
 @media(max-width:800px) {
-  .panel-title {
-    padding: 20px;
-  }
   .event-grid {
     grid-template-columns: 1fr;
   }

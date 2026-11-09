@@ -44,99 +44,48 @@ function fixture(){
  return {records,reads,writes,handle:(data,ctx=owner)=>service.handle(data,ctx),role:id=>records.get('martini_v2_roles/'+id)};
 }
 
-test('finance and default leadership roles cannot read or save independent budgets before an explicit grant',async()=>{
- for(const actor of [owner,chair,finance])for(const op of ['budgetPlanner','saveBudgetPlanner']){
-  const f=fixture();
-  const input=op==='budgetPlanner'?{op}:{op,revision:0,funds:100000,plans:[]};
-  await assert.rejects(f.handle(input,actor),code('permission-denied'));
-  assert.ok(f.reads.every(path=>/^martini_v2_(?:admins|roles)\//.test(path)),JSON.stringify(f.reads));
-  assert.deepEqual(f.writes,[]);
+test('retired budget APIs cannot read, change or execute stored plans',async()=>{
+ const f=fixture(),board={revision:2,funds:100000,plans:[]},plan={title:'보관한 계획',status:'planned',revision:1};
+ f.records.set('martini_v2_budgetPlanner/current',board);
+ f.records.set('martini_v2_budgets/legacy',plan);
+ for(const actor of [owner,chair,finance,planner]){
+  for(const op of ['budgetPlanner','saveBudgetPlanner','setRoleBudget','saveBudget','executeBudget','deleteBudget'])await assert.rejects(f.handle({op},actor),code('not-found'));
+  for(const op of ['read','deleteRecord'])await assert.rejects(f.handle({op,kind:'budgets',id:'legacy',recordId:'legacy',confirmed:true,updatedAt:new Date(START).toISOString()},actor),code('invalid-argument'));
  }
- const f=fixture();
- await assert.rejects(f.handle({op:'budgetPlanner'},{}),code('unauthenticated'));
- assert.deepEqual(f.reads,[]);
+ assert.ok(f.reads.every(path=>/^martini_v2_(?:admins|roles)\//.test(path)));
+ assert.deepEqual(f.writes,[]);
+ assert.deepEqual(f.records.get('martini_v2_budgetPlanner/current'),board);
+ assert.deepEqual(f.records.get('martini_v2_budgets/legacy'),plan);
 });
 
-test('leadership can opt in to budget work without changing any of its protected core permissions',async()=>{
- for(const actor of [owner,chair]){
-  const f=fixture(),before=await f.handle({op:'profile'},actor);
-  const changed=await f.handle({op:'setRoleBudget',id:actor.uid,revision:0,enabled:true},owner);
-  const after=await f.handle({op:'profile'},actor);
-  assert.deepEqual(after.permissions,[...before.permissions,'budget']);
-  assert.equal(after.roleName,before.roleName);
-  assert.equal(changed.revision,1);
-  const listed=(await f.handle({op:'listRoles'})).rows.find(role=>role.id===actor.uid);
-  assert.equal(listed.revision,1);
-  assert.deepEqual(listed.permissions,after.permissions);
-  assert.equal(listed.assigned,1);
-  assert.deepEqual(await f.handle({op:'budgetPlanner'},actor),{revision:0,funds:0,plans:[]});
-  assert.ok(f.writes.some(write=>write.path.startsWith('martini_v2_audit/')),'Grant changes must be audited');
- }
-});
-
-test('revoking leadership budget access takes effect on the next request while preserving management authority',async()=>{
+test('old budget grants disappear from role lists and profiles without rewriting stored roles',async()=>{
  const f=fixture();
- await f.handle({op:'setRoleBudget',id:'owner',revision:0,enabled:true});
- const written=await f.handle({op:'saveBudgetPlanner',revision:0,funds:100000,plans:[]});
- assert.equal(written.revision,1);
- await f.handle({op:'setRoleBudget',id:'owner',revision:1,enabled:false});
- const profile=await f.handle({op:'profile'});
- assert.deepEqual(profile.permissions,defaultRoles.find(role=>role.id==='owner').permissions);
- await assert.rejects(f.handle({op:'budgetPlanner'}),code('permission-denied'));
- assert.ok((await f.handle({op:'listRoles'})).rows.length>0,'Role management remains available after budget revocation');
- assert.deepEqual(await f.handle({op:'budgetPlanner'},planner),{revision:1,funds:100000,plans:[]});
-});
-
-test('protected role budget updates reject stale revisions and never use ordinary role writes',async()=>{
- const f=fixture();
- await f.handle({op:'setRoleBudget',id:'chair',revision:0,enabled:true});
- const count=f.writes.length;
- await assert.rejects(f.handle({op:'setRoleBudget',id:'chair',revision:0,enabled:false}),code('aborted'));
+ for(const id of ['owner','chair'])f.records.set('martini_v2_roles/'+id,{id,name:'다른 이름',revision:3,permissions:['budget'],system:false});
+ f.records.set('martini_v2_roles/finance',{id:'finance',name:'재무팀',revision:2,permissions:['finance','budget']});
+ const {rows}=await f.handle({op:'listRoles'});
  for(const id of ['owner','chair']){
-  await assert.rejects(f.handle({op:'saveRole',id,revision:id==='chair'?1:0,name:'변경 시도',permissions:['budget']}),code('failed-precondition'));
-  await assert.rejects(f.handle({op:'deleteRole',id,revision:id==='chair'?1:0}),code('failed-precondition'));
+  const builtin=defaultRoles.find(role=>role.id===id),profile=await f.handle({op:'profile'},{uid:id}),listed=rows.find(role=>role.id===id);
+  assert.deepEqual(profile.permissions,builtin.permissions);
+  assert.deepEqual(listed,{...builtin,revision:3,assigned:1});
+  await assert.rejects(f.handle({op:'saveRole',id,revision:3,name:'변경 시도',permissions:['finance']}),code('failed-precondition'));
  }
- assert.equal(f.writes.length,count);
- assert.equal((await f.handle({op:'profile'},chair)).permissions.includes('budget'),true);
+ for(const [actor,expected] of [[finance,['finance']],[planner,[]]]){
+  assert.deepEqual((await f.handle({op:'profile'},actor)).permissions,expected);
+  assert.deepEqual(rows.find(role=>role.id===actor.uid).permissions,expected);
+  assert.ok(f.role(actor.uid).permissions.includes('budget'));
+ }
+ await assert.rejects(f.handle({op:'saveRole',revision:0,name:'예전 권한',permissions:['budget']}),code('invalid-argument'));
+ assert.deepEqual(f.writes,[]);
 });
 
-test('stored leadership metadata can opt into budget but cannot replace protected names or core permissions',async()=>{
- for(const id of ['owner','chair']){
-  const f=fixture(),builtin=defaultRoles.find(role=>role.id===id);
-  f.records.set('martini_v2_roles/'+id,{id,name:'다른 이름',revision:3,permissions:['budget','unrecognized'],system:false});
-  const profile=await f.handle({op:'profile'},{uid:id});
-  assert.equal(profile.roleName,builtin.name);
-  assert.deepEqual(profile.permissions,[...builtin.permissions,'budget']);
-  const listed=(await f.handle({op:'listRoles'})).rows.find(role=>role.id===id);
-  assert.equal(listed.name,builtin.name);
-  assert.equal(listed.system,true);
-  assert.deepEqual(listed.permissions,profile.permissions);
-  f.records.set('martini_v2_roles/'+id,{...f.role(id),deletedAt:new Date(START).toISOString()});
-  assert.deepEqual((await f.handle({op:'profile'},{uid:id})).permissions,builtin.permissions);
- }
-});
-
-test('the restricted leadership endpoint validates only its budget selector and requires role-management authority',async()=>{
- const base={op:'setRoleBudget',id:'owner',revision:0,enabled:true};
- for(const patch of [{id:'planner'},{id:'finance'},{id:'missing'},{revision:-1},{enabled:'true'},{enabled:1},{permissions:['budget']},{name:'변경 이름'},{corePermissions:[]}]){
-  const f=fixture();
-  await assert.rejects(f.handle({...base,...patch}),code('invalid-argument'));
-  assert.deepEqual(f.writes,[]);
- }
- for(const actor of [finance,planner]){
-  const f=fixture();
-  await assert.rejects(f.handle(base,actor),code('permission-denied'));
-  assert.deepEqual(f.writes,[]);
- }
-});
-
-test('ordinary role budget grants remain isolated from participant finance and can be removed normally',async()=>{
- const f=fixture();
- const saved=await f.handle({op:'saveRole',id:'finance',revision:0,name:'재무부',permissions:['finance','budget']});
- assert.equal(saved.revision,1);
- assert.deepEqual((await f.handle({op:'profile'},finance)).permissions,['finance','budget']);
- assert.deepEqual(await f.handle({op:'budgetPlanner'},finance),{revision:0,funds:0,plans:[]});
- await f.handle({op:'saveRole',id:'finance',revision:1,name:'재무부',permissions:['finance']});
- await assert.rejects(f.handle({op:'budgetPlanner'},finance),code('permission-denied'));
- assert.deepEqual((await f.handle({op:'profile'},finance)).permissions,['finance']);
+test('correcting an old budget-linked expense preserves the archived plan',async()=>{
+ const f=fixture(),stamp=new Date(START).toISOString(),plan={status:'executed',revision:2,transactionId:'expense',actualAmount:9000};
+ f.records.set('martini_v2_budgets/legacy',plan);
+ f.records.set('martini_v2_finance/expense',{kind:'expense',amount:9000,semester:'2026-2',budgetId:'legacy',updatedAt:stamp});
+ await f.handle({op:'deleteRecord',kind:'finance',id:'expense',updatedAt:stamp,confirmed:true},finance);
+ const expense=f.records.get('martini_v2_finance/expense');
+ assert.equal(expense.deletedAt,stamp);
+ assert.equal(expense.budgetId,'legacy');
+ assert.deepEqual(f.records.get('martini_v2_budgets/legacy'),plan);
+ assert.ok(!f.writes.some(write=>write.path.startsWith('martini_v2_budgets/')));
 });

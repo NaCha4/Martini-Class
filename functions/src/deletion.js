@@ -4,7 +4,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { parse, fail, ensureScope, idSchema } from './domain.js';
 import { hasPermission } from './permissions.js';
 
-const scopes={events:'events',applications:'events',clubRequests:'members',finance:'finance',inventory:'inventory',meetings:'meetings',decisions:'decisions',content:'content',budgets:'finance'};
+const scopes={events:'events',applications:'events',clubRequests:'members',finance:'finance',inventory:'inventory',meetings:'meetings',decisions:'decisions',content:'content'};
 const schema=z.object({kind:z.enum(Object.keys(scopes)),id:idSchema,updatedAt:z.string().datetime(),revision:z.number().int().min(0).optional(),confirmed:z.literal(true)}).strict();
 
 // Keep the original record for accounting, idempotency and retention policies.
@@ -33,7 +33,6 @@ export function createDeletion({db,col,clock,audit}){
     const linked=await tx.get(col('decisions').where('meetingId','==',input.id));
     if(linked.docs.some(d=>!d.data().deletedAt))fail('failed-precondition','연결된 결정·할 일의 회의 연결을 해제하거나 해당 기록을 먼저 삭제해 주세요.');
    }
-   if(input.kind==='budgets'&&r.status==='executed')fail('failed-precondition','연결된 실제 지출 기록을 먼저 삭제해 주세요.');
    if(input.kind==='finance'){
     if(r.applicationId){
      const aRef=col('applications').doc(r.applicationId),a=(await tx.get(aRef)).data();
@@ -52,10 +51,6 @@ export function createDeletion({db,col,clock,audit}){
     if(r.kind==='dues'&&r.memberId){
      const refs=[col('semesters').doc(r.semester).collection('dues').doc(r.memberId),col('members').doc(r.memberId).collection('semesters').doc(r.semester)];
      for(const term of await tx.getAll(...refs))if(term.data()?.duesTransactionId===input.id)changes.push([term.ref,{duesTransactionId:FieldValue.delete(),updatedAt:now()}]);
-    }
-    if(r.budgetId){
-     const pRef=col('budgets').doc(r.budgetId),plan=(await tx.get(pRef)).data();
-     if(plan?.transactionId===input.id&&!plan.deletedAt)changes.push([pRef,{status:'planned',transactionId:FieldValue.delete(),actualAmount:FieldValue.delete(),revision:plan.revision+1,updatedAt:now()}]);
     }
    }
    for(const [target,values] of changes)tx.update(target,values);

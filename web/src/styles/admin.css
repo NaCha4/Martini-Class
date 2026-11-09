@@ -177,145 +177,6 @@
   font-size: 14px;
   max-width: 700px;
 }
-.metrics {
-  display: grid;
-  grid-template-columns: repeat(4,1fr);
-  gap: 18px;
-}
-.metric {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 24px 20px;
-}
-.metric-icon {
-  width: 43px;
-  height: 43px;
-  background: #202022;
-  border-radius: 8px;
-  display: grid;
-  place-items: center;
-  color: #ddbe88;
-}
-.metric>svg {
-  width: 16px;
-  margin-left: auto;
-  color: #827e76;
-}
-.metric div>span {
-  display: block;
-  font-size: 12px;
-  color: var(--muted);
-}
-.metric strong {
-  display: block;
-  font-size: 28px;
-  font-weight: 600;
-  margin-top: 7px;
-  line-height: 1;
-}
-.metric small {
-  font-size: 12px;
-  color: var(--muted);
-  font-weight: 400;
-  margin-left: 5px;
-}
-.dashboard-grid {
-  display: grid;
-  grid-template-columns: 1.15fr 1fr;
-  gap: 24px;
-}
-.schedule-row {
-  display: flex;
-  gap: 16px;
-  align-items: center;
-  padding: 22px 24px;
-  border-bottom: 1px solid #303031;
-}
-.schedule-row:last-child {
-  border-bottom: 0;
-}
-.date-tile {
-  min-width: 47px;
-  text-align: center;
-  background: #202022;
-  border: 1px solid #39342c;
-  border-radius: 8px;
-  padding: 8px;
-}
-.date-tile b {
-  display: block;
-  font-size: 21px;
-  font-weight: 600;
-}
-.date-tile small {
-  font-size: 12px;
-  color: #b7afa0;
-}
-.schedule-row h3,.task-row h3 {
-  font-size: 14px;
-  font-weight: 600;
-  margin-bottom: 5px;
-}
-.schedule-row p,.task-row p {
-  font-size: 12px;
-  color: var(--muted);
-}
-.schedule-row>.badge,.task-row>.badge {
-  margin-left: auto;
-  white-space: nowrap;
-}
-.task-row {
-  width: 100%;
-  background: none;
-  border: 0;
-  border-bottom: 1px solid #303031;
-  text-align: left;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 21px 24px;
-  color: var(--text);
-}
-.task-row:last-child {
-  border-bottom: 0;
-}
-.task-dot {
-  width: 9px;
-  height: 9px;
-  border: 1.5px solid #b89e70;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-.operations-note {
-  display: flex;
-  align-items: center;
-  gap: 20px;
-  padding: 25px 28px;
-  border: 1px solid #39342b;
-  border-radius: 8px;
-  margin-top: 25px;
-  background: #202022;
-}
-.operations-note>svg {
-  height: 31px;
-  width: 31px;
-  color: #d9bc83;
-}
-.operations-note h3 {
-  font-size: 16px;
-  margin-bottom: 6px;
-}
-.operations-note p {
-  font-size: 12px;
-  color: #b5aea1;
-}
-.operations-note>a {
-  margin-left: auto;
-}
 .meeting-grid {
   display: grid;
   grid-template-columns: repeat(2,1fr);
@@ -444,12 +305,6 @@
   .workspace-header {
     padding: 0 24px;
   }
-  .metrics {
-    grid-template-columns: repeat(2,1fr);
-  }
-  .dashboard-grid {
-    grid-template-columns: 1fr;
-  }
   .finance-summary strong {
     font-size: 20px;
   }
@@ -491,53 +346,6 @@
   .page-heading>.button {
     min-height: 42px;
     font-size: 14px;
-  }
-  .metrics {
-    gap: 12px;
-  }
-  .metric {
-    padding: 18px 14px;
-    gap: 12px;
-  }
-  .metric-icon {
-    width: 35px;
-    height: 35px;
-  }
-  .metric>svg {
-    display: none;
-  }
-  .metric strong {
-    font-size: 25px;
-  }
-  .metric div>span {
-    font-size: 12px;
-  }
-  .dashboard-grid {
-    gap: 18px;
-  }
-  .schedule-row,.task-row {
-    padding: 18px;
-    gap: 12px;
-  }
-  .schedule-row h3,.task-row h3 {
-    font-size: 14px;
-  }
-  .schedule-row p,.task-row p {
-    font-size: 12px;
-  }
-  .schedule-row>.badge {
-    display: none;
-  }
-  .operations-note {
-    padding: 22px;
-    flex-wrap: wrap;
-    gap: 14px;
-  }
-  .operations-note>svg {
-    display: none;
-  }
-  .operations-note>a {
-    margin-left: 0;
   }
   .meeting-grid {
     grid-template-columns: 1fr;
@@ -624,16 +432,6 @@
   font-weight: 600;
   letter-spacing: -.04em;
 }
-.metric {
-  border-radius: 6px;
-}
-.metric-icon {
-  background: #302b22;
-  color: var(--gold);
-}
-.metric strong {
-  font-variant-numeric: tabular-nums;
-}
 .meeting-card {
   border-radius: 6px;
 }
@@ -659,26 +457,6 @@
   .account-chip small {
     font-size: 11px;
   }
-  .metric {
-    padding: 17px 12px;
-    gap: 10px;
-  }
-  .metric-icon {
-    width: 30px;
-    height: 30px;
-  }
-  .metric-icon svg {
-    width: 18px;
-  }
-  .metric div>span {
-    font-size: 12px;
-  }
-  .metric strong {
-    font-size: 26px;
-  }
-  .metric small {
-    font-size: 12px;
-  }
   .meeting-tags {
     gap: 15px;
     flex-wrap: wrap;
@@ -692,15 +470,6 @@
   }
   .finance-summary strong {
     font-size: 19px;
-  }
-  .schedule-row>.badge {
-    display: inline-flex;
-  }
-  .schedule-row {
-    flex-wrap: wrap;
-  }
-  .schedule-row>.badge {
-    margin-left: 62px;
   }
 }
 @supports not (scrollbar-gutter:stable) {
@@ -1171,69 +940,7 @@ table:has(.management-actions) td:last-child {
 .mobile-menu-list .nav-group {
   margin-bottom: 10px;
 }
-.quick-start {
-  display: grid;
-  grid-template-columns: repeat(4,minmax(0,1fr));
-  gap: 12px;
-  margin-bottom: 28px;
-}
-.quick-start a {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 18px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--surface);
-}
-.quick-start a:hover {
-  border-color: var(--gold);
-}
-.quick-start a>svg {
-  flex-shrink: 0;
-  color: var(--gold);
-  width: 20px;
-}
-.quick-start a>svg:last-child {
-  margin-left: auto;
-  width: 16px;
-}
-.quick-start strong {
-  display: block;
-  font-size: 14px;
-}
-.quick-start small {
-  display: block;
-  margin-top: 7px;
-  font-size: 12px;
-  color: var(--muted);
-  line-height: 1.6;
-}
-.quick-start span {
-  min-width: 0;
-}
-@media(max-width:1200px) {
-  .quick-start {
-    grid-template-columns: repeat(2,minmax(0,1fr));
-  }
-}
 @media(max-width:580px) {
-  .quick-start {
-    gap: 8px;
-  }
-  .quick-start a {
-    padding: 14px 10px;
-    gap: 8px;
-  }
-  .quick-start a>svg:last-child {
-    display: none;
-  }
-  .quick-start strong {
-    font-size: 13px;
-  }
-  .quick-start small {
-    font-size: 11px;
-  }
   .editor-fields {
     grid-template-columns: minmax(0,1fr);
   }
@@ -1329,21 +1036,6 @@ table:has(.management-actions) td:last-child {
   .staff-pricing-panel>.button {
     width: 100%;
   }
-}
-@media(min-width:801px) {
-  .admin-overview-metrics {
-    grid-template-columns: repeat(auto-fit,minmax(200px,1fr));
-  }
-}
-.admin-overview-grid>section:only-child {
-  grid-column: 1/-1;
-}
-.admin-overview-grid .task-row>svg:first-child {
-  width: 20px;
-  height: 20px;
-  flex-shrink: 0;
-  margin-left: 0;
-  color: var(--gold);
 }
 .workspace span.badge,body:has(.workspace)>dialog span.badge {
   padding: 0;

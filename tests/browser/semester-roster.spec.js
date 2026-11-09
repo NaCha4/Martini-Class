@@ -1,7 +1,7 @@
 import {test,expect} from '@playwright/test';
 test('semester folders isolate member forms, edits and exported roster',async({page,baseURL})=>{
  if(baseURL!=='http://127.0.0.1:5173')throw Error('Local only');
- await page.goto('/admin');await page.getByRole('button',{name:'가상 임원으로 확인하기'}).click();await expect(page.getByRole('heading',{name:'운영 현황'})).toBeVisible();
+ await page.goto('/admin');await page.getByRole('button',{name:'가상 임원으로 확인하기'}).click();await expect(page.getByRole('heading',{name:'행사 · 교육'})).toBeVisible();
  const id=Date.now().toString(),name='학기 분리 '+id;
  await page.goto('/admin/members?semester=2026-2');await page.getByRole('button',{name:'부원 등록',exact:true}).click();
  const dialog=page.getByRole('dialog');await expect(dialog).toContainText('2026-2');await expect(dialog.locator('[name=semester]')).toHaveCount(0);

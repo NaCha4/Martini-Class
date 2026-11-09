@@ -32,6 +32,16 @@ test.beforeEach(async({page,baseURL})=>{
  });
 });
 
+test('the old budget URL lands on events and the retired links are absent',async({page})=>{
+ await page.evaluate(()=>window.deadlineCtx.navigate('/admin/budget?category=legacy#record'));
+ await expect(page).toHaveURL(/\/admin\/events$/);
+ await expect(page.getByRole('heading',{name:'행사 · 교육',exact:true})).toBeVisible();
+ await expect(page.locator('.workspace nav a[href="/admin"], .workspace a[href="/admin/budget"]')).toHaveCount(0);
+ const calls=await page.evaluate(()=>window.deadlineCalls);
+ expect(calls).not.toContain('dashboard');
+ expect(calls).not.toContain('budgetPlanner');
+});
+
 test('event detail reads in parallel while the loading bar fills once',async({page})=>{
  await page.evaluate(()=>{
   const ctx=window.deadlineCtx,api=ctx.api,gate=new Promise(resolve=>{window.releaseReads=resolve;});

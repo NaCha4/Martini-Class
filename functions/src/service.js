@@ -17,7 +17,6 @@ import { createMemberPortal } from './member-portal.js';
 import { createEquipment } from './equipment.js';
 import { createPartnerStamps } from './partner-stamps.js';
 import { createOnTheRock } from './on-the-rock.js';
-import { createBudgetPlanner } from './budget-planner.js';
 import { Timestamp, FieldValue } from 'firebase-admin/firestore';
 import { schemas, parse, fail, ensureScope, hash, secret, publicEvent, requireRevision, idSchema, roles } from './domain.js';
 const PREFIX='martini_v2_';
@@ -28,13 +27,18 @@ export function createService(db,clock=Date.now){
  const roster=createRoster(col);
  const snapshot=snap=>snap.exists&&!snap.data().deletedAt?{...snap.data(),id:snap.id}:null;
  const clean=record=>{const {meetingSaveRequestId,meetingSaveHash,linkHash,receiptHash,identityHash,memberIdentityHash,isStaff,staffFee,staffFeeRevision,pricingRevision,...safe}=record;return safe;};
- function protectedRole(builtin,stored){return {...builtin,permissions:[...builtin.permissions,...(!stored?.deletedAt&&Array.isArray(stored?.permissions)&&stored.permissions.includes('budget')?['budget']:[])],revision:stored?.revision||0};}
+ function roleRecord(id,stored,builtin=defaultRoles.find(role=>role.id===id)){
+  if(['owner','chair'].includes(id))return {...builtin,revision:stored?.revision||0};
+  if(!stored)return builtin?{...builtin,revision:0}:null;
+  if(stored.deletedAt)return null;
+  const permissions=Array.isArray(stored.permissions)?stored.permissions.filter(permission=>permission!=='budget'):stored.permissions;
+  return {...stored,id,system:!!builtin,permissions};
+ }
  async function roleDefinition(id,tx){
   const builtin=defaultRoles.find(r=>r.id===id);
   if(id===REQUEST_VIEWER_ROLE)return {...builtin,revision:0};
   const ref=col('roles').doc(id),doc=tx?await tx.get(ref):await ref.get();
-  if(['owner','chair'].includes(id))return protectedRole(builtin,doc.data());
-  return doc.exists?(doc.data().deletedAt?null:{...doc.data(),id,system:!!builtin}):builtin?{...builtin,revision:0}:null;
+  return roleRecord(id,doc.data(),builtin);
  }
  async function admin(ctx,assigned){
   if(!ctx.uid)fail('unauthenticated','임원 계정으로 로그인해 주세요.');
@@ -65,7 +69,6 @@ export function createService(db,clock=Date.now){
  const inventoryBoard=createInventoryBoard({db,col,clock,now,audit});
  const staffPricing=createStaffPricing({db,col,clock,now,audit});
  const onTheRock=createOnTheRock({db,col,now,audit});
- const budgetPlanner=createBudgetPlanner({db,col,clock,now,audit});
  const privacy=createPrivacy({db,col,now,clock,audit,roster});
  async function throttle(ctx,bucket,limit=30){
   const minute=Math.floor(clock()/60000),ref=col('rateLimits').doc(hash(ctx.ip+':'+bucket+':'+minute));
@@ -133,9 +136,7 @@ export function createService(db,clock=Date.now){
    return {saved:true};
   }
   if(['couponSettings','couponHistory','saveCouponSettings','resetCouponData'].includes(op))return partnerStamps[op](data,who);
-  if(op==='budgetPlanner')return budgetPlanner.read(data,who);
   if(op==='absenceReport')return absenceReport(data,who);
-  if(op==='saveBudgetPlanner')return budgetPlanner.save(data,who);
   if(['onTheRockBoard','saveOnTheRockGroup','recordOnTheRockMission','updateOnTheRockRecord','voidOnTheRockRecord'].includes(op))return onTheRock(op,data,who);
   if(['equipmentCatalog','saveEquipmentItem','deleteEquipmentItem'].includes(op))return equipment[op](data,who);
   if(op==='clubRequests')return memberPortal.list(data,who);
@@ -160,19 +161,9 @@ export function createService(db,clock=Date.now){
    ensureScope(who,'admins',clock());
    const stored=await col('roles').get(),assigned=await col('admins').get();
    const map=new Map(defaultRoles.map(r=>[r.id,{...r,revision:0}]));
-   stored.docs.forEach(doc=>{if(['owner','chair'].includes(doc.id)){map.set(doc.id,protectedRole(defaultRoles.find(role=>role.id===doc.id),doc.data()));return;}if(doc.data().deletedAt)map.delete(doc.id);else map.set(doc.id,{...doc.data(),id:doc.id,system:defaultRoles.some(r=>r.id===doc.id)});});
+   stored.docs.forEach(doc=>{const role=roleRecord(doc.id,doc.data());if(role)map.set(doc.id,role);else map.delete(doc.id);});
    map.set(REQUEST_VIEWER_ROLE,{...defaultRoles.find(r=>r.id===REQUEST_VIEWER_ROLE),revision:0});
    return {rows:[...map.values()].map(r=>({...r,assigned:assigned.docs.filter(a=>a.data().role===r.id).length}))};
-  }
-  if(op==='setRoleBudget'){
-   ensureScope(who,'admins',clock());
-   const input=parse(z.object({id:z.enum(['owner','chair']),revision:z.number().int().min(0),enabled:z.boolean()}).strict(),data);
-   return db.runTransaction(async tx=>{
-    const old=await roleDefinition(input.id,tx);requireRevision(old,input.revision);
-    const builtin=defaultRoles.find(role=>role.id===input.id);
-    const next={id:input.id,name:builtin.name,permissions:[...builtin.permissions,...(input.enabled?['budget']:[])],revision:old.revision+1,updatedAt:now()};
-    tx.set(col('roles').doc(input.id),next);audit(tx,who,'roles',input.id,'예산 업무 권한 '+(input.enabled?'허용':'해제'));return next;
-   });
   }
   if(op==='saveRole'){
    ensureScope(who,'admins',clock());const input=parse(schemas.role,data),id=input.id||col('roles').doc().id;
@@ -228,24 +219,9 @@ export function createService(db,clock=Date.now){
   const saves={
    saveMember:['members',schemas.member,'members'],saveEvent:['events',schemas.event,'events'],saveItem:['inventory',schemas.item,'inventory'],
    saveMeeting:['meetings',schemas.meeting,'meetings'],saveDecision:['decisions',schemas.decision,'decisions'],saveContent:['content',schemas.content,'content'],
-   saveBudget:['budgets',schemas.budget,'finance'],saveSettings:['settings',schemas.settings,'settings']
+   saveSettings:['settings',schemas.settings,'settings']
   };
   if(saves[op]){const [kind,schema,scope]=saves[op];return save(kind,schema,data,who,scope);}
-  if(op==='deleteBudget'||op==='executeBudget'){
-   ensureScope(who,'finance',clock());
-   const schema=op==='executeBudget'?z.object({id:idSchema,revision:z.number().int().min(1),amount:z.number().int().min(1).max(100000000),confirmed:z.literal(true)}).strict():z.object({id:idSchema,revision:z.number().int().min(1)}).strict();
-   const input=parse(schema,data),ref=col('budgets').doc(input.id);
-   return db.runTransaction(async tx=>{
-    const doc=await tx.get(ref),plan=snapshot(doc);if(!plan)fail('not-found','지출 계획을 찾을 수 없습니다.');
-    if(plan.status==='executed'){if(op==='executeBudget')return {saved:true,duplicate:true};fail('failed-precondition','집행 완료한 계획은 삭제할 수 없습니다.');}
-    requireRevision(plan,input.revision);
-    if(op==='deleteBudget'){tx.delete(ref);audit(tx,who,'budgets',input.id,'지출 계획 삭제',plan.semester);return {saved:true};}
-    const entry=col('finance').doc(),at=now();
-    tx.create(entry,{id:entry.id,requestId:entry.id,kind:'expense',amount:input.amount,title:plan.title,note:plan.note||'',semester:plan.semester,eventId:'',applicationId:'',memberId:'',budgetId:input.id,actor:who.displayName,createdAt:at,updatedAt:at});
-    tx.update(ref,{status:'executed',actualAmount:input.amount,transactionId:entry.id,revision:plan.revision+1,updatedAt:at,updatedBy:who.uid});
-    audit(tx,who,'budgets',input.id,'지출 계획 집행 완료',plan.semester);audit(tx,who,'finance',entry.id,'계획 지출 기록',plan.semester);return {saved:true};
-   });
-  }
   if(op==='stock')return stock(data,who);
   if(['setEventStaffFee','setApplicationStaff','setApplicationPricing'].includes(op))return staffPricing(op,data,who);
   if(op==='finance')return finance(data,who);

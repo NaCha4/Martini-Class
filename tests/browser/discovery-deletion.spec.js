@@ -2,7 +2,7 @@ import {test,expect} from '@playwright/test';
 test.beforeEach(async({page,baseURL})=>{
  if(baseURL!=='http://127.0.0.1:5173')throw Error('Local emulator only');
  await page.goto('/admin');await page.getByRole('button',{name:'가상 임원으로 확인하기'}).click();
- await expect(page.getByRole('heading',{name:'운영 현황'})).toBeVisible();
+ await expect(page.getByRole('heading',{name:'행사 · 교육'})).toBeVisible();
 });
 test.afterEach(async({page},info)=>{
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBeTruthy();

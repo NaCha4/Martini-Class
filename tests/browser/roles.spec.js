@@ -6,7 +6,7 @@ test('custom role assignment grants and revokes event payment controls',async({p
  const result=await request.post('http://127.0.0.1:9099/identitytoolkit.googleapis.com/v1/accounts:signUp?key=local',{data:{email,password,returnSecureToken:true}});
  expect(result.ok()).toBe(true);const uid=(await result.json()).localId;
  await page.goto('/admin');await page.getByRole('button',{name:'가상 임원으로 확인하기'}).click();
- await expect(page.getByRole('heading',{name:'운영 현황'})).toBeVisible();
+ await expect(page.getByRole('heading',{name:'행사 · 교육'})).toBeVisible();
  await page.goto('/admin/roles');await page.getByRole('button',{name:'역할 만들기'}).click();
  await page.getByLabel('역할 이름').fill(name);await page.getByLabel('재고 관리',{exact:true}).check();await page.getByLabel('행사·참가자·출석 관리',{exact:true}).check();
  await page.getByRole('dialog').getByRole('button',{name:'저장',exact:true}).click();await expect(page.getByRole('dialog')).toHaveCount(0);
@@ -18,7 +18,7 @@ test('custom role assignment grants and revokes event payment controls',async({p
  const staffContext=await browser.newContext({viewport:page.viewportSize()}),staff=await staffContext.newPage();
  try{
   await staff.goto(baseURL+'/admin');await staff.locator('[name=email]').fill(email);await staff.locator('[name=password]').fill(password);
-  await staff.getByRole('button',{name:'로그인',exact:true}).click();await expect(staff.getByRole('heading',{name:'운영 현황'})).toBeVisible();
+  await staff.getByRole('button',{name:'로그인',exact:true}).click();await expect(staff.getByRole('heading',{name:'행사 · 교육'})).toBeVisible();
   await expect(staff.locator('.sidebar a[href="/admin/finance"]')).toHaveCount(0);
   if(isMobile){await staff.getByRole('button',{name:'전체 메뉴'}).click();await expect(staff.getByRole('dialog').getByRole('link',{name:'회비 · 정산'})).toHaveCount(0);await staff.getByRole('dialog').getByRole('button',{name:'닫기',exact:true}).last().click();}
   const application=await page.evaluate(async()=>{

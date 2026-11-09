@@ -30,7 +30,6 @@ export function createRecords({db,col,clock,now,snapshot,visible,audit,roster,se
     next.identityHash=key;next.phone=normalizePhone(input.phone);next.note=input.note??old?.note??'';
     tx.set(col('semesters').doc(input.semester),{updatedAt:now()},{merge:true});
    }
-   if(kind==='budgets'){if(old?.status==='executed')fail('failed-precondition','집행 완료한 계획은 수정할 수 없습니다.');next.status='planned';}
    if(kind==='events'){
     next.status=eventStatus(input,clock());
     // Cached editors that omit visibility must not make a private event public.
@@ -102,14 +101,13 @@ export function createRecords({db,col,clock,now,snapshot,visible,audit,roster,se
   });
  }
  async function read(data,who){
-  const allowed=['budgets','members','events','applications','finance','inventory','stockMoves','meetings','decisions','content','settings','admins','audit'];
+  const allowed=['members','events','applications','finance','inventory','stockMoves','meetings','decisions','content','settings','admins','audit'];
   const input=parse(z.object({kind:z.enum(allowed),semester:semesterSchema.optional(),removed:z.boolean().optional(),eventId:idSchema.optional(),meetingId:idSchema.optional(),itemId:idSchema.optional(),cursor:idSchema.optional(),parentId:idSchema.optional(),recordId:idSchema.optional(),revisions:z.boolean().optional()}).strict(),data);
   let scope=input.kind;
   if(scope==='applications'){if(!hasPermission(who,'participants'))fail('permission-denied','참가자 명단 조회 권한이 없습니다.');}
   else if(scope==='settings'){} // Basic operating context is available to signed-in staff.
   else if(scope==='events')ensureScope(who,'eventRead',clock());
   else if(scope==='members')ensureScope(who,'membersRead',clock());
-  else if(scope==='budgets')ensureScope(who,'finance',clock());
   else if(scope==='stockMoves')ensureScope(who,'inventory',clock());
   else ensureScope(who,scope,clock());
   if(input.kind==='members'){

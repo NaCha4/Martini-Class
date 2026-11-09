@@ -46,7 +46,7 @@ async function verifyMember(page) {
 async function loginAdmin(page, baseURL) {
   await page.goto(baseURL + '/admin');
   await page.getByRole('button', { name: '가상 임원으로 확인하기', exact: true }).click();
-  await expect(page.getByRole('heading', { name: '운영 현황', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '행사 · 교육', exact: true })).toBeVisible();
   await page.goto(baseURL + '/admin/requests');
   await expect(page.getByRole('heading', { name: '신청 · 문의', exact: true })).toBeVisible();
   await expect(page.locator('.request-queue-summary > div')).toHaveCount(2);

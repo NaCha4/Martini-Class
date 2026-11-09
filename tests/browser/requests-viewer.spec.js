@@ -136,7 +136,7 @@ test('existing owner can approve and reject visits, reply to inquiries and delet
  expect((await call(null,{op:'memberAccess',name:'가상부원 가',studentId:'202600001',sessionKey})).error).toBeUndefined();
  const submitted=await call(null,{op:'submitClubRequest',kind:'visit',sessionKey,requestId:id,receiptKey,consent:true,startsAt:new Date(Date.now()+86400000).toISOString(),guestCount:1,guestNames:'승인 가상 방문자',purpose:'기존 관리자 승인 회귀'});
  expect(submitted.error).toBeUndefined();requestIds.push(id);
- await page.goto('/admin');await page.getByRole('button',{name:'가상 임원으로 확인하기'}).click();await expect(page.getByRole('heading',{name:'운영 현황'})).toBeVisible();
+ await page.goto('/admin');await page.getByRole('button',{name:'가상 임원으로 확인하기'}).click();await expect(page.getByRole('heading',{name:'행사 · 교육'})).toBeVisible();
  await page.goto('/admin/requests');
  const review=id=>page.locator('[data-action="club-request-review"][data-id="'+id+'"]');
  await review(requestIds[0]).click();await page.getByRole('dialog').locator('[name=response]').fill('기존 관리자 답변');await page.getByRole('dialog').getByRole('button',{name:'답변 저장',exact:true}).click();await expect(page.getByRole('dialog')).toHaveCount(0);

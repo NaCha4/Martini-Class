@@ -49,7 +49,7 @@ button[aria-busy=true] {
 .icon-button.x-button {
   border: 0;
 }
-.text-button,.panel-title a,.back-link {
+.text-button,.back-link {
   min-height: 44px;
 }
 .text-button {

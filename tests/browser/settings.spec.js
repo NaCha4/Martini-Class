@@ -20,7 +20,7 @@ test('original privacy policy stays readable when the API is unavailable',async(
 test('settings save an open-chat link without preset dues or dates and joining uses that link',async({page})=>{
  await page.goto('/admin');
  await page.getByRole('button',{name:'가상 임원으로 확인하기'}).click();
- await expect(page.getByRole('heading',{name:'운영 현황'})).toBeVisible();
+ await expect(page.getByRole('heading',{name:'행사 · 교육'})).toBeVisible();
  await page.goto('/admin/settings');
  await page.getByRole('button',{name:'설정 수정'}).click();
  const dialog=page.getByRole('dialog');

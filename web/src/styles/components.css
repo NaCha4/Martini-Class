@@ -323,4 +323,3 @@
 .event-section[open] > summary h2::after {
   transform: rotate(225deg);
 }
-/* The overview reflects the remaining event, roster and inventory work. */

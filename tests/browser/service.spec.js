@@ -10,7 +10,7 @@ test.afterEach(async({page},info)=>{
 });
 const unique=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
 async function login(page){
- await page.goto('/admin');await page.getByRole('button',{name:'가상 임원으로 확인하기'}).click();await expect(page.getByRole('heading',{name:'운영 현황'})).toBeVisible();
+ await page.goto('/admin');await page.getByRole('button',{name:'가상 임원으로 확인하기'}).click();await expect(page.getByRole('heading',{name:'행사 · 교육'})).toBeVisible();
 }
 async function saveModal(page,name='저장'){
  await page.getByRole('dialog').getByRole('button',{name,exact:true}).click();
@@ -58,8 +58,8 @@ test('member registration and remaining admin sections',async({page})=>{
  for(const route of ['settings','roles','admins','privacy','audit']){await page.goto('/admin/'+route);await expect(page.locator('h1')).toBeVisible();expect(await page.locator('.connection-page').count()).toBe(0);expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBeTruthy();}
 });
 
-test('retired admin features leave menus and old links return to the dashboard',async({page,isMobile,baseURL})=>{
- const retired=['finance','meetings','decisions','content','notices'],calls=[];
+test('retired admin features leave menus and old links open the first permitted section',async({page,isMobile,baseURL})=>{
+ const retired=['finance','decisions','content','notices','budget'],calls=[];
  page.on('request',request=>{
   if(request.method()!=='POST'||!request.url().endsWith('/martiniApi'))return;
   const data=request.postDataJSON()?.data;if(data)calls.push(data);
@@ -74,8 +74,8 @@ test('retired admin features leave menus and old links return to the dashboard',
  }
  for(const kind of retired){
   await page.goto('/admin/'+kind+'?category=legacy#record');
-  await expect(page).toHaveURL(new URL('/admin',baseURL).href);
-  await expect(page.getByRole('heading',{name:'운영 현황',exact:true})).toBeVisible();
+  await expect(page).toHaveURL(new URL('/admin/events',baseURL).href);
+  await expect(page.getByRole('heading',{name:'행사 · 교육',exact:true})).toBeVisible();
   await expect(page.locator(retiredLinks)).toHaveCount(0);
  }
  expect(calls.filter(call=>call.op==='decisionCategories'||call.op==='read'&&retired.includes(call.kind))).toEqual([]);

@@ -2,7 +2,7 @@ import {test,expect} from '@playwright/test';
 test('member action icons remove only the selected semester without a removed-members view',async({page,baseURL})=>{
  if(baseURL!=='http://127.0.0.1:5173')throw Error('Local only');
  const errors=[];page.on('pageerror',e=>errors.push(e.message));
- await page.goto('/admin');await page.getByRole('button',{name:'가상 임원으로 확인하기'}).click();await expect(page.getByRole('heading',{name:'운영 현황'})).toBeVisible();
+ await page.goto('/admin');await page.getByRole('button',{name:'가상 임원으로 확인하기'}).click();await expect(page.getByRole('heading',{name:'행사 · 교육'})).toBeVisible();
  const id=Date.now().toString(),name='명부 제거 검증 '+id;
  for(const semester of ['2026-2','2027-1']){
   await page.goto('/admin/members?semester='+semester);await page.getByRole('button',{name:'부원 등록',exact:true}).click();const d=page.getByRole('dialog');await d.locator('[name=name]').fill(name);await d.locator('[name=studentId]').fill(id);await d.locator('[name=phone]').fill('01012345678');await d.getByRole('button',{name:'저장',exact:true}).click();await expect(d).toHaveCount(0);
