@@ -32,10 +32,18 @@ test.beforeEach(async({page,baseURL})=>{
  });
 });
 
-test('expired events show closed in admin filters while other states are preserved',async({page})=>{
+test('completed events start folded and can be opened and closed',async({page})=>{
  const card=title=>page.locator('.event-card-wrap').filter({hasText:title});
+ const completed=page.locator('#event-completed'),summary=completed.locator('summary');
+ await expect(summary).toBeVisible();
+ await expect(summary.locator('[data-event-section-count]')).toHaveText('1');
+ await expect(card('completed')).toBeHidden();
+ await summary.click();
+ await expect(card('completed')).toBeVisible();
  await expect(card('마감된 행사').locator('[data-event-status-label]')).toHaveText('모집 마감');
  for(const [id,label] of [['draft','초안'],['completed','진행 완료'],['cancelled','취소']])await expect(card(id).locator('[data-event-status-label]')).toHaveText(label);
+ await summary.press('Enter');
+ await expect(card('completed')).toBeHidden();
  await page.getByLabel('상태 필터').selectOption('closed');
  await expect(page.locator('.event-card-wrap:visible')).toHaveCount(1);
  await expect(card('마감된 행사')).toBeVisible();
@@ -63,6 +71,9 @@ test('ended events move into the completed section and match its filter',async({
  await page.clock.runFor(13000);
  await expect(completed).toBeVisible();
  await expect(completed.locator('[data-event-section-count]')).toHaveText('2');
+ await expect(completed.locator('.event-card-wrap:visible')).toHaveCount(0);
+ await completed.locator('summary').click();
+ await expect(completed.locator('.event-card-wrap:visible')).toHaveCount(2);
  await expect(completed.locator('[data-event-status-label]')).toHaveText(['진행 완료','진행 완료']);
  await expect(page.locator('#event-operating')).toBeHidden();
  expect(await page.evaluate(()=>window.deadlineCalls.length)).toBe(calls);

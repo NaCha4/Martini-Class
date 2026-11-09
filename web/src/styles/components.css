@@ -297,4 +297,30 @@
   font-size: 12px;
   font-variant-numeric: tabular-nums;
 }
+.event-section > summary {
+  display: block;
+  list-style: none;
+  cursor: pointer;
+}
+.event-section > summary::-webkit-details-marker {
+  display: none;
+}
+.event-section:not([open]) > summary {
+  margin-bottom: 0;
+}
+.event-section > summary h2 {
+  min-height: 44px;
+}
+.event-section > summary h2::after {
+  content: '';
+  width: 8px;
+  height: 8px;
+  margin-inline: auto 5px;
+  border: solid var(--muted);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+.event-section[open] > summary h2::after {
+  transform: rotate(225deg);
+}
 /* The overview reflects the remaining event, roster and inventory work. */
