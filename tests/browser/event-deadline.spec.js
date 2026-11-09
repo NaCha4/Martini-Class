@@ -17,7 +17,7 @@ test.beforeEach(async({page,baseURL})=>{
   const {ctx,state}=await import(document.querySelector('script[src*="/src/main.js"]').src);
   window.deadlineCtx=ctx;window.deadlineCalls=[];
   const time=offset=>new Date(Date.now()+offset).toISOString();
-  const base={id:'soon',title:'마감 예정 교육',type:'class',semester:'2026-2',status:'open',location:'동아리방',startsAt:time(86400000),endsAt:time(90000000),opensAt:time(-3600000),closesAt:time(5000),cancelUntil:time(80000000),registered:1,waiting:0,capacity:20,fee:0,waitlist:true,questions:[],policy:'가상 취소 안내',description:'로컬 검증',revision:1};
+  const base={id:'soon',title:'마감 예정 교육',type:'class',semester:'2026-2',status:'open',location:'동아리방',startsAt:time(10000),endsAt:time(12000),opensAt:time(-3600000),closesAt:time(5000),cancelUntil:time(8000),registered:1,waiting:0,capacity:20,fee:0,waitlist:true,questions:[],policy:'가상 취소 안내',description:'로컬 검증',revision:1};
   window.deadlineEvents=[base,{...base,id:'expired',title:'마감된 행사',type:'meeting',closesAt:time(-1)},...['draft','completed','cancelled'].map(status=>({...base,id:status,title:status,status,closesAt:time(-1)}))];
   state.user={uid:'fixture'};
   state.profile={uid:'fixture',role:'owner',displayName:'가상 운영진'};
@@ -51,6 +51,23 @@ test('an open list updates its filter at the deadline without network reads',asy
  expect(await page.evaluate(()=>window.deadlineCalls.length)).toBe(calls);
 });
 
+test('ended events move into the completed section and match its filter',async({page})=>{
+ await page.evaluate(async()=>{
+  window.deadlineEvents=window.deadlineEvents.filter(e=>e.status!=='completed');
+  await window.deadlineCtx.render();
+ });
+ const completed=page.locator('#event-completed');
+ await expect(completed).toBeHidden();
+ await page.getByLabel('상태 필터').selectOption('completed');
+ const calls=await page.evaluate(()=>window.deadlineCalls.length);
+ await page.clock.runFor(13000);
+ await expect(completed).toBeVisible();
+ await expect(completed.locator('[data-event-section-count]')).toHaveText('2');
+ await expect(completed.locator('[data-event-status-label]')).toHaveText(['진행 완료','진행 완료']);
+ await expect(page.locator('#event-operating')).toBeHidden();
+ expect(await page.evaluate(()=>window.deadlineCalls.length)).toBe(calls);
+});
+
 test('detail closes while an open editor keeps its unsaved input',async({page})=>{
  await page.locator('.event-card').filter({hasText:'마감 예정 교육'}).click();
  await expect(page.locator('.event-statbar [data-event-status-label]')).toHaveText('모집 중');
@@ -58,6 +75,8 @@ test('detail closes while an open editor keeps its unsaved input',async({page})=
  await page.getByRole('dialog').locator('[name=title]').fill('작성 중인 새 행사 이름');
  await page.clock.runFor(6000);
  await expect(page.locator('.event-statbar [data-event-status-label]')).toHaveText('모집 마감');
+ await page.clock.runFor(8000);
+ await expect(page.locator('.event-statbar [data-event-status-label]')).toHaveText('진행 완료');
  await expect(page.getByRole('dialog').locator('[name=title]')).toHaveValue('작성 중인 새 행사 이름');
 });
 
@@ -87,10 +106,15 @@ test('application closes and disables submission without discarding typed inform
  await expect(page.locator('form[data-form="apply"] [type="submit"]')).toBeDisabled();
  await expect(page.locator('form[data-form="apply"] [name="name"]')).toHaveValue('가상 참가자');
  await expect(page.locator('.apply-card .notice-warning')).toContainText('신청이 마감되었습니다');
+ await page.clock.runFor(8000);
+ await expect(page.locator('.event-public-detail [data-event-status-label]')).toHaveText('진행 완료');
+ await expect(page.locator('#apply-title')).toHaveText('진행 완료');
+ await expect(page.locator('form[data-form="apply"] [type="submit"]')).toBeDisabled();
+ await expect(page.locator('form[data-form="apply"] [name="name"]')).toHaveValue('가상 참가자');
  await page.screenshot({path:'.local/screenshots/event-deadline-application.png',fullPage:true});
 });
 
-test('member event cards close on the same timer',async({page})=>{
+test('member event cards close and complete on the same timer',async({page})=>{
  await page.evaluate(async()=>{
   const {renderMemberEventChoices}=await import('/src/member-portal.js');
   const {memberState}=await import('/src/member-session.js');
@@ -101,4 +125,6 @@ test('member event cards close on the same timer',async({page})=>{
  await page.clock.runFor(6000);
  await expect(page.locator('.member-event [data-event-status-label]')).toHaveText('모집 마감');
  await expect(page.locator('.member-event-title')).toHaveClass(/is-closed/);
+ await page.clock.runFor(8000);
+ await expect(page.locator('.member-event [data-event-status-label]')).toHaveText('진행 완료');
 });

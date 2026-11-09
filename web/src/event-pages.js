@@ -1,3 +1,4 @@
+import { eventStatus } from '../../functions/src/event-status.js';
 import { eventDeadlineAttributes } from './event-deadline.js';
 import { memberRequestGuard } from './view-request.js';
 import { shortLink, linkKey } from './share-links.js';
@@ -93,14 +94,14 @@ export async function renderEventPage(ctx,id,{member=false,embedded=false}={}){
  e.memberAccess=member;e.embedded=embedded;e.inlineSelection=selection;
  e.accessUrl=accessUrl;
  if(location.href===accessUrl&&key()===accessKey)ctx.state.currentEvent=e;
- const now=Date.now(),beforeOpen=Date.parse(e.opensAt)>now,afterClose=Date.parse(e.closesAt)<=now;
- const open=e.status==='open'&&!beforeOpen&&!afterClose,willWait=e.registered>=e.capacity||e.waiting>0;
+ const now=Date.now(),beforeOpen=Date.parse(e.opensAt)>now,status=eventStatus(e,now);
+ const open=status==='open'&&!beforeOpen,willWait=e.registered>=e.capacity||e.waiting>0;
  const canApply=open&&(!willWait||e.waitlist);
- let statusText=label(e.status),statusClass=e.status,stateNote='';
- if(e.status==='cancelled')stateNote='취소된 행사입니다. 기존 신청과 환불 상태는 개인 확인 링크에서 확인해 주세요.';
- else if(e.status==='completed')stateNote='진행이 끝난 행사입니다.';
- else if(e.status==='draft')stateNote='운영진이 신청을 준비하고 있습니다.';
- else if(e.status==='closed'||afterClose){statusText='모집 마감';statusClass='closed';stateNote='신청이 마감되었습니다. 기존 신청은 개인 확인 링크에서 확인할 수 있습니다.';}
+ let statusText=label(status),statusClass=status,stateNote='';
+ if(status==='cancelled')stateNote='취소된 행사입니다. 기존 신청과 환불 상태는 개인 확인 링크에서 확인해 주세요.';
+ else if(status==='completed')stateNote='진행이 끝난 행사입니다.';
+ else if(status==='draft')stateNote='운영진이 신청을 준비하고 있습니다.';
+ else if(status==='closed')stateNote='신청이 마감되었습니다. 기존 신청은 개인 확인 링크에서 확인할 수 있습니다.';
  else if(beforeOpen){statusText='신청 예정';statusClass='planned';stateNote=scheduleDate(e.opensAt)+'부터 신청할 수 있습니다.';}
  else if(willWait&&e.waitlist){statusText='대기 접수 중';statusClass='waiting';stateNote='현재는 대기 신청을 받습니다. 빈자리가 생기면 기존 대기자부터 운영진이 참가를 안내합니다.';}
  else if(willWait){statusText=e.registered>=e.capacity?'정원 마감':'대기자 우선 안내 중';statusClass='closed';stateNote=e.registered>=e.capacity?'신청 정원이 찼습니다. 대기 신청은 받지 않습니다.':'기존 대기자에게 먼저 참가를 안내하고 있습니다. 새로운 신청은 받지 않습니다.';}

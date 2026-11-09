@@ -21,6 +21,22 @@ test('manual states and missing or invalid deadlines are preserved',()=>{
  for(const closesAt of [undefined,'','invalid'])assert.equal(eventStatus({...event,closesAt},deadline),'open');
 });
 
+test('recruiting and closed events complete at the exact end time',()=>{
+ const endsAt='2026-10-13T11:00:00.000Z',end=Date.parse(endsAt);
+ for(const status of ['open','closed']){
+  const stored={...event,status,endsAt};
+  assert.equal(eventStatus(stored,end-1),'closed');
+  assert.equal(eventStatus(stored,end),'completed');
+  assert.equal(publicEvent(stored,end+1).status,'completed');
+  assert.equal(stored.status,status);
+ }
+ for(const status of ['draft','completed','cancelled'])assert.equal(eventStatus({...event,status,endsAt},end),status);
+ for(const invalidEnd of [undefined,'','invalid'])assert.equal(eventStatus({...event,endsAt:invalidEnd},end),'closed');
+ const lateDeadline={...event,endsAt,closesAt:new Date(end+1).toISOString()};
+ assert.equal(eventStatus(lateDeadline,end),'completed');
+ assert.throws(()=>allocate(lateDeadline,end),error=>error.code==='failed-precondition');
+});
+
 test('dashboard includes the deadline and reports closure using the server clock',async()=>{
  const stored={...event,title:'가상 교육',semester:'2026-2',startsAt:'2026-10-13T09:00:00.000Z',endsAt:'2026-10-13T11:00:00.000Z'};
  const col=name=>{
@@ -34,4 +50,8 @@ test('dashboard includes the deadline and reports closure using the server clock
   assert.equal(result.events[0].closesAt,event.closesAt);
   assert.equal(result.events[0].status,offset<0?'open':'closed');
  }
+ const dashboard=createDashboard({col,clock:()=>Date.parse(stored.endsAt),settings:async()=>({semester:'2026-2'})});
+ const result=await dashboard({},{role:'custom',permissions:['events']});
+ assert.equal(result.counts.events,0);
+ assert.deepEqual(result.events,[]);
 });

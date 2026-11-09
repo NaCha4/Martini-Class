@@ -51,7 +51,7 @@ export function validateEvent(event,occupied=0){
  if(event.capacity<occupied)fail('failed-precondition','등록·좌석 예약 인원보다 정원을 줄일 수 없습니다.');
 }
 export function allocate(event,now){
- if(event.status!=='open'||Date.parse(event.opensAt)>now||Date.parse(event.closesAt)<=now)fail('failed-precondition','현재 신청 기간이 아닙니다.');
+ if(eventStatus(event,now)!=='open'||Date.parse(event.opensAt)>now)fail('failed-precondition','현재 신청 기간이 아닙니다.');
  if(event.registered<event.capacity && (event.waiting||0)===0)return 'registered';
  if(event.waitlist)return 'waiting';
  fail('resource-exhausted','신청 정원이 마감되었습니다.');
