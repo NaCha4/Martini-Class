@@ -151,15 +151,15 @@ h1:focus,h2[tabindex="-1"]:focus,main:focus {
   background: var(--gold);
   z-index: 200;
   transform-origin: left;
-  animation: page-progress 1.2s ease-in-out infinite alternate;
+  animation: page-progress 1.6s linear 100ms both;
   pointer-events: none;
 }
 @keyframes page-progress {
   from {
-    transform: scaleX(.15);
+    transform: scaleX(0);
   }
   to {
-    transform: scaleX(.85);
+    transform: scaleX(.9);
   }
 }
 #app[aria-busy=true] .public-page {

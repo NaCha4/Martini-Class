@@ -23,15 +23,28 @@ function mayLeave(...args){return navigation.mayLeave(...args);}
 const filterRows=()=>filterListRows(app,state);
 bindAppEvents(ctx,app,runtime,filterRows);
 watchEventDeadlines(document,filterRows);
+
+function finishProgress(progress){
+  const animation=progress.getAnimations()[0];
+  if(!animation?.effect?.getComputedTiming().progress){progress.remove();return;}
+  const transform=getComputedStyle(progress).transform;
+  progress.setAttribute('aria-hidden','true');
+  progress.style.animation='none';
+  progress.animate([{transform},{transform:'scaleX(1)'}],{duration:140,easing:'linear',fill:'forwards'}).onfinish=()=>progress.remove();
+}
+
 export async function render({focus=false,scroll,pageData}={}) {
   prepareScreenRender();
   const current=++renderNumber,savedFocus=captureFocus(),savedScroll=scrollY;
   const session=isMemberRoute()?getMemberSessionKey(ctx):'',memberLocked=isMemberRoute()&&(!session||session!==runtime.renderedMemberSession);
   const adminLocked=isAdminScreen()&&(!state.profile||isRequestViewer(state.profile));
   if(memberLocked)void closeModal({discard:true});
-  runtime.rendering=true;app.setAttribute('aria-busy','true');
   let progress=document.querySelector('#page-progress');
-  if(!progress){progress=document.createElement('div');progress.id='page-progress';progress.setAttribute('role','status');progress.innerHTML='<span class="sr-only">화면을 불러오고 있습니다.</span>';document.body.append(progress);}
+  if(!progress||!runtime.rendering){
+    progress?.remove();
+    progress=document.createElement('div');progress.id='page-progress';progress.setAttribute('role','status');progress.innerHTML='<span class="sr-only">화면을 불러오고 있습니다.</span>';document.body.append(progress);
+  }
+  runtime.rendering=true;app.setAttribute('aria-busy','true');
   const hasView=!!app.querySelector('h1');
   if(!hasView||memberLocked||adminLocked){app.innerHTML='<div class="loading" role="status">'+icon('loader-circle')+'<span>불러오는 중</span></div>';refreshIcons();}
   else{
@@ -65,7 +78,7 @@ export async function render({focus=false,scroll,pageData}={}) {
     if(isAdminScreen()){clearAdminData(state);await closeModal({discard:true});}
     app.innerHTML='<main class="connection-page"><a href="/" data-nav class="brand">MARTINI</a><h1 tabindex="-1">연결을 확인해 주세요</h1><p>'+esc(error.message)+'</p><button class="button" type="button" id="retry-page">다시 시도</button></main>';
     app.querySelector('#retry-page').onclick=()=>render({focus:true});runtime.trackedForm=null;app.style.minHeight='';restoreFocus(null);
-  }finally{if(current===renderNumber){runtime.rendering=false;app.removeAttribute('aria-busy');progress.remove();sessions.schedule();}}
+  }finally{if(current===renderNumber){runtime.rendering=false;app.removeAttribute('aria-busy');finishProgress(progress);sessions.schedule();}}
 }
 
 void render();

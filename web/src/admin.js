@@ -17,6 +17,7 @@ import { renderPartnerAdmin, partnerAdminAction } from './partner-admin.js';
 import { renderEquipmentAdmin,equipmentAdminAction } from './equipment.js';
 import { renderAbsenceReport, absenceReportAction, mountAbsenceReport } from './absence-report.js';
 import { clearAdminData, isAdminAuthError } from './admin-session.js';
+import { adminRequestGuard } from './view-request.js';
 import './admin-catalog.css';
 let meetingModule;
 const meetings=async()=>meetingModule||=(await import('./meeting-notes.js'));
@@ -75,8 +76,7 @@ function table(headers,rows){return '<div class="table-wrap"><table><thead><tr>'
 function row(record,search,cells,headers,status=record.status){return '<tr data-searchable="'+esc(search)+'" data-status="'+esc(status||'')+'">'+cells.map((cell,i)=>'<td data-label="'+esc(headers[i])+'">'+cell+'</td>').join('')+'</tr>';}
 function next(ctx,kind){return ctx.state.pages?.[kind]?.nextCursor?'<div class="pagination">'+button('기록 100개 더 보기','load-more',{id:kind,class:'button secondary'})+'</div>':'';}
 const eventVisibility=event=>event.memberVisible===false?'링크로만 공개':'부원 공개';
-async function home(ctx){
- const overview=await ctx.api('dashboard');
+function home(ctx,overview){
  const events=overview.events||[],items=overview.inventory||[];
  const metrics=[['calendar-days','다가오는 행사',overview.counts.events||0,'events'],['users-round','등록 부원',overview.counts.members||0,'members'],['package','확인할 재고',overview.counts.inventory||0,'inventory']].filter(m=>can(ctx,m[3]));
  const setup=can(ctx,'settings')&&(!ctx.state.settings.id||(!ctx.state.settings.contact&&!openChatUrl(ctx.state.settings.joinUrl)))?'<section class="operations-note">'+icon('settings-2')+'<div><h2>모집 전에 운영 정보를 확인해 주세요</h2><p>현재 학기와 동아리 문의 채널 또는 가입 오픈채팅 링크를 확인해 주세요.</p></div><a href="/admin/settings" data-nav class="button secondary">운영 설정 확인</a></section>':'';
@@ -151,14 +151,19 @@ async function list(ctx,kind,{pageData}={}){
  return '';
 }
 async function eventDetail(ctx,id){
- const e=(await read(ctx,'events',{recordId:id})).rows[0];const tab=new URLSearchParams(location.search).get('tab')||'participants';
+ const tab=new URLSearchParams(location.search).get('tab')||'participants';
+ const [event,participants]=await Promise.all([
+  read(ctx,'events',{recordId:id}),
+  tab==='detail'||tab==='preparation'?null:read(ctx,'applications',{eventId:id})
+ ]);
+ const e=event.rows[0];
  const write=hasPermission(ctx.state.profile,'events');
  let html='<a class="back-link" href="/admin/events" data-nav>'+icon('arrow-left')+' 행사 목록</a>'+heading(esc(label(e.type)),esc(e.title),date(e.startsAt,true)+' · '+esc(e.location),write?'<div class="row-actions">'+button('신청 링크 재발급','event-link',{id:e.id,class:'button secondary',icon:'link'})+button('편집','event-edit',{id:e.id,icon:'pencil'})+deleteButton('events',e.id,'행사')+'</div>':'')+
  '<div class="event-statbar"'+eventDeadlineAttributes(e)+'><span>'+eventStatusBadge(e)+'</span><span class="badge">'+eventVisibility(e)+'</span><span>등록 <b>'+e.registered+'</b> / '+e.capacity+'명</span><span>대기 <b>'+e.waiting+'</b>명</span><span>참가비 <b>'+money(e.fee)+'</b></span></div>'+
  '<nav class="tabs" aria-label="행사 상세 메뉴">'+[['participants','신청 · 출석'],['detail','안내 · 정책'],['preparation','준비 · 결과']].map(([key,t])=>'<a href="/admin/events/'+id+'?tab='+key+'" data-nav class="'+(tab===key?'active':'')+'"'+(tab===key?' aria-current="page"':'')+'>'+t+'</a>').join('')+'</nav>';
  if(tab==='detail')return html+'<section class="panel padded"><h2>행사 안내</h2>'+textBlock(e.description)+'<hr><h3>취소 · 환불 안내</h3>'+textBlock(e.policy)+'<div class="detail-grid"><p>신청 시작<br><strong>'+date(e.opensAt,true)+'</strong></p><p>신청 마감<br><strong>'+date(e.closesAt,true)+'</strong></p><p>취소 마감<br><strong>'+date(e.cancelUntil,true)+'</strong></p></div></section>';
  if(tab==='preparation')return html+'<section class="panel padded"><h2>준비와 마무리</h2><ul class="checklist"><li>담당자와 장소 · 준비물 확인</li><li>참가자 · 납부 · 대기자 확인</li><li>행사 당일 수기 호명 후 출석 기록</li><li>참가비 입금 · 환불 내역 확인</li></ul></section>';
- const {rows:applications,truncated}=await read(ctx,'applications',{eventId:e.id});
+ const {rows:applications,truncated}=participants;
  const rows=[...applications].sort((a,b)=>Number(a.status==='cancelled')-Number(b.status==='cancelled'));
  const finance=can(ctx,'finance'),heads=['신청자','신청',...(finance?['납부']:[]),'출석','처리'];
  const staffPricing=finance?'<section class="staff-pricing-panel" aria-label="관리인원 공통 금액"><div><h2>관리인원 공통 금액 <strong>'+esc(hasStaffFee(e)?money(e.staffFee):'미설정')+'</strong></h2><p>금액을 한 번 설정한 뒤 신청자별 관리인원 체크박스를 선택하세요.</p></div>'+(e.status!=='cancelled'?button('관리인원 금액 설정','event-staff-pricing',{id:e.id,class:'button secondary'}):'')+'</section>':'';
@@ -189,8 +194,15 @@ export async function renderAdmin(ctx,options={}){
  const part=location.pathname.split('/').filter(Boolean),kind=part[1]||'';
  if(isRequestViewer(profile)&&!kind){await ctx.navigate('/admin/requests',{replace:true,discard:true});return '';}
  if(kind && !can(ctx,kind))return '<main id="main-content" class="connection-page"><h1 id="page-title" tabindex="-1">접근 권한이 없습니다</h1><p>현재 임원 역할에서 사용할 수 없는 메뉴입니다.</p><a href="/admin" data-nav class="button">운영 홈</a></main>';
- const independent=['budget','partners','requests','equipment','absences'].includes(kind),config=independent?null:(await read(ctx,'settings')).rows[0];if(!independent)ctx.state.settings=config||{semester:'2026-2'};
- let body=kind==='events'&&part[2]?await eventDetail(ctx,part[2]):kind==='settings'?heading('','학기 · 운영 설정','홈페이지 소개와 가입 오픈채팅을 관리합니다.',button('설정 수정','settings-edit',{icon:'pencil'}))+'<section class="panel padded">'+(config?'<div class="detail-grid"><p>현재 학기<br><strong>'+esc(config.semester)+'</strong></p><p>기본 활동 장소<br><strong>'+esc(config.location||'미입력')+'</strong></p><p>동아리 문의 채널<br><strong>'+esc(config.contact||(openChatUrl(config.joinUrl)?'가입 오픈채팅':'미입력'))+'</strong></p></div><hr><h3>가입 오픈채팅</h3>'+(openChatUrl(config.joinUrl)?'<a class="button secondary" href="'+esc(openChatUrl(config.joinUrl))+'" target="_blank" rel="noopener noreferrer">가입 오픈채팅 열기 (새 탭)</a>':'<p>가입 오픈채팅 준비 중입니다. 설정 수정에서 링크를 입력해 주세요.</p>')+'<hr><h3>소개</h3>'+textBlock(config.intro):empty('운영 정보를 입력해 주세요','현재 학기, 동아리 소개와 가입 오픈채팅을 설정합니다.'))+'<hr><h3>개인정보 처리방침</h3><p>기존 홈페이지의 개인정보 처리방침을 사용합니다. 보존 여부는 처리방침에 따라 검토해 주세요.</p><a class="button secondary" href="/privacy" target="_blank" rel="noopener noreferrer">개인정보 처리방침 보기 (새 탭)</a></section>':kind?await list(ctx,kind,options):await home(ctx);
+ const independent=['budget','partners','requests','equipment','absences'].includes(kind),current=adminRequestGuard(ctx);
+ const [settings,eventBody,overview]=await Promise.all([
+  independent?null:read(ctx,'settings'),
+  kind==='events'?(part[2]?eventDetail(ctx,part[2]):list(ctx,kind,options)):null,
+  !kind?ctx.api('dashboard'):null
+ ]);
+ if(!current())return '';
+ const config=settings?.rows[0];if(!independent)ctx.state.settings=config||{semester:'2026-2'};
+ const body=kind==='events'?eventBody:kind==='settings'?heading('','학기 · 운영 설정','홈페이지 소개와 가입 오픈채팅을 관리합니다.',button('설정 수정','settings-edit',{icon:'pencil'}))+'<section class="panel padded">'+(config?'<div class="detail-grid"><p>현재 학기<br><strong>'+esc(config.semester)+'</strong></p><p>기본 활동 장소<br><strong>'+esc(config.location||'미입력')+'</strong></p><p>동아리 문의 채널<br><strong>'+esc(config.contact||(openChatUrl(config.joinUrl)?'가입 오픈채팅':'미입력'))+'</strong></p></div><hr><h3>가입 오픈채팅</h3>'+(openChatUrl(config.joinUrl)?'<a class="button secondary" href="'+esc(openChatUrl(config.joinUrl))+'" target="_blank" rel="noopener noreferrer">가입 오픈채팅 열기 (새 탭)</a>':'<p>가입 오픈채팅 준비 중입니다. 설정 수정에서 링크를 입력해 주세요.</p>')+'<hr><h3>소개</h3>'+textBlock(config.intro):empty('운영 정보를 입력해 주세요','현재 학기, 동아리 소개와 가입 오픈채팅을 설정합니다.'))+'<hr><h3>개인정보 처리방침</h3><p>기존 홈페이지의 개인정보 처리방침을 사용합니다. 보존 여부는 처리방침에 따라 검토해 주세요.</p><a class="button secondary" href="/privacy" target="_blank" rel="noopener noreferrer">개인정보 처리방침 보기 (새 탭)</a></section>':kind?await list(ctx,kind,options):home(ctx,overview);
  return '<div class="workspace"><aside class="sidebar"><a href="/admin" data-nav class="side-brand"><img src="/assets/logo.png" alt="" width="42" height="42"><span>MARTINI<small>운영실</small></span></a><nav aria-label="운영 메뉴">'+groupedNavigation(ctx,kind)+'</nav><div class="side-footer"><a href="/" data-nav>'+icon('arrow-up-right')+' 홈페이지 보기</a><button data-action="logout">'+icon('log-out')+' 로그아웃</button></div></aside><div class="workspace-main"><header class="workspace-header"><div class="breadcrumb">마티니 <span>/</span> '+esc(navigation.find(([k])=>k===kind)?.[2]||'운영실')+'</div><div class="account-chip"><span class="avatar">'+esc(ctx.state.profile.displayName.slice(0,1))+'</span><div>'+esc(ctx.state.profile.displayName)+'<small>'+esc(ctx.state.profile.roleName||label(ctx.state.profile.role))+'</small></div></div></header>'+(local?'<div class="local-strip">개발 환경 · 가상 데이터</div>':'')+'<main id="main-content" class="workspace-content">'+body+'</main><nav class="mobile-admin-nav" aria-label="빠른 운영 메뉴">'+navigation.filter(([k])=>['','events','members','inventory','requests'].includes(k)&&can(ctx,k||'home')).map(([key,i,t])=>'<a data-nav href="/admin'+(key?'/'+key:'')+'" class="'+(kind===key?'active':'')+'"'+(kind===key?' aria-current="page"':'')+'>'+icon(i)+'<span>'+t+'</span></a>').join('')+button('전체 메뉴','mobile-menu',{class:'mobile-more',icon:'menu'})+'</nav></div></div>';
 }
 export async function adminAction(ctx,action,id,target){

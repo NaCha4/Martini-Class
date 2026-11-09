@@ -32,6 +32,41 @@ test.beforeEach(async({page,baseURL})=>{
  });
 });
 
+test('event detail reads in parallel while the loading bar fills once',async({page})=>{
+ await page.evaluate(()=>{
+  const ctx=window.deadlineCtx,api=ctx.api,gate=new Promise(resolve=>{window.releaseReads=resolve;});
+  window.startedReads=[];
+  ctx.api=async(op,data)=>{
+   if(op==='read'){window.startedReads.push(data.kind);await gate;}
+   return api(op,data);
+  };
+  window.detailNavigation=ctx.navigate('/admin/events/soon');
+ });
+ await expect.poll(()=>page.evaluate(()=>window.startedReads.slice().sort())).toEqual(['applications','events','settings']);
+
+ const progress=page.locator('#page-progress');
+ const widths=await progress.evaluate(async bar=>{
+  const animation=bar.getAnimations()[0];
+  animation.pause();
+  await animation.ready;
+  return [100,500,900,1300,1700,3300].map(time=>{
+   animation.currentTime=time;
+   return new DOMMatrixReadOnly(getComputedStyle(bar).transform).a;
+  });
+ });
+ [0,.225,.45,.675,.9,.9].forEach((expected,index)=>expect(widths[index]).toBeCloseTo(expected));
+
+ const [start,end]=await page.evaluate(async()=>{
+  window.releaseReads();
+  await window.detailNavigation;
+  return document.querySelector('#page-progress').getAnimations()[0].effect.getKeyframes().map(frame=>new DOMMatrixReadOnly(frame.transform).a);
+ });
+ expect(start).toBeCloseTo(.9);
+ expect(end).toBe(1);
+ await expect(page.getByRole('heading',{name:'마감 예정 교육'})).toBeVisible();
+ await expect(progress).toHaveCount(0);
+});
+
 test('completed events start folded and can be opened and closed',async({page})=>{
  const card=title=>page.locator('.event-card-wrap').filter({hasText:title});
  const completed=page.locator('#event-completed'),summary=completed.locator('summary');
